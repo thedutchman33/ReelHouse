@@ -1,0 +1,30 @@
+name: CI
+
+# Verify every push and PR: typecheck, unit tests, and a production build.
+# The build runs with NO secrets, which exercises the app's graceful-degradation
+# path (mock catalog + localStorage) — a fresh clone must always build clean.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20" # Next.js 16 requires Node 20.9+
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run test
+      - run: npm run build

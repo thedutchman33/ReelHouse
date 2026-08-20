@@ -1,0 +1,22 @@
+Bundled demo video clips — attribution & license
+=================================================
+
+The video clip(s) in this folder are used ONLY to demonstrate the Reelhouse
+player end-to-end. They are freely-licensed (Creative Commons) works, bundled
+here and served from the app's own origin so playback works fully offline.
+
+big-buck-bunny.mp4
+  "Big Buck Bunny"
+  (c) copyright 2008, Blender Foundation — https://www.bigbuckbunny.org
+  Licensed under the Creative Commons Attribution 3.0 license.
+  https://creativecommons.org/licenses/by/3.0/
+
+sintel.mp4 (if present)
+  "Sintel"
+  (c) copyright 2010, Blender Foundation — https://www.sintel.org
+  Licensed under the Creative Commons Attribution 3.0 license.
+  https://creativecommons.org/licenses/by/3.0/
+
+No licensed/commercial titles are served. To go live with real content, wire an
+authorized provider in src/lib/providers.ts — never scrapers, unauthorized
+streams, or DRM-circumvention endpoints.

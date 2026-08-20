@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Reelhouse mock embed player</title>
+    <!--
+      MOCK EMBED PLAYER — test fixture, not a real provider.
+
+      Stands in for a future external video provider so the Reelhouse embed
+      surface can be tested with nothing connected. It deliberately behaves the
+      way an external provider is expected to:
+
+        • it supplies its OWN complete player UI (the browser's native controls,
+          including seek, volume, fullscreen, subtitles and picture-in-picture) —
+          Reelhouse renders none of that for embed providers;
+        • it is addressed purely by a URL carrying a media id (+ season/episode);
+        • it reports its state to the parent with postMessage.
+
+      It plays only the Creative-Commons clips already bundled in this repo, and
+      is served same-origin from /public/media (which the Next.js proxy matcher
+      already excludes), so it needs no route, no network and no CSP change.
+
+      Query parameters (this fixture's own contract):
+        type=movie|tv   id=<media id>   season=<n>   episode=<n>
+        fail=1          report a failure shortly after load, to exercise
+                        controlled automatic fallback and the error state.
+
+      Messages posted to the parent (this fixture's own contract — invented for
+      testing; no real provider is expected to match it). See the matching
+      adapter in src/lib/playback/adapters.ts:
+        { source: "reelhouse-mock-embed", type: "ready" }
+        { source: "reelhouse-mock-embed", type: "timeupdate",
+          currentTime: <s>, duration: <s> }
+        { source: "reelhouse-mock-embed", type: "ended" }
+        { source: "reelhouse-mock-embed", type: "error", message: "…" }
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #f4f4f5;
+        --muted: #a1a1aa;
+        --line: rgba(244, 244, 245, 0.14);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: #000;
+        color: var(--ink);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 6px 10px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .badge {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 9px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .context {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        background: #000;
+      }
+      .error {
+        max-width: 42ch;
+        text-align: center;
+        color: var(--muted);
+      }
+      .error strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--ink);
+      }
+      footer {
+        padding: 8px 14px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="badge">Mock provider</span>
+      <span class="context" id="context">Loading…</span>
+    </header>
+    <main id="stage"></main>
+    <footer id="note">
+      Test fixture — plays a bundled Creative-Commons clip. This player's
+      controls belong to the “provider”, not to Reelhouse.
+    </footer>
+
+    <script>
+      (function () {
+        "use strict";
+
+        var SOURCE = "reelhouse-mock-embed";
+        var CLIPS = [
+          {
+            url: "/media/big-buck-bunny.mp4",
+            title: "Big Buck Bunny (CC-BY, Blender Foundation)",
+          },
+          {
+            url: "/media/sintel.mp4",
+            title: "Sintel (CC-BY, Blender Foundation)",
+          },
+        ];
+
+        var params = new URLSearchParams(window.location.search);
+        var mediaType = params.get("type") === "tv" ? "tv" : "movie";
+        var id = params.get("id") || "";
+        var season = params.get("season") || "";
+        var episode = params.get("episode") || "";
+        var shouldFail = params.get("fail") === "1";
+
+        var stage = document.getElementById("stage");
+        var context = document.getElementById("context");
+
+        function post(payload) {
+          payload.source = SOURCE;
+          try {
+            // Same-origin fixture: address the parent by this page's own origin
+            // rather than "*", so the message cannot leak to another embedder.
+            window.parent.postMessage(payload, window.location.origin);
+          } catch (err) {
+            /* no parent (opened directly) — nothing to report to */
+          }
+        }
+
+        // Deterministic clip choice, so the same title always looks the same.
+        function pickClip() {
+          var seed = 0;
+          var key = id + ":" + season + ":" + episode;
+          for (var i = 0; i < key.length; i++) {
+            seed = (seed + key.charCodeAt(i)) % 997;
+          }
+          return CLIPS[seed % CLIPS.length];
+        }
+
+        context.textContent =
+          mediaType === "tv"
+            ? "TV · id " + id + " · S" + (season || "?") + "E" + (episode || "?")
+            : "Movie · id " + id;
+
+        if (shouldFail) {
+          var box = document.createElement("p");
+          box.className = "error";
+          box.innerHTML =
+            "<strong>Mock provider failure</strong>" +
+            "This fixture always fails, on purpose, to exercise Reelhouse's " +
+            "error state and controlled automatic fallback.";
+          stage.appendChild(box);
+          // Report through the documented channel, the way a provider with a
+          // reliable failure signal would.
+          window.setTimeout(function () {
+            post({ type: "error", message: "Mock provider failure (fail=1)" });
+          }, 400);
+          return;
+        }
+
+        var clip = pickClip();
+        var video = document.createElement("video");
+        video.controls = true;
+        video.preload = "metadata";
+        video.playsInline = true;
+        video.setAttribute("controlsList", "nodownload");
+        video.src = clip.url;
+
+        // The provider owns its own subtitle UI too.
+        var track = document.createElement("track");
+        track.kind = "subtitles";
+        track.label = "English";
+        track.srclang = "en";
+        track.src = "/media/subtitles/sample-en.vtt";
+        video.appendChild(track);
+
+        stage.appendChild(video);
+        document.getElementById("note").textContent =
+          "Test fixture — " + clip.title;
+
+        video.addEventListener("loadedmetadata", function () {
+          post({ type: "ready" });
+        });
+
+        // Throttle to about once a second; Reelhouse throttles its own writes too.
+        var lastSent = 0;
+        video.addEventListener("timeupdate", function () {
+          var now = Date.now();
+          if (now - lastSent < 1000) return;
+          lastSent = now;
+          if (!isFinite(video.duration) || video.duration <= 0) return;
+          post({
+            type: "timeupdate",
+            currentTime: video.currentTime,
+            duration: video.duration,
+          });
+        });
+
+        video.addEventListener("ended", function () {
+          post({ type: "ended" });
+        });
+
+        video.addEventListener("error", function () {
+          post({ type: "error", message: "Mock clip failed to load" });
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Reelhouse — warm film-house dark theme. Space-separated RGB triplets so
+     Tailwind's `<alpha-value>` color syntax works (see tailwind.config.ts). */
+  --rh-bg: 16 14 12;
+  --rh-surface: 26 22 19;
+  --rh-surface-2: 36 30 26;
+  --rh-border: 50 42 36;
+  --rh-text: 245 241 236;
+  --rh-muted: 168 155 143;
+  --rh-accent: 232 163 61;
+  --rh-accent-strong: 244 182 88;
+  --rh-accent-ink: 34 23 4;
+  --rh-danger: 229 100 90;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-text antialiased;
+    font-feature-settings: "ss01", "cv01";
+  }
+  ::selection {
+    background: rgb(var(--rh-accent) / 0.85);
+    color: rgb(var(--rh-accent-ink));
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+  }
+}
+
+@layer components {
+  .container-rh {
+    @apply mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10;
+  }
+
+  /* Horizontal media rows.
+     The vertical padding is load-bearing: cards lift (-translate-y) and glow on
+     hover, and `overflow-x: auto` also clips vertically — without room here the
+     top of every hovered card is sliced off. `-mx-1 px-1` keeps the first/last
+     card edge-aligned with .container-rh while giving the glow the same room. */
+  .row-scroll {
+    @apply -mx-1 flex gap-3 overflow-x-auto scroll-smooth px-1 pb-5 pt-3 sm:gap-4;
+    scroll-snap-type: x proximity;
+  }
+  .row-scroll > * {
+    scroll-snap-align: start;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-ink hover:bg-accent-strong;
+  }
+  .btn-ghost {
+    @apply btn border border-border bg-surface/70 text-text hover:border-accent/40 hover:bg-surface-2;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full border border-border bg-surface/60 px-3 py-1 text-xs font-medium text-muted;
+  }
+
+  /* ---- Shared surfaces -------------------------------------------------- */
+
+  /* Translucent "glass" surface: navbar, floating chrome. */
+  .glass {
+    @apply border-border/70 bg-bg/70 backdrop-blur-xl backdrop-saturate-150;
+  }
+
+  /* Popover / dropdown panel. */
+  .panel {
+    @apply overflow-hidden rounded-2xl border border-border bg-surface/95 shadow-2xl backdrop-blur-xl;
+  }
+  .panel-label {
+    @apply px-3 pb-1.5 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted;
+  }
+  .menu-item {
+    @apply flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-surface-2;
+  }
+  .menu-divider {
+    @apply my-1 h-px bg-border;
+  }
+
+  /* Input shell (search fields). */
+  .field {
+    @apply flex items-center gap-2.5 rounded-full border border-border bg-surface/70 px-4 transition;
+    @apply focus-within:border-accent/60 focus-within:bg-surface focus-within:ring-2 focus-within:ring-accent/20;
+  }
+
+  /* Selectable pill (filters, content-type switch). */
+  .pill {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface/60 px-3.5 py-1.5 text-sm font-medium text-muted transition hover:border-accent/40 hover:text-text;
+  }
+  .pill-active {
+    @apply border-accent/50 bg-accent/15 text-accent hover:text-accent;
+  }
+
+  /* Square icon button — same height as .field/.pill so rows align. */
+  .icon-btn {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-surface/70 text-muted transition hover:border-accent/40 hover:text-text;
+  }
+
+  /* Controls revealed by hovering their card/row: a poster's quick-add, a tile's
+     remove button, a row's scroll arrows.
+
+     `opacity: 0` hides an element but does NOT remove it from hit testing, so an
+     invisible control still answers taps aimed at whatever is underneath it. On a
+     touch device — where hover never happens and these never appear — the
+     top-right corner of every poster was silently swallowing taps meant for the
+     title, and the corner of every Continue Watching tile was firing its remove
+     button instead of resuming the episode.
+
+     So: inert while hidden. The player's own overlays already pair opacity with
+     pointer-events this way; this is the same rule, in one place, for the
+     card/row controls that share it. Nothing becomes unreachable on touch —
+     every one of these has an always-visible equivalent (a title's own Add to My
+     List, My List's Remove, and swiping a row instead of nudging it).
+
+     Both the anonymous `group` and MediaRow's named `group/row` are covered — the
+     row needs its own name because the cards inside it are groups too. */
+  .hover-reveal {
+    @apply pointer-events-none opacity-0 transition-opacity duration-300;
+  }
+  :is(.group, .group\/row):hover .hover-reveal,
+  :is(.group, .group\/row):focus-within .hover-reveal,
+  .hover-reveal:focus-within {
+    @apply pointer-events-auto opacity-100;
+  }
+
+  /* ---- Media artwork ---------------------------------------------------- */
+
+  /* Poster frame: fixed 2:3 (TMDB's poster ratio), so artwork is never cropped
+     vertically and every card in a row/grid is exactly the same shape. */
+  .poster-frame {
+    @apply relative aspect-[2/3] w-full overflow-hidden bg-surface-2;
+  }
+  /* Backdrop/still frame: fixed 16:9. */
+  .still-frame {
+    @apply relative aspect-video w-full overflow-hidden bg-surface-2;
+  }
+  /* Artwork inside either frame. Absolute so the frame's ratio — not the
+     image's intrinsic size — decides the box, and centered so a ratio mismatch
+     trims both edges evenly instead of slicing the top. */
+  .frame-img {
+    @apply absolute inset-0 h-full w-full object-cover object-center;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  /* Fade the bottom of hero/backdrops into the page background. */
+  .mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+  }
+}
