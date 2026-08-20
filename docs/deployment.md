@@ -19,6 +19,7 @@ a mock catalog with `localStorage`, no setup required. Keep real values in
 
 | Variable | Required for | Notes |
 | --- | --- | --- |
+| `SITE_URL` | **Correct auth redirects behind a proxy/CDN** | Server-only. The site's public origin, e.g. `https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`. **Required on AWS Amplify, Cloudflare, and any reverse proxy** — see §4.1. Leave unset locally. |
 | `TMDB_API_KEY` | Live metadata | Server-only. Blank → mock catalog. v3 key or v4 token. |
 | `TMDB_API_BASE` | TMDB host override | Optional; set `https://api.tmdb.org/3` if your ISP blocks the default. |
 | `TMDB_IMAGE_BASE` | TMDB image base | Optional; rarely changed. |
@@ -58,6 +59,65 @@ The data/auth/RLS layer is already provisioned and validated end-to-end (see
 4. Leave `SUPABASE_SERVICE_ROLE_KEY` unset unless a privileged server task needs it.
 
 With those blank, the app runs anonymously on `localStorage` (Phase 1 behavior).
+
+## 4.1 `SITE_URL` — required behind a proxy or CDN (AWS Amplify, Cloudflare, …)
+
+**Symptom if you skip this:** a password-reset link lands on `/auth/callback`, and
+the server redirects the visitor to `https://localhost:3000/…` instead of your
+domain. The reset flow works perfectly on `localhost` and only breaks in
+production.
+
+**Why.** A Route Handler cannot learn its public origin from `request.url`. Next
+builds that URL from the address the server process is *bound to*
+(`next/dist/server/next-server.js` → `attachRequestMeta`):
+
+```js
+initUrl = `${protocol}://${this.fetchHostname}:${this.port}${req.url}`
+```
+
+`fetchHostname`/`port` are the server's own listener, while `protocol` is read
+from `x-forwarded-proto`. On Amplify — CloudFront in front of a Node server in a
+Lambda listening on `localhost:3000` — those compose to `https://localhost:3000`.
+On a dev machine the same expression is right by coincidence, because there the
+server really *is* the public origin. Nothing about Supabase, the email template,
+or the redirect allow-list is involved.
+
+**Fix.** Set `SITE_URL` to the site's public origin, with no trailing path:
+
+```
+SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com
+```
+
+On **AWS Amplify**: Amplify console → your app → *Hosting* → **Environment
+variables** → add `SITE_URL` → **Redeploy** (env vars are read at build/start, so
+a redeploy is required). Amplify env vars can be scoped per branch, which is what
+you want when a preview branch has its own URL.
+
+`src/lib/site-url.ts` validates the value and falls back to the request origin
+when it is unset or unusable — so local development needs no `SITE_URL` at all,
+and a fresh clone still builds and runs. In production an unset value logs a
+one-time warning naming `SITE_URL` (no value, no secret).
+
+Rejected values (each falls back rather than being trusted):
+
+| Value | Why rejected |
+| --- | --- |
+| `reelhouse…amplifyapp.com` | not an absolute URL — needs a scheme |
+| `http://reelhouse…amplifyapp.com` | plaintext on a public host would silently downgrade production; `http://` is accepted only for loopback |
+| `https://reelhouse…amplifyapp.com@evil.example` | userinfo — reads as your host to a human, resolves to `evil.example` in a browser |
+| `javascript:…`, `data:…`, `//host` | not an http(s) origin |
+
+Any path, query, or fragment in the value is discarded — only the origin is kept.
+
+> **Why not derive the origin from `Host` / `X-Forwarded-Host`?** Those are
+> *request* headers, so unless the CDN is proven to strip them they are
+> visitor-controlled. `safeRedirectPath()` guards only the **path** of a redirect,
+> so an attacker-chosen **host** would sail past it and turn the mailed-link
+> callback into an open redirect — a phishing primitive on a password-reset
+> route. The origin therefore comes from configuration, which no request can
+> influence. (Next's `experimental.trustHostHeader` is not a fix either: it is
+> unreachable under `next start`, hardcodes `https://`, is undocumented, and
+> means "trust the Host header".)
 
 ## 5. Security headers & CSP
 

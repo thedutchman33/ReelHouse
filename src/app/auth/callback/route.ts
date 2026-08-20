@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { safeRedirectPath } from "@/lib/auth";
+import { buildRedirectUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
@@ -40,11 +41,15 @@ export async function GET(request: NextRequest) {
   // A dead link belongs back on the page that can mint a new one. Only a fixed
   // code travels in the URL — never Supabase's raw error text, never anything
   // the visitor typed.
+  //
+  // The base origin comes from `buildRedirectUrl`, not from `request.url`: in a
+  // Route Handler that URL carries the server's own bind address (localhost:3000
+  // inside an Amplify Lambda), not the public origin. See src/lib/site-url.ts.
   const failed = () => {
     const target = next.startsWith("/reset-password")
       ? "/forgot-password"
       : "/login";
-    const url = new URL(target, request.url);
+    const url = buildRedirectUrl(target, request);
     url.searchParams.set("error", "link_invalid");
     return NextResponse.redirect(url);
   };
@@ -71,5 +76,5 @@ export async function GET(request: NextRequest) {
     return failed();
   }
 
-  return NextResponse.redirect(new URL(next, request.url));
+  return NextResponse.redirect(buildRedirectUrl(next, request));
 }

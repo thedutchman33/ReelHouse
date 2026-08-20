@@ -25,7 +25,8 @@ This doc uses: **Phase 1** = front-end V1 · **Phase 2** = live TMDB metadata + 
 
 ## Current phase
 
-- **Just finished (awaiting approval):** **mobile interaction audit** (2026-08-20) — every interactive element in the app hit-tested and *tapped* under Android emulation in both orientations, after the reported "Search / Sign In / provider selector do nothing on my phone". Four causes found and fixed, the first of which explains the report: `next dev` was 403ing every client chunk for the LAN origin it prints, so the page rendered perfectly and never hydrated. Dedicated section below. **A real-device retest is still owed** — see that section.
+- **Just finished (awaiting approval):** **production auth-redirect origin fix** (2026-08-21) — password reset worked on `localhost` but the production `/auth/callback` answered `Location: https://localhost:3000/forgot-password?error=link_invalid`. Root cause is in how Next builds a Route Handler's absolute URL, not in the auth stack; the bug was reproduced locally and the fix verified against a real `next start`. Dedicated section below. **One AWS Amplify environment variable is required — see that section.**
+- **Previously (awaiting approval):** **mobile interaction audit** (2026-08-20) — every interactive element in the app hit-tested and *tapped* under Android emulation in both orientations, after the reported "Search / Sign In / provider selector do nothing on my phone". Four causes found and fixed, the first of which explains the report: `next dev` was 403ing every client chunk for the LAN origin it prints, so the page rendered perfectly and never hydrated. Dedicated section below. **A real-device retest is still owed** — see that section.
 - **Previously (awaiting approval):** **password reset / "Forgot password?"** (2026-08-20) — the Supabase recovery flow, wired into the existing auth stack: a link on the sign-in form, `/forgot-password`, `/reset-password`, and the project's first auth callback route. One auth client, one session mechanism, no custom token system. Dedicated section below. **Two Supabase dashboard settings are required before the emailed link can work — see that section.**
 - **Previously (code approved 2026-08-20; your live browser/Supabase verification was in progress):** **playback/history bugfix** — a title watched partway and then left behind never appeared in Watch History / Continue Watching. Root cause, the smallest correct fix, and 14 new regression tests are in the dedicated section below. No architecture, provider registry/manager, migration or RLS change.
 - **Previously:** **UI redesign — dark cinematic pass** (2026-08-20, user-approved). A full visual pass over every user-facing surface against a supplied dark-cinematic reference, plus the navigation/filtering features the brief called for (`/movies`, `/tv-shows`, `/browse` + a filter bar), a glass navbar with an account menu that never shows the address, a rewritten provider picker that lists **only** configured slots, and the removal of every demo/placeholder provider from both the UI and the plan. Dedicated section below.
@@ -167,6 +168,142 @@ Confirmed by driving the real player in jsdom rather than by inference — the s
 - **Not executed (needs a real browser):** the signed-in round trip against live Supabase (the client→`/api/history` leg is asserted with a stubbed `fetch`; the server leg's schema/RLS path was already validated in Phase 3), and progress writes from a real embed provider.
 
 **Observed, deliberately not changed (out of scope — no invented requirements):** the first-load resume gate `start > 5 && start < v.duration - 15` can never fire for the two bundled **10-second** sample clips, so a restored position is not visibly resumed with sample content; and `useLibraryActions()` was left as-is (it does not expose `markPlaybackStarted`, and nothing needs it to).
+
+## Production auth-redirect origin — `https://localhost:3000` on Amplify (2026-08-21)
+
+**Reported:** password reset works on `localhost:3000`, but in production
+(`https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`, AWS Amplify) the callback
+redirects to localhost. Reduced to a single server-side observation:
+
+```
+curl -I "https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com/auth/callback?next=/reset-password"
+HTTP/1.1 307 Temporary Redirect
+Location: https://localhost:3000/forgot-password?error=link_invalid
+```
+
+(`link_invalid` is correct there — that request carries no Supabase credential.
+The defect is the **origin** in a server-generated `Location`.)
+
+**Root cause — a Route Handler cannot learn its public origin from `request.url`.**
+Next builds that URL from the address the server process is *bound to*, not the
+address the visitor typed (`next/dist/server/next-server.js:1278-1280`,
+`attachRequestMeta`):
+
+```js
+const protocol = req.headers['x-forwarded-proto']?.includes('https') ? 'https' : 'http';
+const initUrl = this.fetchHostname && this.port
+  ? `${protocol}://${this.fetchHostname}:${this.port}${req.url}`   // ← this branch
+  : ...
+```
+
+`fetchHostname` is the server's own listener (`base-server.js:352`,
+`formatHostname(this.hostname)`); `protocol` comes from `x-forwarded-proto`. So
+the two halves have different sources, and on Amplify (CloudFront → a Node server
+in a Lambda listening on localhost:3000) they compose to `https://localhost:3000`
+— exactly the observed header. Two corroborating details: `NextURL`'s `parseURL`
+rewrites `127.0.0.1`/`::1` to the literal `localhost`, so a numeric bind still
+reads as localhost; and `base-server.js:609` *populates* `x-forwarded-host` with
+`??=` but never feeds it back into `initURL`. The newer route-handler path does
+the same thing (`route-modules/route-module.js:381`, falling back to
+`routerServerContext?.hostname || 'localhost'`).
+
+**Why localhost worked:** nothing in the auth code is localhost-specific. On a dev
+machine `fetchHostname:port` *is* `localhost:3000`, so the public origin and the
+bind address are the same string and a wrong-by-construction expression yields
+the right answer by coincidence. Amplify is the first environment where the two
+diverge.
+
+**Not the cause — ruled out, so nothing was changed:** the Supabase Site URL and
+redirect allow-list (the email and the browser's `/auth/v1/recover` call both
+carried the correct `redirect_to`); `safeRedirectPath()`; `exchangeCodeForSession`;
+`next.config.mjs` (no redirects block at all); `src/proxy.ts` (never touches
+`/auth/*`); and `ForgotPasswordForm`'s `redirectTo`, which uses
+`window.location.origin` and is genuinely correct because it runs in the browser.
+That client-vs-server split is the tell: the browser-derived origin was right and
+only the server-derived one was wrong.
+
+**The fix (smallest secure change, 1 new module + 3 call sites in 1 route)**
+
+- **`src/lib/site-url.ts`** (new, `server-only`) — `configuredSiteOrigin()`,
+  `resolvePublicOrigin(request)`, `buildRedirectUrl(path, request)`. The public
+  origin comes from a **validated server-only `SITE_URL`**, falling back to the
+  request origin when unset (correct on a dev machine, and preserves the blank-env
+  graceful-degradation invariant). `buildRedirectUrl` runs the path through the
+  existing `safeRedirectPath` allow-list, so it cannot emit an off-origin target
+  regardless of what a caller passes.
+- **`src/app/auth/callback/route.ts`** — the three `new URL(…, request.url)` uses
+  became `buildRedirectUrl(…, request)`. Nothing else changed: same two link
+  shapes (`?code=` / `?token_hash=`), same `exchangeCodeForSession`/`verifyOtp`
+  calls, same single request-scoped client from `@/lib/supabase/server`, same
+  fixed `error=link_invalid` code, same `/forgot-password` vs `/login` split.
+
+**Why configuration and not `Host`/`X-Forwarded-Host`.** Those are *request*
+headers, so unless the CDN is proven to strip them they are visitor-controlled —
+and `safeRedirectPath()` guards only the **path**, so an attacker-chosen **host**
+sails past it and turns the mailed-link callback into an open redirect (a real
+phishing primitive on a password-reset route). The origin therefore comes from
+configuration, which no request can influence. Next's
+`experimental.trustHostHeader` was also rejected: unreachable under `next start`
+(only evaluated when `fetchHostname && port` are falsy), it hardcodes `https://`,
+it is undocumented in the shipped docs, and it means "trust the Host header".
+
+**`SITE_URL` is server-only, deliberately.** No `NEXT_PUBLIC_` prefix, so nothing
+new is inlined into the client bundle and M5's `secret-hygiene.test.ts` allow-list
+(only the two `NEXT_PUBLIC_SUPABASE_*` tokens may appear in `src/`) stays intact
+and passing. The browser never needs it — it has `window.location.origin`.
+Validation rejects rather than trusts: non-absolute or non-http(s) values,
+userinfo (`https://real-host@evil.example`), and plaintext `http://` on a
+non-loopback host (which would silently downgrade production off HSTS/Secure
+cookies); only `.origin` is kept, so any path/query/fragment is discarded. An
+unset value in production logs a **one-time** warning naming `SITE_URL` — no
+value, no secret, and on a line with no `process.env` reference so the
+secret-hygiene scan stays green.
+
+**Verified**
+
+- `npx tsc --noEmit` → exit 0.
+- `npm run test` → exit 0, **151 tests across 13 files** (was 136/12; +15 in the
+  new `src/lib/__tests__/site-url.test.ts`), all green — including
+  `secret-hygiene` and the untouched `auth.test.ts`.
+- `npm run build` → clean (Compiled successfully, TypeScript passed, 13/13 static
+  pages, 21 routes with `ƒ /auth/callback` present, `ƒ Proxy (Middleware)`
+  unchanged).
+- **Live `next start` matrix, both configurations** (real HTTP, `Location` header
+  read off the wire; servers started via `node node_modules/next/dist/bin/next`
+  so the PID is the real process, and every port confirmed freed afterwards):
+  - **`SITE_URL` set** → every redirect lands on
+    `https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`: `next=/reset-password` →
+    `/forgot-password?error=link_invalid`; `next=/`, no `next`,
+    `next=https://evil.example/steal`, `next=//evil.example/steal`,
+    `next=/\evil.example/steal` → `/login?error=link_invalid`; status 307.
+  - **Spoofing attempts had no effect** — `Host: evil.example`,
+    `X-Forwarded-Host: evil.example`, and both together with
+    `X-Forwarded-Proto: https` still produced the configured origin. `evil.example`
+    never appeared in a `Location`.
+  - **`SITE_URL` unset** → falls back to the request origin
+    (`http://localhost:3213/…`), so local development is unchanged, and the
+    one-time production warning was emitted exactly once.
+  - **The production bug was reproduced locally**: with `SITE_URL` unset and only
+    `X-Forwarded-Proto: https` sent, the server answered
+    `https://localhost:3213/forgot-password?error=link_invalid` — the same
+    protocol-from-header/host-from-bind-address composition seen on Amplify,
+    which the configured path eliminates.
+- **Not executed (needs a real inbox + a deploy):** the end-to-end happy path on
+  Amplify — receive the mail, redeem the link into a recovery session, save a new
+  password. The success branch shares `buildRedirectUrl` with the failure branch
+  verified above, so the origin is the same code path either way.
+
+**Deployment action required:** add `SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`
+in the Amplify console (Hosting → Environment variables) and redeploy. **No
+Supabase change is needed** — the Site URL and redirect allow-list were already
+correct. Full write-up: `docs/deployment.md` §4.1.
+
+**Out of scope, untouched:** the Supabase browser/server client separation,
+`safeRedirectPath`, `src/proxy.ts`, `next.config.mjs`, all migrations and RLS,
+playback, the provider registry/manager, and the library store. The other
+`new URL(request.url)` uses in `src/app/api/*` read `searchParams` only, where a
+wrong host is irrelevant, and `src/proxy.ts`'s rewrite is same-origin by
+construction — both deliberately left alone.
 
 ## Password reset — "Forgot password?" (2026-08-20)
 
@@ -340,7 +477,8 @@ touched — the investigation traced none of the four causes there.
 
 ## What remains unfinished
 
-- **Password reset needs two Supabase dashboard settings + a live run-through, both yours:** add `<origin>/auth/callback` to the **Redirect URLs** allow-list (dev and production), optionally switch the recovery email template to the `token_hash` form for cross-device links, then walk the flow once with a real inbox. Details and the exact template string are in the password-reset section above.
+- **`SITE_URL` must be set in the AWS Amplify console, yours:** the auth-redirect-origin fix is verified locally in both states (set and unset) against a real `next start`, but production reads the value from Amplify's own environment — Amplify console → your app → *Hosting* → **Environment variables** → `SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com` → **Redeploy** (env vars are read at build/start). Until then production keeps redirecting to `https://localhost:3000`. No Supabase change is involved. Details in the auth-redirect-origin section above; `docs/deployment.md` §4.1 has the console walkthrough.
+- **Password reset needs two Supabase dashboard settings + a live run-through, both yours:** add `<origin>/auth/callback` to the **Redirect URLs** allow-list (dev and production), optionally switch the recovery email template to the `token_hash` form for cross-device links, then walk the flow once with a real inbox — on production, after `SITE_URL` is set, since that end-to-end run is the one thing a local harness can't stand in for. Details and the exact template string are in the password-reset section above.
 - **Browser-UX slice of Phase 3, for you to confirm:** the backend data/auth/RLS layer is validated by direct API calls, but the in-app flows I can't drive headless remain for you — the Navbar "Sign in" control, in-app sign-up/in via `LoginForm`, the one-time `localStorage`→server migration + owner-marker bleed protection, and sign-out→local-mode. Runbook: `docs/phase-3.md` §5–§6.
 - **Real-device mobile retest, yours:** the mobile-audit fixes are verified by real touch events under Android emulation against the production build, but the reported symptom was origin-dependent, so the phone itself has the final word. Retest list is in the mobile-audit section above — restart `npm run dev`, open the printed `Network:` URL on the phone, and walk it in both orientations.
 - **Real playback provider:** still gated, and nothing is connected — playback runs on Reelhouse's own built-in surface with the bundled Creative-Commons clip. The *architecture* is ready — five empty slots, manager, picker, embed surface, fallback, provider-independent progress (section above), activated by `.env.local` per `docs/video-provider-setup.md` — but no provider is connected, and none will be until you supply a genuinely licensed one with its own official documentation. An adapter (for documented progress/failure events) and a CSP `frame-src` entry (when the policy is enforced) are the only code changes an activation should ever need.
@@ -388,6 +526,7 @@ Secrets are **server-only** unless prefixed `NEXT_PUBLIC_`. Every feature is off
 
 | Variable | Purpose | Notes |
 | --- | --- | --- |
+| `SITE_URL` | Public origin for server-generated redirects | Server-only. **Required behind a proxy/CDN (AWS Amplify).** Absolute http(s) origin, no path. Blank → falls back to the request origin (correct locally). See `docs/deployment.md` §4.1. |
 | `TMDB_API_KEY` | Live TMDB metadata | Server-only. Blank → mock catalog. v3 key or v4 token. |
 | `TMDB_IMAGE_BASE` | TMDB image base URL | Optional; rarely changed. |
 | `TMDB_API_BASE` | TMDB API host override | Optional; set to `https://api.tmdb.org/3` if your ISP blocks the default. |
