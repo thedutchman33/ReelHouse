@@ -6,7 +6,7 @@ import LibrarySync from "@/components/auth/LibrarySync";
 import { getUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("http://localhost:3000"),
+  metadataBase: new URL("https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com/"),
   title: {
     default: "Reelhouse — Stream films & series",
     template: "%s · Reelhouse",
