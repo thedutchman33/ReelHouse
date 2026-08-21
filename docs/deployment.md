@@ -19,7 +19,7 @@ a mock catalog with `localStorage`, no setup required. Keep real values in
 
 | Variable | Required for | Notes |
 | --- | --- | --- |
-| `SITE_URL` | **Correct auth redirects behind a proxy/CDN** | Server-only. The site's public origin, e.g. `https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`. **Required on AWS Amplify, Cloudflare, and any reverse proxy** — see §4.1. Leave unset locally. |
+| `SITE_URL` | **Correct auth redirects behind a proxy/CDN** | Server-only. The site's public origin, e.g. `https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`. **Required on AWS Amplify, Cloudflare, and any reverse proxy.** On Amplify it takes **two** steps — the console variable **and** an entry in `amplify.yml`'s allow-list. The console variable alone reaches the build but **not** the running server; see §4.1. Leave unset locally. |
 | `TMDB_API_KEY` | Live metadata | Server-only. Blank → mock catalog. v3 key or v4 token. |
 | `TMDB_API_BASE` | TMDB host override | Optional; set `https://api.tmdb.org/3` if your ISP blocks the default. |
 | `TMDB_IMAGE_BASE` | TMDB image base | Optional; rarely changed. |
@@ -88,10 +88,60 @@ or the redirect allow-list is involved.
 SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com
 ```
 
-On **AWS Amplify**: Amplify console → your app → *Hosting* → **Environment
-variables** → add `SITE_URL` → **Redeploy** (env vars are read at build/start, so
-a redeploy is required). Amplify env vars can be scoped per branch, which is what
-you want when a preview branch has its own URL.
+### On AWS Amplify this takes TWO steps, not one
+
+Setting the console variable alone is **not sufficient** — it reaches the build but
+never the running server. Both of these are required:
+
+**(a) The variable must exist in the Amplify environment.** Amplify console → your
+app → *Hosting* → **Environment variables** → add `SITE_URL`. Amplify env vars can
+be scoped per branch, which is what you want when a preview branch has its own URL.
+
+**(b) The variable must be named in the repository's `amplify.yml` allow-list**, so
+the build writes it into `.env.production` for Next.js to load at server start:
+
+```yaml
+- env | grep -e SITE_URL -e TMDB_API_KEY -e TMDB_API_BASE -e NEXT_PUBLIC_ -e OPENSUBTITLES_ -e VIDEO_PROVIDER_ >> .env.production
+```
+
+Step (b) is the one that is easy to miss, and skipping it fails **silently**: the
+build succeeds, the console shows the variable, and production still redirects to
+`https://localhost:3000`. That is because Amplify's `WEB_COMPUTE` platform withholds
+console environment variables from the Next.js server *deliberately*:
+
+> "a Next.js server component doesn't have access to those environment variables by
+> default. This behavior is intentional to protect any secrets stored in environment
+> variables that your application uses during the build phase."
+> — [Making environment variables accessible to server-side runtimes](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-environment-variables.html)
+
+So console variables are **build-time only**, and the `env | grep … >> .env.production`
+line is the *only* channel into the request-time environment. A variable not named
+there does not exist as far as the running server is concerned.
+
+`amplify.yml` lives in the repository root on purpose — Amplify applies console
+build settings "to all of your branches **unless there is an `amplify.yml` file
+stored in your repository**", so the repo file wins and this runtime requirement
+stays under version control instead of living only in console state.
+
+**Then redeploy**, since the build is what produces `.env.production`.
+
+**Verify it actually arrived.** After the deploy, absence of the warning is the
+signal:
+
+```bash
+aws logs filter-log-events --log-group-name /aws/amplify/<app-id> \
+  --filter-pattern '"SITE_URL is not set"'
+```
+
+`src/lib/site-url.ts` emits that warning once per compute instance when the variable
+is missing — the name only, never the value. No matches means the server sees it.
+Confirm the user-visible behavior directly with:
+
+```bash
+curl -I "https://<your-domain>/auth/callback?next=/reset-password"
+# Location must be https://<your-domain>/forgot-password?error=link_invalid
+# `link_invalid` is expected (no valid code is present) — the ORIGIN is the subject.
+```
 
 `src/lib/site-url.ts` validates the value and falls back to the request origin
 when it is unset or unusable — so local development needs no `SITE_URL` at all,
@@ -182,6 +232,9 @@ if the caching cost is acceptable.
 - [ ] `npx tsc --noEmit` → exit 0
 - [ ] `npm run test` → all green
 - [ ] `npm run build` → clean
+- [ ] Every env var the **server** reads is in **both** places: the Amplify
+      environment **and** `amplify.yml`'s `.env.production` allow-list (§4.1).
+      Missing the second fails silently at runtime.
 - [ ] Prod smoke (`npm run start`): `/`, `/search`, `/login`, `/my-list` → 200;
       `/movie/<numeric>` → 200; `/movie/<non-numeric>` → 404; `/api/watchlist`
       → 401 when signed out

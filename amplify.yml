@@ -1,0 +1,45 @@
+# AWS Amplify Hosting build specification.
+#
+# Version-controlled on purpose: an amplify.yml at the repo root takes precedence
+# over the build spec stored on the Amplify app, so this file — not console state
+# — is the source of truth for how production is built.
+#
+# THE grep BELOW IS THE ONLY CHANNEL FROM AMPLIFY'S ENVIRONMENT VARIABLES TO THE
+# SERVER RUNTIME. On the WEB_COMPUTE platform, variables set in the Amplify
+# console are available during the BUILD ONLY; Next.js server code cannot read
+# them. AWS does this deliberately — "a Next.js server component doesn't have
+# access to those environment variables by default. This behavior is intentional
+# to protect any secrets stored in environment variables that your application
+# uses during the build phase."
+# (docs.aws.amazon.com/amplify/latest/userguide/ssr-environment-variables.html)
+#
+# A variable reaches process.env at request time only if it is named here, which
+# writes it into .env.production for Next.js to load at server start.
+#
+# So adding a variable in the Amplify console is NOT enough — add it here too, or
+# the running server will never see it. That exact gap is why password-reset links
+# redirected to https://localhost:3000 in production: SITE_URL was set in the
+# console but missing from this list, so /auth/callback fell back to the server's
+# own bind address. See docs/deployment.md §4.1.
+#
+# Everything named here is readable by anyone with access to the deployment
+# artifacts, so list only what the server genuinely needs at request time.
+
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci --cache .npm --prefer-offline
+    build:
+      commands:
+        - env | grep -e SITE_URL -e TMDB_API_KEY -e TMDB_API_BASE -e NEXT_PUBLIC_ -e OPENSUBTITLES_ -e VIDEO_PROVIDER_ >> .env.production
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*
+      - .npm/**/*

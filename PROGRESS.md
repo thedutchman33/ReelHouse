@@ -293,10 +293,23 @@ secret-hygiene scan stays green.
   password. The success branch shares `buildRedirectUrl` with the failure branch
   verified above, so the origin is the same code path either way.
 
-**Deployment action required:** add `SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`
-in the Amplify console (Hosting → Environment variables) and redeploy. **No
-Supabase change is needed** — the Site URL and redirect allow-list were already
-correct. Full write-up: `docs/deployment.md` §4.1.
+**Deployment action required — TWO steps on Amplify, not one.** Setting the console
+variable alone is **not sufficient**: it reaches the build but never the running
+server. Both are required:
+
+1. `SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com` in the Amplify
+   environment (Hosting → Environment variables).
+2. `SITE_URL` named in the repository's `amplify.yml` allow-list, so the build writes
+   it into `.env.production` for Next.js to load at server start.
+
+Amplify's `WEB_COMPUTE` platform withholds console env vars from the Next.js server
+deliberately — AWS: "a Next.js server component doesn't have access to those
+environment variables by default. This behavior is intentional to protect any secrets
+stored in environment variables that your application uses during the build phase."
+The `env | grep … >> .env.production` line in `amplify.yml` is the *only* channel to
+the request-time environment. **This was learned the hard way** — see the follow-up
+section below. **No Supabase change is needed** — the Site URL and redirect allow-list
+were already correct. Full write-up: `docs/deployment.md` §4.1.
 
 **Out of scope, untouched:** the Supabase browser/server client separation,
 `safeRedirectPath`, `src/proxy.ts`, `next.config.mjs`, all migrations and RLS,
@@ -304,6 +317,73 @@ playback, the provider registry/manager, and the library store. The other
 `new URL(request.url)` uses in `src/app/api/*` read `searchParams` only, where a
 wrong host is irrelevant, and `src/proxy.ts`'s rewrite is same-origin by
 construction — both deliberately left alone.
+
+## Follow-up: the fix above shipped but never engaged — Amplify SSR env vars (2026-08-21)
+
+**Symptom.** Commit `4fc9900` deployed (Amplify Job 6, SUCCEED), `SITE_URL` added to
+the Amplify console, and production *still* answered:
+
+```
+Location: https://localhost:3000/forgot-password?error=link_invalid
+```
+
+**Root cause: a deployment-pipeline gap, not a code defect.** The code took its
+fallback path, exactly as designed for an environment with no `SITE_URL` — because
+the running server genuinely had none.
+
+Amplify's `WEB_COMPUTE` platform does **not** expose console environment variables to
+the Next.js server. AWS, verbatim: *"a Next.js server component doesn't have access to
+those environment variables by default. This behavior is intentional to protect any
+secrets stored in environment variables that your application uses during the build
+phase."* The only channel to the request-time environment is naming a variable in the
+build spec's `env | grep … >> .env.production` line, which Next.js then loads at
+server start.
+
+The app's build spec (stored on the Amplify app; the repo had no `amplify.yml`) read:
+
+```
+env | grep -e TMDB_API_KEY -e TMDB_API_BASE -e NEXT_PUBLIC_ -e OPENSUBTITLES_ -e VIDEO_PROVIDER_ >> .env.production
+```
+
+`SITE_URL` matches none of those five patterns, so it was never written to
+`.env.production`, never shipped in the artifact, and never existed in the compute
+runtime. Every variable the app reads at runtime was in that list; the newly added one
+was not.
+
+**Evidence gathered (env vars queried by name only — `keys(@)` — never by value):**
+
+- `app.platform` = `WEB_COMPUTE`; `SITE_URL` present in `app.environmentVariables`.
+- Branch `main`, stage `PRODUCTION`, framework `Next.js - SSR`,
+  `environmentVariables: []` → no branch-level override shadowing the app-level value,
+  so branch scoping was **not** the problem and it *was* present at build time.
+- Job 6 = commit `4fc9900cc345bd0768848c5d6f0454f26e3539d5` → the fix was genuinely
+  deployed.
+- **CloudWatch `/aws/amplify/d14f2cs6k7jhfn` contained the one-time warning**
+  `[auth] SITE_URL is not set: …` — which only the new code can emit. That single line
+  proves both that the fix was live *and* that its runtime lacked the variable, without
+  logging any value. It appears once per compute instance, since the guard is
+  per-process.
+
+**Fix (no application code changed).** `amplify.yml` added at the repo root — a
+faithful copy of the console spec with `SITE_URL` added to the allow-list, one changed
+line out of eighteen. Version-controlled deliberately: Amplify applies console settings
+"to all of your branches **unless there is an `amplify.yml` file stored in your
+repository**", so the repo file wins and the runtime requirement can no longer drift
+into console-only state. The file carries a header comment explaining that this grep is
+the sole channel to the server runtime — the knowledge whose absence caused the bug.
+
+Also corrected in the same pass: `docs/deployment.md` §4.1 and this file both used to
+say the console variable was the fix, which would have walked the next reader into the
+same failure. `.env.production` was added to `.gitignore` — Amplify generates it in an
+ephemeral build container, but a developer running that build command locally would
+otherwise produce an untracked, unignored file containing the TMDB and OpenSubtitles
+credentials. Kept surgical rather than a broad `.env*` rule, which would have stopped
+tracking `.env.local.example`.
+
+**Lesson worth keeping:** on Amplify `WEB_COMPUTE`, adding an environment variable in
+the console is only half of the change. A server-read variable needs an `amplify.yml`
+allow-list entry too, and omitting it fails *silently* — the build succeeds and the
+console shows the variable set.
 
 ## Password reset — "Forgot password?" (2026-08-20)
 
@@ -477,7 +557,7 @@ touched — the investigation traced none of the four causes there.
 
 ## What remains unfinished
 
-- **`SITE_URL` must be set in the AWS Amplify console, yours:** the auth-redirect-origin fix is verified locally in both states (set and unset) against a real `next start`, but production reads the value from Amplify's own environment — Amplify console → your app → *Hosting* → **Environment variables** → `SITE_URL=https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com` → **Redeploy** (env vars are read at build/start). Until then production keeps redirecting to `https://localhost:3000`. No Supabase change is involved. Details in the auth-redirect-origin section above; `docs/deployment.md` §4.1 has the console walkthrough.
+- **`SITE_URL` needs a redeploy to take effect, yours:** step (a) is done — the variable is in the Amplify environment; step (b) is now in the repo — `SITE_URL` is in `amplify.yml`'s `.env.production` allow-list. What remains is committing/pushing that file so Amplify rebuilds, since only a build produces `.env.production`. Until then production keeps redirecting to `https://localhost:3000`. Verify afterwards with `aws logs filter-log-events --log-group-name /aws/amplify/<app-id> --filter-pattern '"SITE_URL is not set"'` (no matches = the server sees it) plus `curl -I` on `/auth/callback?next=/reset-password`. No Supabase change is involved. Details in the Amplify-SSR follow-up section above; `docs/deployment.md` §4.1 has the walkthrough.
 - **Password reset needs two Supabase dashboard settings + a live run-through, both yours:** add `<origin>/auth/callback` to the **Redirect URLs** allow-list (dev and production), optionally switch the recovery email template to the `token_hash` form for cross-device links, then walk the flow once with a real inbox — on production, after `SITE_URL` is set, since that end-to-end run is the one thing a local harness can't stand in for. Details and the exact template string are in the password-reset section above.
 - **Browser-UX slice of Phase 3, for you to confirm:** the backend data/auth/RLS layer is validated by direct API calls, but the in-app flows I can't drive headless remain for you — the Navbar "Sign in" control, in-app sign-up/in via `LoginForm`, the one-time `localStorage`→server migration + owner-marker bleed protection, and sign-out→local-mode. Runbook: `docs/phase-3.md` §5–§6.
 - **Real-device mobile retest, yours:** the mobile-audit fixes are verified by real touch events under Android emulation against the production build, but the reported symptom was origin-dependent, so the phone itself has the final word. Retest list is in the mobile-audit section above — restart `npm run dev`, open the printed `Network:` URL on the phone, and walk it in both orientations.
@@ -526,7 +606,7 @@ Secrets are **server-only** unless prefixed `NEXT_PUBLIC_`. Every feature is off
 
 | Variable | Purpose | Notes |
 | --- | --- | --- |
-| `SITE_URL` | Public origin for server-generated redirects | Server-only. **Required behind a proxy/CDN (AWS Amplify).** Absolute http(s) origin, no path. Blank → falls back to the request origin (correct locally). See `docs/deployment.md` §4.1. |
+| `SITE_URL` | Public origin for server-generated redirects | Server-only. **Required behind a proxy/CDN (AWS Amplify).** Absolute http(s) origin, no path. Blank → falls back to the request origin (correct locally). **On Amplify it must be in BOTH the Amplify environment AND `amplify.yml`'s `.env.production` allow-list** — the console variable alone never reaches the server. See `docs/deployment.md` §4.1. |
 | `TMDB_API_KEY` | Live TMDB metadata | Server-only. Blank → mock catalog. v3 key or v4 token. |
 | `TMDB_IMAGE_BASE` | TMDB image base URL | Optional; rarely changed. |
 | `TMDB_API_BASE` | TMDB API host override | Optional; set to `https://api.tmdb.org/3` if your ISP blocks the default. |
