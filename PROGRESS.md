@@ -1,6 +1,6 @@
 # Reelhouse — Project Progress Checkpoint
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-08-22_
 
 A session handoff snapshot. This is documentation only — it changes no application behavior.
 
@@ -724,7 +724,7 @@ could type any address and learn from a single request whether it had a Reelhous
 account. That is the exact property `ForgotPasswordForm` was built to deny, one
 screen away.
 
-### Fixed (commit `3c827a2`)
+### Fixed (commit `5ac713b`)
 
 - **`src/lib/auth.ts`** — new pure `signUpErrorMessage(error)` (+26 lines). A 429
   returns the reset screen's existing wording verbatim ("Too many requests. Wait
@@ -774,9 +774,11 @@ never opened for editing.
   `reset-password`, `forgot-password`, or any `VIDEO_PROVIDER_*` file.
   `safeRedirectPath()`, `SITE_URL` handling, RLS, session handling and the
   database schema are all unmodified.
-- Committed as `3c827a2` and pushed to `origin/main`; local `main` and
+- Committed as `5ac713b` and pushed to `origin/main`; local `main` and
   `origin/main` verified at the same SHA after a fresh fetch (0 ahead / 0 behind,
-  clean tree).
+  clean tree). (Originally recorded as `3c827a2`; a later history rewrite made
+  that SHA unreachable from `main`, and the reference was corrected in the final
+  completion pass. The content of the fix is unchanged.)
 
 **Diff-reading note:** `git diff` renders `src/lib/__tests__/auth.test.ts` as
 `Binary files … differ`. That is pre-existing, not introduced here — the file
@@ -814,8 +816,9 @@ way — it is what holds the flow safe if the setting is ever turned back off.
   sign-in and sign-up **[done]** · confirm-password field on sign-up **[done]** ·
   persistent password-rule text + `aria-invalid`/`aria-describedby` **[done]** ·
   `/reset-password` accepts **any** session as a recovery session with no
-  reauthentication **[P1-5, open]** · a completed reset does not revoke other
-  sessions **[P1-6, open]** · sign-up has no URL, and `<h1>Welcome back</h1>` /
+  reauthentication **[P1-5, fixed in the final completion pass]** · a completed
+  reset does not revoke other sessions **[P1-6, disproved — GoTrue already does
+  this; see the final completion pass]** · sign-up has no URL, and `<h1>Welcome back</h1>` /
   title `"Sign in"` stay wrong in sign-up mode **[done]**.
 - **P2 (9):** `if (busy) return` guards · `autoFocus` on the sign-in email field ·
   `name` attributes + remounting the password input on mode switch ·
@@ -960,17 +963,173 @@ recorded in the helper's doc comment.
 - **Subtitles:** `src/lib/opensubtitles.ts` (`server-only`) — search (API key only) + download (login → bearer token → `/download` → fetch signed link → WebVTT). Client wraps returned VTT text in a Blob URL and loads it via the existing `uploadedTracks` path.
 - **Library:** watchlist / history / continue-watching — **Supabase-backed when configured** (RLS-scoped, with the one-time `localStorage`→server migration), falling back to `localStorage` (synced across tabs) otherwise.
 
+## Final completion pass (2026-08-22)
+
+Approved as a closing audit → implement → verify pass. Four code/doc items (A1
+Layer 2, A3, A4, A5) plus two security findings settled empirically against the
+live project. Everything else from the audit was explicitly deferred by the owner
+(B1–B10, all C items, Phase 3b providers).
+
+### P1-5 — `/reset-password` no longer unlocks on *any* session
+
+**The defect.** The form gated on `data.session` being present. Every signed-in
+visitor has one, so the screen was a change-my-password form for whoever was
+holding a signed-in browser — a shared machine, a left-open laptop — with no
+knowledge of the old password required. Worse in combination with P1-6 below:
+that password change then evicted the real owner from every other device.
+
+**The fix — a recovery marker (`src/lib/auth.ts`).** `/auth/callback` sets
+`rh-recovery=1` — HttpOnly, `SameSite=Lax`, `Secure` in production,
+`Path=/reset-password`, 15-minute max-age — but only *after* it has already
+redeemed a one-time emailed credential, i.e. past every `failed()` return.
+`/reset-password/page.tsx` reads it server-side (it is HttpOnly precisely so page
+scripts can't mint it) and passes `recoveryVerified` to the form, which now
+requires **marker AND session**, defaulting to `false` so a caller that forgets
+the prop gets the closed gate. `isRecoveryCallback(type, next)` recognises both
+link shapes: `type=recovery` outright, and the PKCE `?code=` variant by its
+destination — matched as a *path*, so `/reset-password-decoy` doesn't qualify.
+
+**What this does NOT do, stated plainly.** Supabase's password endpoint is a
+public API. Anyone holding a stolen **access token** can call GoTrue's
+`PUT /auth/v1/user` directly and never touch this page, so the marker is
+defence in depth for the realistic same-browser case, not the boundary. The
+control that actually closes it is server-side and is an **owner action** — see
+"What remains unfinished".
+
+**Verified live (2026-08-22).** An ordinary password-session against the hosted
+project changed its own password with no `current_password` and got **HTTP 200**,
+so `security_update_password_require_current_password` is currently **OFF** and
+the server-side half is genuinely not in place yet. The UI gate is in; the
+project setting is not.
+
+**Stage machine and UI unchanged.** Same four stages, same copy, same
+Show/Hide, same `passwordRuleError`. The `onAuthStateChange` tolerance for a
+session the browser client restores a tick late is preserved — it just now
+requires the marker too — and a bare `PASSWORD_RECOVERY` event is still honoured
+on its own for a link that reaches the client directly.
+
+### P1-6 — not a defect; GoTrue already does this
+
+Traced in GoTrue **v2.195.0** (the version the hosted project reports at
+`/auth/v1/health`) rather than assumed. `internal/models/user.go`'s
+`User.UpdatePassword(tx, sessionID)` ends unconditionally in a logout:
+`Logout(tx, u.ID)` when `sessionID` is nil, otherwise
+`LogoutAllExceptMe(tx, *sessionID, u.ID)`. `internal/api/user.go` derives
+`sessionID` from `getSession(ctx)` inside the `params.Password != nil` branch, so
+a reset performed on a recovery session revokes **every other session** and keeps
+the acting device — which is exactly what the page's copy ("You'll stay signed in
+on this device") already promised.
+
+**Empirically confirmed** against the live project with one throwaway account and
+two independent sessions: after the password change, session B's refresh token
+returned **400 `refresh_token_not_found`** while session A's returned **200**.
+
+**No code was added.** A client-side `signOut({ scope: 'others' })` would be a
+redundant network call, with its own failure mode to handle, for behaviour GoTrue
+performs atomically in the same transaction. P1-6 is closed as *already
+satisfied*, on evidence.
+
+### A5 — the unauthenticated subtitle endpoints are rate limited
+
+`/api/subtitles/search` and `/api/subtitles/download` are unauthenticated GETs
+that spend the server's OpenSubtitles API key and the account's **daily download
+quota** — a third party's terms, not just our uptime. New dependency-free
+`src/lib/rate-limit.ts`: fixed-window per-key counting, clock injected as a
+parameter so it is deterministic under Vitest without fake timers, with a
+10,000-key cap that sweeps expired entries and then fails *open* rather than
+locking real visitors out. Search 30/min, download 10/min, both returning the
+route's existing `{ status: "error", code: "rate_limited", message }` shape with
+`429` + `Retry-After`. **No client change was needed** — `SubtitleSearch`
+already renders any unrecognised `status` through its generic message branch.
+
+The key comes from the **last** `x-forwarded-for` hop, not the first: CloudFront
+appends the address it observed, so reading from the right removes the one-line
+bypass of sending your own `X-Forwarded-For:` header. Unattributable requests
+collapse onto a single `"unknown"` bucket — counted, not waved through.
+
+**Honest scope, as required:** single-instance and best-effort. Counters live in
+one Node process, Amplify can run several concurrently and each keeps its own
+map, and cold starts reset them — so the effective ceiling is
+(limit × instances). It raises the cost of casual abuse (a stuck retry loop, a
+scraper, a `while true` curl); it is not a distributed limiter and not a
+substitute for auth or a WAF. `REDIS_URL` remains the documented scale-out path.
+
+### A4 — third-party reference screenshots untracked
+
+Five `docs/cineby-player-reference/*.jpeg` files were tracked in a **public**
+repository while this project's own rule says no unauthorised embed aggregator
+will be "connected, referenced, or modelled on". `git rm --cached` plus a
+`.gitignore` rule: 0 tracked, 5 local copies kept, ignore rule verified with
+`git check-ignore -v`. **History was not rewritten**, so those blobs remain
+fetchable at their existing commits — removing them from history was explicitly
+out of scope.
+
+### A3 — this file's accuracy
+
+Two defects corrected: the "What remains unfinished" entry claiming `SITE_URL`
+still needed a redeploy (production has been verified serving the public origin —
+`/auth/callback?next=/reset-password` → 307 to the Amplify origin, not
+`localhost:3000`), and three references to commit `3c827a2`, which the later
+history rewrite made unreachable from `main`. The live commit is `5ac713b`.
+
+### Verification of this pass (2026-08-22)
+
+**Gates.** `npx tsc --noEmit` → exit 0. `npx vitest run` → **14 files, 196 tests,
+all green** (173 → 196, i.e. +23: 17 in the new `rate-limit` suite, 5 for
+`isRecoveryCallback`, 1 for the marker constants). `npm run build` → exit 0, all
+21 routes plus `Proxy (Middleware)` present and unchanged. `/reset-password` is
+now server-rendered on demand rather than prerendered, which is the expected
+consequence of reading `cookies()` in it.
+
+**A5 verified at runtime**, against `next start` on the production build:
+
+- Search: 30 requests admitted, then `429` with
+  `{"code":"rate_limited"}`, `Retry-After: 51`, `Cache-Control: no-store`.
+- Download: 10 admitted, 11th and 12th blocked as `rate_limited`.
+- A second `x-forwarded-for` key was admitted immediately → per-key buckets.
+- The same key's *search* still returned `200` while its *download* window was
+  exhausted → the two routes count separately.
+- The pre-existing `{"status":"quota"}` 429 and the new
+  `{"code":"rate_limited"}` 429 both appeared in the same run and stayed
+  distinguishable, which is the point of keeping the codes separate. (The live
+  OpenSubtitles account's daily quota is in fact currently exhausted — unrelated
+  to this change, and precisely the resource A5 exists to protect.)
+
+**A1 verified at runtime:**
+
+- `/auth/callback?code=totally-invalid` → `307` to
+  `/forgot-password?error=link_invalid` with **no** `rh-recovery` `Set-Cookie`:
+  the marker is never minted on a failed redemption.
+- `/reset-password` with no marker → `recoveryVerified: false`; with
+  `rh-recovery=1` → `true`; with `rh-recovery=yes` → `false`. Only the exact
+  value counts.
+- The full positive path (real emailed link → redeemed → form unlocks) still
+  needs a real inbox and is listed under "What remains unfinished" — no
+  service-role key is configured here, so no recovery link can be minted
+  without one.
+
+**Note for anyone diffing `src/lib/__tests__/auth.test.ts`:** it contains a
+literal NUL byte, on purpose — a `safeRedirectPath("/reset\0password")` case
+proving a control character in `next=` is rejected. Git therefore classifies the
+file as binary; use `git diff --text` to read its history. Pre-existing, not
+introduced by this pass.
+
+**Commits.** `069e02c` (A1 marker + tests), `1110fda` (A5 limiter + tests),
+`ae31a96` (A4 untracking), and this documentation commit. Source and
+documentation were kept separate, and no history was rewritten.
+
 ## What remains unfinished
 
-- **`SITE_URL` needs a redeploy to take effect, yours:** step (a) is done — the variable is in the Amplify environment; step (b) is now in the repo — `SITE_URL` is in `amplify.yml`'s `.env.production` allow-list. What remains is committing/pushing that file so Amplify rebuilds, since only a build produces `.env.production`. Until then production keeps redirecting to `https://localhost:3000`. Verify afterwards with `aws logs filter-log-events --log-group-name /aws/amplify/<app-id> --filter-pattern '"SITE_URL is not set"'` (no matches = the server sees it) plus `curl -I` on `/auth/callback?next=/reset-password`. No Supabase change is involved. Details in the Amplify-SSR follow-up section above; `docs/deployment.md` §4.1 has the walkthrough.
-- **Password reset needs two Supabase dashboard settings + a live run-through, both yours:** add `<origin>/auth/callback` to the **Redirect URLs** allow-list (dev and production), optionally switch the recovery email template to the `token_hash` form for cross-device links, then walk the flow once with a real inbox — on production, after `SITE_URL` is set, since that end-to-end run is the one thing a local harness can't stand in for. Details and the exact template string are in the password-reset section above.
+- **Enable `security_update_password_require_current_password` on the Supabase project, yours — this is the server-side half of P1-5.** With it on, GoTrue demands the current password for a password change from any session that is *not* a recovery session, and exempts genuine recovery sessions via `session.IsRecovery()` — so the forgot-password flow keeps working while a stolen or left-open ordinary session can no longer change the password. Verified safe for this app: `updateUser` is called in exactly **one** place (`ResetPasswordForm.tsx`), there is no signed-in "change my password" screen anywhere, so nothing in Reelhouse can hit the new requirement. Note it is **independent of** the separate 24-hour "recently signed in" window that governs the reauthentication/nonce path — that one lets a *fresh* stolen session through, which is why it is not the control to rely on. Confirmed **OFF** as of 2026-08-22 by an empirical probe (ordinary session changed its own password with no `current_password`, HTTP 200). Until this is on, P1-5 is mitigated in the UI only.
+- **Delete the throwaway verification account, yours:** `reelhouse-p16-verify@example.com` in Authentication → Users. Created for the P1-6 session-revocation test; all its sessions were revoked and its password rotated to an unrecorded random value afterwards, but the project has no service-role key configured here, so the admin delete endpoint was not available and the row still exists. It owns no content beyond whatever the `on_auth_user_created` trigger inserted.
+- **Password reset needs two Supabase dashboard settings + a live run-through, both yours:** add `<origin>/auth/callback` to the **Redirect URLs** allow-list (dev and production), optionally switch the recovery email template to the `token_hash` form for cross-device links, then walk the flow once with a real inbox — on production, since that end-to-end run is the one thing a local harness can't stand in for. Details and the exact template string are in the password-reset section above.
 - **Browser-UX slice of Phase 3, for you to confirm:** the backend data/auth/RLS layer is validated by direct API calls, but the in-app flows I can't drive headless remain for you — the Navbar "Sign in" control, in-app sign-up/in via `LoginForm`, the one-time `localStorage`→server migration + owner-marker bleed protection, and sign-out→local-mode. Runbook: `docs/phase-3.md` §5–§6.
 - **Real-device mobile retest, yours:** the mobile-audit fixes are verified by real touch events under Android emulation against the production build, but the reported symptom was origin-dependent, so the phone itself has the final word. Retest list is in the mobile-audit section above — restart `npm run dev`, open the printed `Network:` URL on the phone, and walk it in both orientations.
 - **Real playback provider:** still gated, and nothing is connected — playback runs on Reelhouse's own built-in surface with the bundled Creative-Commons clip. The *architecture* is ready — five empty slots, manager, picker, embed surface, fallback, provider-independent progress (section above), activated by `.env.local` per `docs/video-provider-setup.md` — but no provider is connected, and none will be until you supply a genuinely licensed one with its own official documentation. An adapter (for documented progress/failure events) and a CSP `frame-src` entry (when the policy is enforced) are the only code changes an activation should ever need.
 
 ## Known issues
 
-- **Sign-up is not fully indistinguishable while `mailer_autoconfirm: true`.** The explicit enumeration leak is fixed (`3c827a2`, section above): every non-429 sign-up failure now reads identically and never states that an address is registered. But with email confirmation **off**, a genuinely new address is signed in and navigated to `/` while a known address stays on the form with an error — an *inference*, indistinguishable from a network failure, yet still observable. Closing it at the source means turning **Confirm email** ON in the Supabase dashboard (yours to do; also makes the currently-dead `"Account created. Check your email…"` branch reachable for the first time, and means an unconfirmed visitor who then tries to sign in gets the generic credential message rather than inbox guidance — see the trade-off in the approved P1 batch section).
+- **Sign-up is not fully indistinguishable while `mailer_autoconfirm: true`.** The explicit enumeration leak is fixed (`5ac713b`, section above): every non-429 sign-up failure now reads identically and never states that an address is registered. But with email confirmation **off**, a genuinely new address is signed in and navigated to `/` while a known address stays on the form with an error — an *inference*, indistinguishable from a network failure, yet still observable. Closing it at the source means turning **Confirm email** ON in the Supabase dashboard (yours to do; also makes the currently-dead `"Account created. Check your email…"` branch reachable for the first time, and means an unconfirmed visitor who then tries to sign in gets the generic credential message rather than inbox guidance — see the trade-off in the approved P1 batch section).
 - **`/watch/*` leaves the page beneath it in the tab order.** The playback surface is `fixed inset-0 z-50` over the site rather than its own route group, so 14–17 site-chrome controls stay focusable behind the player — a focus-order and screen-reader defect on desktop as much as on touch. Found by the mobile audit; not fixed there because the correct fix is route-group restructuring, not `tabindex` patching.
 - **Small touch targets:** 9–15 controls per route (measured per profile) present a target under 24px — mostly icon-only chrome and inline text links. Nothing is unreachable; they are simply below the comfortable minimum.
 - **`PlayerSettings` tab strip uses plain `<button>`s** without `role="tab"`/`aria-selected`, so the panel's tabs are announced as ordinary buttons.
