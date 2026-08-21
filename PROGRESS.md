@@ -25,7 +25,8 @@ This doc uses: **Phase 1** = front-end V1 · **Phase 2** = live TMDB metadata + 
 
 ## Current phase
 
-- **Just finished (awaiting approval):** **Step 8 — application optimization** (2026-08-21) — an audit of the live app's performance surface (12 findings, P0/P1/P2), then the one batch you approved: **P0 Batch 1 only, five items** — `cache()` on `liveDetail`, a three-slide Hero window, lazy `placeholderArt()` + the missing test coverage, a 15-minute Data Cache on the OpenSubtitles **search** call only, and a ~1 Hz throttle on the player's time readout. Six files changed, 154 tests green, clean build. Dedicated section below, including one audit finding that proved false (no code changed for it) and everything deliberately deferred. **Released to `origin/main` 2026-08-21; P1/P2 not started.**
+- **Just finished:** **auth UI/UX audit + the P0 fix** (2026-08-21) — a read-only pre-P1 audit of Sign In / Sign Up / Forgot Password / Reset Password across six areas (**17 findings: 1 P0, 7 P1, 9 P2**, plus 15 "already good, do not change" items), then the one item you approved: **P0-1 only — sign-up account enumeration.** The sign-up branch was echoing Supabase's raw `"User already registered"`, which with the live `mailer_autoconfirm: true` setting turned the form into an enumeration oracle. Three files changed (+30 / −2), 158 tests green, clean build, **committed and pushed as `3c827a2`**. Dedicated section below, including the residual `mailer_autoconfirm` limitation (needs a Supabase dashboard change — yours) and the full P1/P2 backlog. **P1/P2 not started.**
+- **Previously (released 2026-08-21):** **Step 8 — application optimization** (2026-08-21) — an audit of the live app's performance surface (12 findings, P0/P1/P2), then the one batch you approved: **P0 Batch 1 only, five items** — `cache()` on `liveDetail`, a three-slide Hero window, lazy `placeholderArt()` + the missing test coverage, a 15-minute Data Cache on the OpenSubtitles **search** call only, and a ~1 Hz throttle on the player's time readout. Six files changed, 154 tests green, clean build. Dedicated section below, including one audit finding that proved false (no code changed for it) and everything deliberately deferred. **Released to `origin/main` 2026-08-21; P1/P2 not started.**
 - **Previously (awaiting approval):** **production auth-redirect origin fix** (2026-08-21) — password reset worked on `localhost` but the production `/auth/callback` answered `Location: https://localhost:3000/forgot-password?error=link_invalid`. Root cause is in how Next builds a Route Handler's absolute URL, not in the auth stack; the bug was reproduced locally and the fix verified against a real `next start`. Dedicated section below. **One AWS Amplify environment variable is required — see that section.**
 - **Previously (awaiting approval):** **mobile interaction audit** (2026-08-20) — every interactive element in the app hit-tested and *tapped* under Android emulation in both orientations, after the reported "Search / Sign In / provider selector do nothing on my phone". Four causes found and fixed, the first of which explains the report: `next dev` was 403ing every client chunk for the LAN origin it prints, so the page rendered perfectly and never hydrated. Dedicated section below. **A real-device retest is still owed** — see that section.
 - **Previously (awaiting approval):** **password reset / "Forgot password?"** (2026-08-20) — the Supabase recovery flow, wired into the existing auth stack: a link on the sign-in form, `/forgot-password`, `/reset-password`, and the project's first auth callback route. One auth client, one session mechanism, no custom token system. Dedicated section below. **Two Supabase dashboard settings are required before the emailed link can work — see that section.**
@@ -700,6 +701,135 @@ Supabase / RLS / `SITE_URL` / proxy / security-header / `VIDEO_PROVIDER_*` file
 appears in the diff, and no secret-like literal, new `process.env` read or new
 `console.*` call in any added line.
 
+## Auth UI/UX audit → P0-1 fix: sign-up account enumeration (2026-08-21)
+
+A read-only pre-P1 audit of the four auth screens (Sign In, Sign Up, Forgot
+Password, Reset Password) across six areas — sign-in UX, sign-up UX, password
+recovery, auth security, visual/product quality, performance. **17 findings:
+1 P0, 7 P1, 9 P2**, plus an explicit "already good, do not change" list of 15
+items. No code was changed during the audit. Only the single P0 was then approved
+and implemented; **every P1 and P2 item is untouched.**
+
+### The P0 — what was wrong
+
+`src/components/auth/LoginForm.tsx` handed Supabase's raw `error.message` to the
+user on the sign-up path. Supabase's answer to a signup on an address that
+already has an account depends on `mailer_autoconfirm`: with email confirmation
+**on**, GoTrue returns an obfuscated fake user and no error; with it **off**, it
+returns a real `422 user_already_exists` / `"User already registered"`. The live
+project reports `mailer_autoconfirm: true` (confirmation **off**) — read from the
+project's public `/auth/v1/settings` endpoint, so no account was created and no
+setting was changed — so that message was reaching the form verbatim. Anyone
+could type any address and learn from a single request whether it had a Reelhouse
+account. That is the exact property `ForgotPasswordForm` was built to deny, one
+screen away.
+
+### Fixed (commit `3c827a2`)
+
+- **`src/lib/auth.ts`** — new pure `signUpErrorMessage(error)` (+26 lines). A 429
+  returns the reset screen's existing wording verbatim ("Too many requests. Wait
+  a minute, then try again."); **everything else collapses onto one neutral
+  sentence** — deliberately *without* inspecting the error for "already
+  registered", because a branch that recognised that case would be a
+  distinguishable message again, which is the leak itself. The conditional
+  phrasing ("If you already have a Reelhouse account, sign in instead.") points a
+  returning user at the right screen without the server having confirmed
+  anything, the same construction the reset screen's success panel uses. Takes a
+  structural `{ status?: number | null }`, not Supabase's `AuthError`, so the
+  module stays dependency-free as its own header requires.
+- **`src/components/auth/LoginForm.tsx`** — the sign-up error branch calls the
+  mapper instead of `setError(error.message)` (+3 / −1, import included).
+- **`src/lib/__tests__/auth.test.ts`** — 4 new tests (+43 / −1). They assert the
+  security property, not the copy: an already-registered payload and a transport
+  failure must map to the **same string**; no output may contain the Supabase
+  message or match `/already registered|user_already_exists/i`; 429 keeps the
+  reset screen's wording; `{}` / `null` / `undefined` all fall back identically.
+
+The mapper lives in `src/lib/auth.ts` because that module's own header defines it
+as the home for the pure helpers these screens share, and because the Vitest
+config is `environment: "node"` and scoped to pure-function suites — a mapper
+embedded in the `"use client"` component would have needed a jsdom + `useRouter` +
+`getBrowserSupabase` harness, far wider than this fix.
+
+**Unchanged:** the `signUp` call itself, the `data.session` branch, the
+confirmation-notice branch, both `router.push`/`router.refresh` calls, and the
+**sign-in** error path (still `error.message` — that is P1-2, not approved). No
+authentication semantics changed: the same request is made and the same account
+state results; only the rendered string differs. `ForgotPasswordForm.tsx` was
+never opened for editing.
+
+### Verified
+
+- `npx tsc --noEmit` → exit 0.
+- `npx vitest run` → **13 files, 158 tests, all green** (`auth.test.ts` 8 → 12).
+- `npm run build` → exit 0 (21 routes, `ƒ Proxy (Middleware)` present).
+- `git status --porcelain` → **exactly three files**, no untracked files;
+  `git diff --stat` → **+30 / −2**.
+- **Security sweep of the added lines:** no secret-like literal, no new
+  `process.env` read, no `console.*`. A grep of `LoginForm.tsx` confirms
+  `error.message` survives **only** on the sign-in branch.
+- **Forbidden areas untouched:** no match in the diff for `supabase/migrations`,
+  `supabase/{client,server,config,middleware}`, `proxy.ts`, `site-url`,
+  `next.config`, `auth/callback`, `ForgotPasswordForm`, `ResetPasswordForm`,
+  `reset-password`, `forgot-password`, or any `VIDEO_PROVIDER_*` file.
+  `safeRedirectPath()`, `SITE_URL` handling, RLS, session handling and the
+  database schema are all unmodified.
+- Committed as `3c827a2` and pushed to `origin/main`; local `main` and
+  `origin/main` verified at the same SHA after a fresh fetch (0 ahead / 0 behind,
+  clean tree).
+
+**Diff-reading note:** `git diff` renders `src/lib/__tests__/auth.test.ts` as
+`Binary files … differ`. That is pre-existing, not introduced here — the file
+holds one literal NUL byte inside the untouched `safeRedirectPath` suite
+(`safeRedirectPath("/reset\0password")`, a control-character hostile input), and
+the HEAD blob has the same single NUL at the same test. Read that file's diff
+with `git diff --text`.
+
+### Remaining limitation — `mailer_autoconfirm`
+
+The fix removes the *explicit* leak: the form no longer states that an address is
+registered, and every non-429 failure reads identically. **It cannot reach full
+indistinguishability while `mailer_autoconfirm: true`**, because a genuinely new
+address receives a session and navigates to `/`, whereas a known address stays on
+the form with an error. That residual difference is an *inference* from "signup
+did not complete" rather than a statement, and it now looks exactly like a
+network failure, but it is still observable.
+
+Closing it at the source means turning **Confirm email** ON in the Supabase
+dashboard, which makes GoTrue itself return the obfuscated response. That is a
+**configuration change, yours to make** — it was explicitly out of scope here, and
+nothing about the Supabase project was altered. Two consequences to know before
+flipping it: new sign-ups would no longer be signed in immediately, and
+`LoginForm.tsx`'s `setNotice("Account created. Check your email to confirm…")`
+branch would become reachable **for the first time** (it is dead code today), so
+it needs a live run-through. The client-side mapping above is worth keeping either
+way — it is what holds the flow safe if the setting is ever turned back off.
+
+### Not done — the rest of the audit (needs separate approval)
+
+- **P1 (7):** map sign-in errors / 429 + the latent "Email not confirmed"
+  enumeration channel · password-visibility toggle on sign-in and sign-up ·
+  confirm-password field on sign-up · persistent password-rule text +
+  `aria-invalid`/`aria-describedby` · `/reset-password` accepts **any** session as
+  a recovery session with no reauthentication · a completed reset does not revoke
+  other sessions · sign-up has no URL, and `<h1>Welcome back</h1>` / title
+  `"Sign in"` stay wrong in sign-up mode.
+- **P2 (9):** `if (busy) return` guards · `autoFocus` on the sign-in email field ·
+  `name` attributes + remounting the password input on mode switch ·
+  `role="status"` on the sign-up notice · `/login` ignoring `?error=link_invalid`
+  from the callback · the unvalidated `as EmailOtpType` cast in `/auth/callback` ·
+  the `"checking"` → form height shift on `/reset-password` · the input class
+  string duplicated 4× across 3 files (already extracted as `inputClass` in
+  `ResetPasswordForm`) · supabase-js in the app-wide shell (already tracked as a
+  Step 8 P1/P2 item).
+- **The two session-security items (P1-5, P1-6) change authentication semantics**
+  and touch the just-fixed production recovery flow, so they must be approved and
+  tested on their own rather than bundled — and P1-6 needs the Supabase-side
+  password-change revocation behavior confirmed before any code is written.
+- Auth-page bundle size is **not** a finding: `/login` 737 887 B,
+  `/forgot-password` 737 491 B and `/reset-password` 738 827 B first-load JS are
+  the three lightest real routes, ~3–4 KB of own code over the shared shell.
+
 ## What has been implemented
 
 - **Pages:** `/`, `/browse`, `/movies`, `/tv-shows`, `/movie/[id]`, `/tv/[id]`, `/search`, `/my-list`, `/login`, `/forgot-password`, `/reset-password`, `/watch/[type]/[id]`.
@@ -720,6 +850,7 @@ appears in the diff, and no secret-like literal, new `process.env` read or new
 
 ## Known issues
 
+- **Sign-up is not fully indistinguishable while `mailer_autoconfirm: true`.** The explicit enumeration leak is fixed (`3c827a2`, section above): every non-429 sign-up failure now reads identically and never states that an address is registered. But with email confirmation **off**, a genuinely new address is signed in and navigated to `/` while a known address stays on the form with an error — an *inference*, indistinguishable from a network failure, yet still observable. Closing it at the source means turning **Confirm email** ON in the Supabase dashboard (yours to do; also makes the currently-dead `"Account created. Check your email…"` branch reachable for the first time).
 - **`/watch/*` leaves the page beneath it in the tab order.** The playback surface is `fixed inset-0 z-50` over the site rather than its own route group, so 14–17 site-chrome controls stay focusable behind the player — a focus-order and screen-reader defect on desktop as much as on touch. Found by the mobile audit; not fixed there because the correct fix is route-group restructuring, not `tabindex` patching.
 - **Small touch targets:** 9–15 controls per route (measured per profile) present a target under 24px — mostly icon-only chrome and inline text links. Nothing is unreachable; they are simply below the comfortable minimum.
 - **`PlayerSettings` tab strip uses plain `<button>`s** without `role="tab"`/`aria-selected`, so the panel's tabs are announced as ordinary buttons.
