@@ -195,3 +195,75 @@ export function safeRedirectPath(
   if (hasControlChars(raw)) return fallback;
   return raw;
 }
+
+// ---------------------------------------------------------------------------
+// Recovery marker
+//
+// /reset-password used to unlock on the presence of *any* session, which made
+// it a password-change screen for whoever happened to be holding a signed-in
+// browser — no old password required. The marker below is how the page tells a
+// session that came from a redeemed recovery link apart from an ordinary
+// signed-in session.
+//
+// What it is: a non-secret flag cookie, set by /auth/callback only after a
+// one-time emailed credential has actually been redeemed, read server-side by
+// /reset-password. HttpOnly, so page scripts can't mint it; SameSite=Lax, so it
+// doesn't ride along on cross-site requests; short-lived.
+//
+// What it is NOT — and this matters, because the honest scope is narrower than
+// it looks: this is a check in *our UI*. Supabase's password endpoint is a
+// public API, so anyone holding a stolen **access token** can change the
+// password by calling GoTrue directly and never touch this page. The control
+// that actually closes that is server-side —
+// `security_update_password_require_current_password` on the Supabase project,
+// which makes GoTrue demand the current password for any session that isn't a
+// recovery session. This cookie closes the realistic same-browser case (a
+// shared or left-open machine); it is defence in depth, not the boundary.
+// ---------------------------------------------------------------------------
+
+/** Name of the recovery marker cookie. Shared so the writer and reader agree. */
+export const RECOVERY_COOKIE = "rh-recovery";
+
+/** The only value treated as a valid marker. Carries no information. */
+export const RECOVERY_COOKIE_VALUE = "1";
+
+/**
+ * Marker lifetime, in seconds.
+ *
+ * Long enough to type a password twice without the gate closing mid-form, short
+ * enough that a browser left unattended after a genuine reset doesn't stay
+ * unlocked. The page's "expired" panel already offers a fresh link, so the
+ * failure mode when this does elapse is a graceful one.
+ */
+export const RECOVERY_COOKIE_MAX_AGE = 15 * 60;
+
+/** The reset screen's path, in one place. */
+const RESET_PASSWORD_PATH = "/reset-password";
+
+/**
+ * Whether an /auth/callback request that redeemed a credential should be
+ * treated as a password recovery.
+ *
+ * Two shapes have to be recognised, because which one arrives depends on the
+ * project's email template:
+ *
+ *   `type=recovery`  — the `{{ .TokenHash }}` variant says so outright.
+ *   `next`           — the PKCE `?code=` variant carries no type, so the
+ *                      destination is the signal. Sound because /auth/callback
+ *                      only reaches its success path after redeeming a valid
+ *                      one-time emailed credential, and the sole mail Reelhouse
+ *                      sends aimed at /reset-password is the recovery mail. An
+ *                      attacker holding an ordinary session cannot mint one.
+ *
+ * `next` is matched as a path, not a prefix, so `/reset-password-decoy` and
+ * `/reset-passwordium` don't qualify.
+ */
+export function isRecoveryCallback(
+  type: string | null | undefined,
+  next: string
+): boolean {
+  if (type?.trim().toLowerCase() === "recovery") return true;
+  if (!next.startsWith(RESET_PASSWORD_PATH)) return false;
+  const rest = next.slice(RESET_PASSWORD_PATH.length);
+  return rest === "" || rest.startsWith("?") || rest.startsWith("/");
+}

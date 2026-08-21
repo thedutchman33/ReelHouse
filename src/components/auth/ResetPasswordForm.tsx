@@ -14,12 +14,28 @@ import { getBrowserSupabase } from "@/lib/supabase/client";
 // and `updateUser` is all that's needed — no custom token system, nothing kept in
 // localStorage, and the password never leaves this form except in that one
 // request body.
+//
+// A session alone is NOT the test though: every signed-in visitor has one, so
+// gating on it turned this into a change-my-password screen for anyone holding a
+// left-open browser. `recoveryVerified` comes from the HttpOnly marker
+// /auth/callback sets only after redeeming a real emailed credential — see
+// src/lib/auth.ts, including why this is defence in depth rather than the
+// boundary.
 type Stage = "checking" | "ready" | "expired" | "done";
 
 const inputClass =
   "rounded-xl border border-border bg-surface/80 px-3.5 py-2.5 text-text outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
 
-export default function ResetPasswordForm() {
+export default function ResetPasswordForm({
+  recoveryVerified = false,
+}: {
+  /**
+   * Whether the server saw a valid recovery marker for this request. Defaults to
+   * false so a caller that forgets to pass it gets the closed gate, not the open
+   * one.
+   */
+  recoveryVerified?: boolean;
+}) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("checking");
   const [password, setPassword] = useState("");
@@ -28,9 +44,12 @@ export default function ResetPasswordForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Confirm the recovery session actually arrived. onAuthStateChange covers the
-  // case where the browser client is still restoring it a tick later (and the
-  // PASSWORD_RECOVERY event, should a link ever reach the client directly).
+  // Two things have to hold: the recovery marker (this really is a reset), and a
+  // session (there's something to update). onAuthStateChange keeps the original
+  // tolerance for a session the browser client is still restoring a tick later,
+  // and still honours PASSWORD_RECOVERY on its own, should a link ever reach the
+  // client directly with no server round trip to set the marker. Neither branch
+  // can un-set `ready` once it holds, so their order doesn't matter.
   useEffect(() => {
     const supabase = getBrowserSupabase();
     if (!supabase) {
@@ -42,12 +61,19 @@ export default function ResetPasswordForm() {
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       setStage((current) =>
-        current === "done" ? current : data.session ? "ready" : "expired"
+        current === "done" || current === "ready"
+          ? current
+          : recoveryVerified && data.session
+            ? "ready"
+            : "expired"
       );
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active || !session) return;
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event !== "PASSWORD_RECOVERY" && !(recoveryVerified && session)) {
+        return;
+      }
       setStage((current) => (current === "done" ? current : "ready"));
     });
 
@@ -55,7 +81,7 @@ export default function ResetPasswordForm() {
       active = false;
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [recoveryVerified]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

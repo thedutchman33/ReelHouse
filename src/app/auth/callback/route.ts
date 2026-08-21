@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { safeRedirectPath } from "@/lib/auth";
+import {
+  isRecoveryCallback,
+  RECOVERY_COOKIE,
+  RECOVERY_COOKIE_MAX_AGE,
+  RECOVERY_COOKIE_VALUE,
+  safeRedirectPath,
+} from "@/lib/auth";
 import { buildRedirectUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 
@@ -76,5 +82,25 @@ export async function GET(request: NextRequest) {
     return failed();
   }
 
-  return NextResponse.redirect(buildRedirectUrl(next, request));
+  const response = NextResponse.redirect(buildRedirectUrl(next, request));
+
+  // Only now — past every `failed()` return, so a credential was genuinely
+  // redeemed — mark this as a recovery so /reset-password can tell it apart from
+  // an ordinary signed-in session. Carries no secret and authorises nothing on
+  // its own: the session cookie is still what lets the password change through.
+  // Scoped to the one path that reads it. See src/lib/auth.ts for why the UI
+  // gate is defence in depth rather than the actual boundary.
+  if (isRecoveryCallback(type, next)) {
+    response.cookies.set({
+      name: RECOVERY_COOKIE,
+      value: RECOVERY_COOKIE_VALUE,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/reset-password",
+      maxAge: RECOVERY_COOKIE_MAX_AGE,
+    });
+  }
+
+  return response;
 }
