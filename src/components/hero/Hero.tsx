@@ -16,12 +16,26 @@ import type { MediaSummary } from "@/types";
 // first screen, and it is capped so the backdrop is not stretched on very tall
 // desktop windows.
 export default function Hero({ items }: { items: MediaSummary[] }) {
-  const [active, setActive] = useState(0);
+  // `prev` is the slide that is currently fading OUT. It has to stay mounted for
+  // the duration of the crossfade, so it is tracked alongside `active` in one
+  // state object — both always change together, and the updaters stay pure.
+  const [{ active, prev }, setSlide] = useState<{ active: number; prev: number | null }>({
+    active: 0,
+    prev: null,
+  });
+  // Set once the viewer uses the dots. Jumping to a non-adjacent slide would
+  // otherwise mount it at full opacity (a freshly mounted node has no previous
+  // opacity to transition from, so it would pop in instead of fading), so from
+  // the first manual interaction every slide is mounted exactly as before.
+  const [allMounted, setAllMounted] = useState(false);
   const count = items.length;
 
   useEffect(() => {
     if (count <= 1) return;
-    const id = window.setInterval(() => setActive((a) => (a + 1) % count), 7000);
+    const id = window.setInterval(
+      () => setSlide((s) => ({ active: (s.active + 1) % count, prev: s.active })),
+      7000
+    );
     return () => window.clearInterval(id);
   }, [count]);
 
@@ -30,27 +44,38 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
   const rating = formatRating(current.rating);
   const year = yearOf(current.releaseDate);
 
+  // Only the outgoing, the current and the incoming slide need to exist. The
+  // stack sits inside the viewport, so `loading="lazy"` defers nothing for the
+  // others — they were five w1280 backdrops fetched on every home page load to
+  // show one. The incoming slide is mounted a full rotation (7s) ahead of
+  // becoming active, so it is decoded well before it is shown.
+  const incoming = count > 1 ? (active + 1) % count : active;
+  const isMounted = (i: number) =>
+    allMounted || i === active || i === incoming || i === prev;
+
   return (
     <section className="relative">
       <div className="relative h-[68svh] min-h-[460px] w-full overflow-hidden sm:h-[64svh] sm:max-h-[780px]">
-        {items.map((item, i) => (
-          <div
-            key={item.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${i === active ? "opacity-100" : "opacity-0"}`}
-            aria-hidden={i !== active}
-          >
-            <PosterImage
-              src={item.backdropUrl}
-              title={item.title}
-              type={item.type}
-              variant="backdrop"
-              priority={i === 0}
-              // A 16:9 backdrop in a much wider frame has to lose height
-              // somewhere; biasing above centre keeps faces and titles in shot.
-              className="h-full w-full object-cover object-[50%_32%]"
-            />
-          </div>
-        ))}
+        {items.map((item, i) =>
+          isMounted(i) ? (
+            <div
+              key={item.id}
+              className={`absolute inset-0 transition-opacity duration-1000 ${i === active ? "opacity-100" : "opacity-0"}`}
+              aria-hidden={i !== active}
+            >
+              <PosterImage
+                src={item.backdropUrl}
+                title={item.title}
+                type={item.type}
+                variant="backdrop"
+                priority={i === 0}
+                // A 16:9 backdrop in a much wider frame has to lose height
+                // somewhere; biasing above centre keeps faces and titles in shot.
+                className="h-full w-full object-cover object-[50%_32%]"
+              />
+            </div>
+          ) : null
+        )}
 
         {/* Legibility scrims: vertical fade into the page, plus a left-side wash
             under the copy. Kept subtle enough to leave the artwork readable. */}
@@ -116,7 +141,14 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
             <button
               key={item.id}
               type="button"
-              onClick={() => setActive(i)}
+              // Pointer-down and focus both land before activation, so every
+              // slide is mounted (and fading normally) by the time the jump
+              // itself happens.
+              onPointerDown={() => setAllMounted(true)}
+              onFocus={() => setAllMounted(true)}
+              onClick={() =>
+                setSlide((s) => (s.active === i ? s : { active: i, prev: s.active }))
+              }
               aria-label={`Show ${item.title}`}
               aria-current={i === active}
               className="group grid h-6 place-items-center px-1"

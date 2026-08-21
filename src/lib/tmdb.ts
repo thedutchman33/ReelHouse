@@ -229,7 +229,15 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
   return rows.filter((r) => r.items.length > 0);
 });
 
-async function liveDetail(type: MediaType, tmdbId: number): Promise<Media | null> {
+// Wrapped in React's per-request cache(), keyed on (type, tmdbId), for the same
+// reason as liveHomeRows above: every detail-ish route calls getMediaDetail()
+// twice per request — once in generateMetadata and once in the page body
+// (movie/[id], tv/[id], watch/[type]/[id]). Next's fetch memoization already
+// collapsed the duplicate HTTP calls, but the JSON parse and the whole transform
+// below still ran twice; for a series that means re-mapping every episode of up
+// to eight seasons a second time. Per-request only — nothing is shared between
+// requests or users.
+const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media | null> => {
   const data = await tmdb(`/${type}/${tmdbId}`, {
     append_to_response: "credits,recommendations",
   });
@@ -287,7 +295,7 @@ async function liveDetail(type: MediaType, tmdbId: number): Promise<Media | null
     recommendations,
     seasons,
   };
-}
+});
 
 async function liveSearch(query: string): Promise<MediaSummary[]> {
   const data = await tmdb("/search/multi", { query, include_adult: "false" }, 60 * 5);

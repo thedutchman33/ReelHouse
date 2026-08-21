@@ -25,7 +25,8 @@ This doc uses: **Phase 1** = front-end V1 · **Phase 2** = live TMDB metadata + 
 
 ## Current phase
 
-- **Just finished (awaiting approval):** **production auth-redirect origin fix** (2026-08-21) — password reset worked on `localhost` but the production `/auth/callback` answered `Location: https://localhost:3000/forgot-password?error=link_invalid`. Root cause is in how Next builds a Route Handler's absolute URL, not in the auth stack; the bug was reproduced locally and the fix verified against a real `next start`. Dedicated section below. **One AWS Amplify environment variable is required — see that section.**
+- **Just finished (awaiting approval):** **Step 8 — application optimization** (2026-08-21) — an audit of the live app's performance surface (12 findings, P0/P1/P2), then the one batch you approved: **P0 Batch 1 only, five items** — `cache()` on `liveDetail`, a three-slide Hero window, lazy `placeholderArt()` + the missing test coverage, a 15-minute Data Cache on the OpenSubtitles **search** call only, and a ~1 Hz throttle on the player's time readout. Six files changed, 154 tests green, clean build. Dedicated section below, including one audit finding that proved false (no code changed for it) and everything deliberately deferred. **Released to `origin/main` 2026-08-21; P1/P2 not started.**
+- **Previously (awaiting approval):** **production auth-redirect origin fix** (2026-08-21) — password reset worked on `localhost` but the production `/auth/callback` answered `Location: https://localhost:3000/forgot-password?error=link_invalid`. Root cause is in how Next builds a Route Handler's absolute URL, not in the auth stack; the bug was reproduced locally and the fix verified against a real `next start`. Dedicated section below. **One AWS Amplify environment variable is required — see that section.**
 - **Previously (awaiting approval):** **mobile interaction audit** (2026-08-20) — every interactive element in the app hit-tested and *tapped* under Android emulation in both orientations, after the reported "Search / Sign In / provider selector do nothing on my phone". Four causes found and fixed, the first of which explains the report: `next dev` was 403ing every client chunk for the LAN origin it prints, so the page rendered perfectly and never hydrated. Dedicated section below. **A real-device retest is still owed** — see that section.
 - **Previously (awaiting approval):** **password reset / "Forgot password?"** (2026-08-20) — the Supabase recovery flow, wired into the existing auth stack: a link on the sign-in form, `/forgot-password`, `/reset-password`, and the project's first auth callback route. One auth client, one session mechanism, no custom token system. Dedicated section below. **Two Supabase dashboard settings are required before the emailed link can work — see that section.**
 - **Previously (code approved 2026-08-20; your live browser/Supabase verification was in progress):** **playback/history bugfix** — a title watched partway and then left behind never appeared in Watch History / Continue Watching. Root cause, the smallest correct fix, and 14 new regression tests are in the dedicated section below. No architecture, provider registry/manager, migration or RLS change.
@@ -544,6 +545,160 @@ touched — the investigation traced none of the four causes there.
 - The audit harness is kept in `tools/mobile-audit/` (see its README) so a
   regression is one command away. It ships nothing: outside the build, outside
   `tsc`, outside Vitest's `src/**/*.test.ts` collection.
+
+## Step 8 — Application optimization (2026-08-21)
+
+**Asked for:** an audit of the live app's performance surface first, then approval
+before any code changed. The audit produced 12 findings (P0/P1/P2); you approved
+**P0 Batch 1 only — five items** — with every P1 and P2 item explicitly excluded,
+and with auth, Supabase RLS, proxy behavior, `SITE_URL`, `safeRedirectPath()`,
+the CSP/security headers, the `VIDEO_PROVIDER_*` architecture and downloading
+declared off-limits. Status: **implemented and verified; not committed.**
+
+### Implemented (the five approved items)
+
+1. **`cache()` around `liveDetail`** (`src/lib/tmdb.ts`). Three routes call
+   `getMediaDetail()` **twice per request** — once in `generateMetadata`, once in
+   the page body (`movie/[id]`, `tv/[id]`, `watch/[type]/[id]`). Next's fetch
+   memoization already collapsed the duplicate HTTP call, but the JSON parse and
+   the whole transform still ran twice; for a series that meant re-mapping every
+   episode of up to eight seasons a second time. Now wrapped in React's
+   per-request `cache()` keyed on `(type, tmdbId)` — the same treatment
+   `liveHomeRows` already had. **Request-scoped only:** nothing is shared between
+   requests or users, so no public/user-specific data becomes cacheable.
+2. **Hero mounts three slides, not five** (`src/components/hero/Hero.tsx`). The
+   five slides all sit inside the viewport, so `loading="lazy"` deferred nothing
+   — every home page load fetched **five w1280 backdrops to show one**. State is
+   now `{active, prev}` in a single object (both always change together, updaters
+   stay pure) and only `prev` / `active` / `incoming` are mounted. `prev` exists
+   so the 1s opacity crossfade still has a node to fade *out*; `incoming` is
+   mounted a full 7s rotation ahead, so it is decoded well before it is shown.
+   The dots set an `allMounted` flag on `pointerdown`/`focus` — both land before
+   activation — because a non-adjacent jump would otherwise mount the target at
+   full opacity and pop in instead of fading. **Visually identical**, including
+   the load-bearing `relative z-20` dot wrapper from the mobile audit.
+3. **`placeholderArt()` built only when used** (`src/components/media/PosterImage.tsx`).
+   Every card and hero slide serialised + `encodeURIComponent`'d a full SVG
+   document on every render just to discard it when a real `src` existed — on the
+   home page alone ~160 placeholders nobody sees. Now computed in the fallback
+   branch only. **Plus the missing test coverage** (`src/lib/__tests__/utils.test.ts`,
+   13 → 16 tests): the `type` branch (a second `<text>` element) had never been
+   exercised, so a malformed tag or a broken `hsl()` there would have shipped
+   invisibly — a data URI whose SVG does not parse renders nothing at all, with
+   no error. Three tests added: both `type` labels + structural well-formedness,
+   the no-`type` single-label case, and XML escaping of the title. Checks are
+   structural (a `expectWellFormed()` helper) rather than `DOMParser`-based so the
+   suite stays in Vitest's fast `node` environment.
+4. **OpenSubtitles: the search fetch only** (`src/lib/opensubtitles.ts`). The one
+   `cache: "no-store"` on the **search** call became
+   `next: { revalidate: SEARCH_REVALIDATE_S }` (15 min). Search results are public
+   and depend only on the query parameters (tmdb id, season/episode, query,
+   languages, ordering) — no cookies, no account state. **The other three sites
+   are deliberately untouched and stay `no-store`:** login, the download-link
+   request, and the subtitle file fetch, all of which are account-scoped and count
+   against the daily download quota. Two implementation facts were confirmed by
+   reading Next 16's source rather than assuming: an explicit `next.revalidate`
+   **does** reach the Data Cache under `dynamic = 'force-dynamic'`
+   (`patch-fetch.js` — `noFetchConfigAndForceDynamic` requires
+   `!currentFetchRevalidate`; `work-store.js` only sets `fetchCache` from an
+   explicit route export), so no route-config change was needed; and only
+   `res.status === 200` is ever written to the cache (`patch-fetch.js`), so an
+   upstream error or `ECONNRESET` cannot be cached and the existing resilient
+   retry semantics are unchanged.
+5. **`VideoPlayer` UI clock throttled to ~1 Hz** (`src/components/player/VideoPlayer.tsx`).
+   `<video>` fires `timeupdate` ~4×/second and every tick pushed the new position
+   into React state, re-rendering the whole player tree — including the
+   mounted-but-closed settings panel and episode drawer — for the entire runtime
+   of a title. `TIME_UI_INTERVAL_MS = 1000` now gates only the `setCurrentTime`
+   call. **Precision is not lost:** `currentTimeRef` still tracks the exact
+   position every tick, and `persist()` reads refs, so progress persistence,
+   resume and seeking keep full accuracy. Two additions keep the readout exact at
+   the moments it matters: `seekTo` pushes directly and resets the throttle window
+   (scrubbing and keyboard seeks stay instant), and a new `flushTimeUi()` runs on
+   `pause` and `ended` so a stopped video can never show a stale second.
+   Untouched, as required: `setCueText`, subtitles, `computeBuffered`/`onProgress`,
+   episode switching (`gotoEpisode`), autoplay, provider fallback, iframe origin
+   validation and retry.
+
+**One audit finding turned out to be wrong, and no code was changed for it.** The
+audit reported a malformed SVG at `src/lib/utils.ts:96` (`<\text>` and
+`hsl(… \ 0.7)`). A re-read, a `\\` grep (only two regexes, lines 10 and 18) and
+an `od -c` dump of that line all show correct `</text>` and `/ 0.7`. **`utils.ts`
+is unmodified**; the new tests from item 3 were still added, and are now the
+regression guard that would have caught such a bug had it existed.
+
+### Files changed (six — exactly the approved set, `git diff --stat`: +186 / −28)
+
+- `src/lib/tmdb.ts` — `liveDetail` wrapped in `cache()`.
+- `src/components/hero/Hero.tsx` — three-slide window + `allMounted`.
+- `src/components/media/PosterImage.tsx` — lazy `placeholderArt()`.
+- `src/lib/__tests__/utils.test.ts` — 3 new tests + 2 helpers.
+- `src/lib/opensubtitles.ts` — search-only Data Cache (15 min).
+- `src/components/player/VideoPlayer.tsx` — `TIME_UI_INTERVAL_MS` + `flushTimeUi()`.
+
+### Verified
+
+- `npx tsc --noEmit` → exit 0.
+- `npx vitest run` → **13 files, 154 tests, all green** (`utils.test.ts` 13 → 16).
+- Targeted re-run of the suites touching the changed areas (utils, opensubtitles,
+  video-player-history, playback-progress, playback-manager, secret-hygiene,
+  browse) → **7 files, 107 tests, all green**.
+- `npm run build` → exit 0 (Next 16.3.1 / Turbopack, compiled in 4.2s, 21 routes,
+  `ƒ Proxy (Middleware)` present).
+- `git status --porcelain` → **exactly the six files above**, nothing else.
+- **Secrets:** scan of every added line → no secret-like literals; no new
+  `process.env` read, no new logging.
+- **Provider/auth surface untouched:** no provider, playback, proxy, Supabase,
+  auth, config or route file appears in the diff; every `VIDEO_PROVIDER_*` file
+  (`src/lib/env.ts`, `src/lib/playback/adapters.ts`, `src/lib/playback/registry.ts`,
+  `src/lib/providers.ts`, `src/lib/__tests__/playback-manager.test.ts`) is
+  unmodified.
+
+### Measured before / after
+
+- **Hero backdrops in the SSR HTML: 5 → 2** for a five-item hero (counted from
+  the rendered markup, hero class against the dot-button count). Slide 0 stays
+  `eager`, the neighbour is `lazy` → **three w1280 requests removed from first
+  paint** on every home page load.
+- **First-load JS** (`.next/diagnostics/route-bundle-stats.json`, before → after):
+  `/watch/[type]/[id]` 799 243 → 799 419 (**+176 B**), `/` 747 188 → 747 406
+  (**+218 B**), `/browse` `/movies` `/tv-shows` `/movie/[id]` `/tv/[id]` `/search`
+  `/my-list` **−1 B** each, `/login` `/forgot-password` `/reset-password`
+  `/_not-found` unchanged. These five items are CPU/bandwidth optimizations, not
+  bundle ones — the ~200 B is the cost of the windowing state and the throttle.
+- **Server CPU per detail render:** one full TMDB detail transform eliminated per
+  request on `movie/[id]`, `tv/[id]`, `watch/[type]/[id]` (was parsed and mapped
+  twice; a TV series re-mapped every episode of up to eight seasons).
+- **Player re-renders:** ~4/s → ~1/s from the time readout during buffered
+  steady-state playback (see the caveat immediately below).
+
+### Deliberately not done
+
+- **`setBuffered(computeBuffered(v))` is still called on every `timeupdate`**, and
+  while the browser is actively downloading, `buffered.end` grows each tick, so
+  that produces a new number and React cannot bail out — the player still
+  re-renders ~4×/s *during active download*. Throttling it was not in the
+  approved batch, so it was left alone; the measured re-render win applies to
+  buffered steady-state playback. This is a one-line follow-up if you want it.
+- **Every P1 item** from the audit: `cache()` on `getUser`/`getSessionContext`,
+  a granular `useIsInWatchlist`, a client-side search cache, per-route skeletons,
+  intrinsic image dimensions, and panel memoization.
+- **Every P2 item:** the root-layout `getUser()` call, excluding `/api/*` from the
+  proxy matcher, `Cache-Control` on `/api/search`, `.limit()` on the history and
+  watchlist queries, Suspense/streaming, deferring the Supabase browser client,
+  and adding `frame-src` to the CSP.
+- **P1 and P2 are not started** — this release is P0 Batch 1 only, and no P1/P2
+  item may begin without separate approval.
+
+### Released
+
+Committed and pushed to `origin/main` on 2026-08-21 after a final release review
+that re-ran every gate on the exact working tree: `tsc` exit 0, 13 files /
+**154 tests** green, `npm run build` exit 0 (21 routes, `ƒ Proxy (Middleware)`
+present), a line-by-line read of all six source diffs, a scan confirming no auth /
+Supabase / RLS / `SITE_URL` / proxy / security-header / `VIDEO_PROVIDER_*` file
+appears in the diff, and no secret-like literal, new `process.env` read or new
+`console.*` call in any added line.
 
 ## What has been implemented
 

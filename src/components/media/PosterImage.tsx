@@ -24,9 +24,11 @@ export default function PosterImage({
   className?: string;
   priority?: boolean;
 }) {
-  const fallback = placeholderArt({ title, type, variant });
   const [failed, setFailed] = useState(false);
-  const finalSrc = !src || failed ? fallback : src;
+  // Built only when it is actually needed. Every card and hero slide used to
+  // serialise + encodeURIComponent a full SVG document on every render just to
+  // discard it, which on the home page alone is ~160 placeholders nobody sees.
+  const finalSrc = !src || failed ? placeholderArt({ title, type, variant }) : src;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element

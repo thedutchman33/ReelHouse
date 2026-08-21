@@ -106,4 +106,70 @@ describe("placeholderArt", () => {
       placeholderArt({ title: "A", variant: "backdrop" })
     );
   });
+
+  // The `type` branch adds a second <text> element and was previously never
+  // exercised — every existing case omitted `type`, so a malformed tag or a
+  // broken hsl() in that branch would have shipped invisibly (the whole data
+  // URI silently fails to render when the SVG does not parse).
+  it("emits well-formed markup with a kind label for both types", () => {
+    for (const [type, label] of [["movie", "FILM"], ["tv", "SERIES"]] as const) {
+      const uri = placeholderArt({ title: "Blade Runner", type });
+      expect(uri.startsWith("data:image/svg+xml;utf8,")).toBe(true);
+
+      const svg = decodeSvg(uri);
+      expect(svg).toContain(`>${label}</text>`);
+      // Two <text> elements, each properly opened and closed.
+      expect(svg.match(/<text\b/g)).toHaveLength(2);
+      expect(svg.match(/<\/text>/g)).toHaveLength(2);
+      expectWellFormed(svg);
+      // Every hsl() that carries an alpha must separate it with `/`; the class
+      // excludes `/` so a correct `hsl(h s% l% / .7)` cannot match and only a
+      // missing separator does.
+      expect(svg).not.toMatch(/hsl\([^)/]*\s\d?\.\d+\)/);
+    }
+  });
+
+  it("omits the kind label when no type is given", () => {
+    const svg = decodeSvg(placeholderArt({ title: "Blade Runner" }));
+    expect(svg.match(/<text\b/g)).toHaveLength(1);
+    expect(svg).not.toContain("FILM");
+    expect(svg).not.toContain("SERIES");
+    expectWellFormed(svg);
+  });
+
+  it("escapes XML-significant characters in the title", () => {
+    const svg = decodeSvg(placeholderArt({ title: `Tom & "Jerry" <b>`, type: "movie" }));
+    expect(svg).toContain("&amp;");
+    expect(svg).not.toMatch(/<b>/);
+    expectWellFormed(svg);
+  });
 });
+
+const SVG_PREFIX = "data:image/svg+xml;utf8,";
+
+function decodeSvg(uri: string): string {
+  return decodeURIComponent(uri.slice(SVG_PREFIX.length));
+}
+
+/**
+ * Structural well-formedness checks that do not need a DOM (this suite runs in
+ * the `node` environment). These target the ways a template-literal-built SVG
+ * actually breaks: a stray escape sequence swallowing a `/`, an unbalanced tag,
+ * or a raw `<` that is not the start of a tag — any of which makes the browser
+ * discard the whole data URI and render nothing.
+ */
+function expectWellFormed(svg: string): void {
+  expect(svg.startsWith("<svg")).toBe(true);
+  expect(svg.trimEnd().endsWith("</svg>")).toBe(true);
+  // No backslash escapes leaking into the markup.
+  expect(svg).not.toContain("\\");
+  // No literal tab/newline immediately after a `<` — the signature of a `<\t…>`
+  // style typo where an intended `</tag>` lost its slash to an escape sequence.
+  expect(svg).not.toMatch(/<[\s]/);
+  // Opening tags (excluding self-closing and the closing ones) must balance the
+  // closing tags.
+  const opens = svg.match(/<[a-zA-Z][^>]*>/g) ?? [];
+  const selfClosing = opens.filter((t) => t.endsWith("/>")).length;
+  const closes = svg.match(/<\/[a-zA-Z][^>]*>/g) ?? [];
+  expect(opens.length - selfClosing).toBe(closes.length);
+}

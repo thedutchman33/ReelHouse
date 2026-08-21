@@ -30,6 +30,13 @@ const USER_AGENT = process.env.OPENSUBTITLES_APP_NAME?.trim() || "Reelhouse v1.0
 
 const DEFAULT_HOST = "api.opensubtitles.com";
 
+// How long a subtitle SEARCH response stays in Next's Data Cache. Subtitle
+// availability for an existing title changes slowly (uploads, not edits), so a
+// short window removes the repeat upstream calls that dominate this endpoint
+// without making a newly uploaded track meaningfully hard to find. Applies to
+// search only — never to login, the download link, or the file itself.
+const SEARCH_REVALIDATE_S = 60 * 15;
+
 /** Search needs only the API key. */
 export function isSearchConfigured(): boolean {
   return Boolean(API_KEY);
@@ -243,7 +250,18 @@ export async function searchSubtitles(
   try {
     res = await fetchResilient(
       url.toString(),
-      { headers: baseHeaders(), cache: "no-store" },
+      // Search results are public and depend only on the query parameters above
+      // (tmdb id, season/episode, query, languages, ordering) — no cookies, no
+      // account state, nothing user-specific — so the identical lookup does not
+      // need to hit OpenSubtitles again for every viewer who opens the same
+      // title. Next's Data Cache keys on this URL and holds the response for
+      // SEARCH_REVALIDATE_S, which also insulates the feature from the transient
+      // ECONNRESETs this host is prone to.
+      //
+      // Deliberately search-only: login, the download-link request and the
+      // subtitle file fetch below all stay `cache: "no-store"`, because those
+      // are account-scoped and count against the daily download quota.
+      { headers: baseHeaders(), next: { revalidate: SEARCH_REVALIDATE_S } },
       { label: "search", timeoutMs: 15000 }
     );
   } catch (e) {

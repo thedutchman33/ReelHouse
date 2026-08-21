@@ -25,6 +25,14 @@ import EpisodeDrawer from "./EpisodeDrawer";
 import { activeCue, parseVtt, type Cue } from "./vtt";
 
 const SAVE_INTERVAL_MS = 5000;
+// The <video> element fires `timeupdate` roughly four times a second, and every
+// tick used to push the new position into React state — re-rendering the whole
+// player tree (including the mounted-but-closed settings panel and episode
+// drawer) ~4x/second for the entire runtime of a title. Nothing in the UI can
+// show more than one change per second: the readout is whole seconds and the
+// progress bar moves sub-pixel amounts. `currentTimeRef` still tracks the exact
+// position every tick, so persistence, resume and seeking keep full precision.
+const TIME_UI_INTERVAL_MS = 1000;
 const HIDE_DELAY_MS = 3200;
 
 // Next episode within a season, then rolling into the next season.
@@ -77,6 +85,9 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSave = useRef(0);
+  // Wall-clock ms of the last `currentTime` push into React state (see
+  // TIME_UI_INTERVAL_MS).
+  const lastTimeUi = useRef(0);
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
   const pendingSeek = useRef<number | null>(null);
@@ -313,7 +324,20 @@ export default function VideoPlayer({
     const clamped = clamp(t, 0, dur || t);
     v.currentTime = clamped;
     currentTimeRef.current = clamped;
+    // Direct, unthrottled push: scrubbing and keyboard seeks stay instant. This
+    // also restarts the throttle window, since the state is now up to date.
+    lastTimeUi.current = Date.now();
     setCurrentTime(clamped);
+  }, []);
+
+  // Push the exact position into state, bypassing the throttle. Used at the
+  // moments playback stops, so the readout can never sit up to a second behind
+  // a paused or finished video.
+  const flushTimeUi = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    lastTimeUi.current = Date.now();
+    setCurrentTime(v.currentTime);
   }, []);
 
   const rewind = useCallback(() => seekTo((videoRef.current?.currentTime ?? 0) - 10), [seekTo]);
@@ -383,11 +407,17 @@ export default function VideoPlayer({
     const v = videoRef.current;
     if (!v) return;
     currentTimeRef.current = v.currentTime;
-    setCurrentTime(v.currentTime);
+
+    const now = Date.now();
+    // Throttled: the exact position lives in currentTimeRef above, this only
+    // drives the readout and the progress bar.
+    if (now - lastTimeUi.current >= TIME_UI_INTERVAL_MS) {
+      lastTimeUi.current = now;
+      setCurrentTime(v.currentTime);
+    }
     setBuffered(computeBuffered(v));
     if (cues.length) setCueText(activeCue(cues, v.currentTime, appearance.latency));
 
-    const now = Date.now();
     if (now - lastSave.current > SAVE_INTERVAL_MS) {
       lastSave.current = now;
       persist();
@@ -427,6 +457,7 @@ export default function VideoPlayer({
   );
 
   const onEnded = () => {
+    flushTimeUi();
     persist();
     logEvent("ended");
     if (hasEpisodes && autoplay && next) {
@@ -601,6 +632,7 @@ export default function VideoPlayer({
           }}
           onPause={() => {
             setPlaying(false);
+            flushTimeUi();
             persist();
             logEvent("pause");
           }}
