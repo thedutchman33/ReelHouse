@@ -1095,6 +1095,32 @@ consequence of reading `cookies()` in it.
   OpenSubtitles account's daily quota is in fact currently exhausted — unrelated
   to this change, and precisely the resource A5 exists to protect.)
 
+**A5 did NOT bite in the deployed environment, and that is recorded rather than
+glossed.** 40 sequential search requests against the Amplify deployment from a
+single client were **all admitted** (`admitted=40, rate_limited=0`), where the
+configured ceiling is 30/min. The limiter itself is not broken — the identical
+build enforces exactly 30 and exactly 10 locally, per the runs above. The
+deployed behaviour is consistent with the per-instance limitation documented in
+the module header: CloudFront spreads requests across concurrent Lambda
+instances, each holding its own counter map, so the effective ceiling is
+(limit × instances) rather than `limit`.
+
+One thing to confirm before trusting any production number: what
+`clientKeyFrom` actually resolves to behind Amplify. It reads the **last**
+`x-forwarded-for` hop, which is right when CloudFront is the only proxy
+appending to the header, but if the Amplify compute layer appends a further
+internal hop then every caller would collapse onto one shared key — which
+under-blocks or over-blocks depending on traffic, and would need the hop index
+adjusted. This was not resolved here because confirming it means either
+logging a client address (which the project's own rules forbid) or adding a
+diagnostic endpoint, both outside this pass's approved scope.
+
+**Practical consequence:** treat A5 as working defence-in-depth against a
+single-process abuse loop and as a correct, tested primitive — not as an
+enforced production ceiling. A real ceiling needs the shared store (`REDIS_URL`)
+or an upstream WAF rule, which is the documented scale-out path and remains
+unbuilt.
+
 **A1 verified at runtime:**
 
 - `/auth/callback?code=totally-invalid` → `307` to
@@ -1108,6 +1134,22 @@ consequence of reading `cookies()` in it.
   service-role key is configured here, so no recovery link can be minted
   without one.
 
+**Production deployment verified (2026-08-22).** Pushed as a fast-forward, and
+the new build was live ~80s later (detected by `recoveryVerified` appearing in
+the `/reset-password` payload, which the previous build could not emit).
+Against `https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com`:
+
+- `/`, `/browse`, `/movies`, `/tv-shows`, `/login`, `/forgot-password`,
+  `/reset-password`, `/my-list`, `/search?q=matrix` → all **200**. No route
+  regressed, and the marker read did not break the reset page.
+- Marker gate live: no cookie → `false`, `rh-recovery=1` → `true`,
+  `rh-recovery=yes` → `false`.
+- `/auth/callback?code=totally-invalid` → **307** to
+  `https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com/forgot-password?error=link_invalid`
+  with **zero** `rh-recovery` `Set-Cookie` headers. This also re-confirms the
+  `SITE_URL` fix independently: the redirect targets the public origin, not
+  `localhost:3000`.
+
 **Note for anyone diffing `src/lib/__tests__/auth.test.ts`:** it contains a
 literal NUL byte, on purpose — a `safeRedirectPath("/reset\0password")` case
 proving a control character in `next=` is rejected. Git therefore classifies the
@@ -1115,8 +1157,8 @@ file as binary; use `git diff --text` to read its history. Pre-existing, not
 introduced by this pass.
 
 **Commits.** `069e02c` (A1 marker + tests), `1110fda` (A5 limiter + tests),
-`ae31a96` (A4 untracking), and this documentation commit. Source and
-documentation were kept separate, and no history was rewritten.
+`ae31a96` (A4 untracking), then the documentation commits that record them.
+Source and documentation were kept separate, and no history was rewritten.
 
 ## What remains unfinished
 
@@ -1130,6 +1172,7 @@ documentation were kept separate, and no history was rewritten.
 ## Known issues
 
 - **Sign-up is not fully indistinguishable while `mailer_autoconfirm: true`.** The explicit enumeration leak is fixed (`5ac713b`, section above): every non-429 sign-up failure now reads identically and never states that an address is registered. But with email confirmation **off**, a genuinely new address is signed in and navigated to `/` while a known address stays on the form with an error — an *inference*, indistinguishable from a network failure, yet still observable. Closing it at the source means turning **Confirm email** ON in the Supabase dashboard (yours to do; also makes the currently-dead `"Account created. Check your email…"` branch reachable for the first time, and means an unconfirmed visitor who then tries to sign in gets the generic credential message rather than inbox guidance — see the trade-off in the approved P1 batch section).
+- **The A5 subtitle rate limit does not bite in production, only locally.** The limiter is correct and enforces exactly 30/min (search) and 10/min (download) against the identical production build run locally, but 40 sequential search requests against the Amplify deployment from one client were **all admitted**. Cause is the documented per-instance limitation: state lives in one Lambda instance's memory, CloudFront spreads a burst across concurrent instances, so the effective ceiling is (limit × live instances), not `limit`. A secondary unknown compounds it — what `clientKeyFrom`'s last-hop read resolves to behind Amplify; if an internal hop is appended after the client's address, every caller collapses onto one shared bucket. Treat A5 as a tested defence-in-depth measure against a single-process abuse loop, not as an enforced production ceiling. Closing it properly needs shared state (`REDIS_URL`, already the documented scale-out path) or a rate rule in the CDN/WAF in front of the origin.
 - **`/watch/*` leaves the page beneath it in the tab order.** The playback surface is `fixed inset-0 z-50` over the site rather than its own route group, so 14–17 site-chrome controls stay focusable behind the player — a focus-order and screen-reader defect on desktop as much as on touch. Found by the mobile audit; not fixed there because the correct fix is route-group restructuring, not `tabindex` patching.
 - **Small touch targets:** 9–15 controls per route (measured per profile) present a target under 24px — mostly icon-only chrome and inline text links. Nothing is unreachable; they are simply below the comfortable minimum.
 - **`PlayerSettings` tab strip uses plain `<button>`s** without `role="tab"`/`aria-selected`, so the panel's tabs are announced as ordinary buttons.
