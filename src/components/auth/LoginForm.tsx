@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PASSWORD_HINT, passwordRuleError } from "@/lib/auth";
+import { PASSWORD_HINT, passwordRuleError, signUpErrorMessage } from "@/lib/auth";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 
 type Mode = "signin" | "signup";
@@ -63,7 +63,9 @@ export default function LoginForm() {
           password,
         });
         if (error) {
-          setError(error.message);
+          // Never the raw message: with email confirmation off, Supabase says
+          // "User already registered" for a known address.
+          setError(signUpErrorMessage(error));
           return;
         }
         if (data.session) {

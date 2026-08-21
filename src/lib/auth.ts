@@ -19,6 +19,32 @@ export function passwordRuleError(password: string): string | null {
     : null;
 }
 
+/**
+ * The message to show when `signUp` fails, chosen so the form can never confirm
+ * whether an address already has an account.
+ *
+ * Supabase answers a signup on a known address with a real error ("User already
+ * registered") whenever email confirmation is off, so surfacing `error.message`
+ * makes the form an enumeration oracle. Everything except the send-rate limit
+ * therefore collapses onto one neutral sentence — deliberately *without*
+ * inspecting the error for "already registered", because any branch that
+ * recognised that case would be a distinguishable message again, which is the
+ * leak itself. The conditional phrasing still points a returning user at the
+ * right screen without the server having confirmed anything, the same way the
+ * reset screen's success panel does.
+ *
+ * The 429 wording matches the reset screen's, so both forms answer a rate limit
+ * the same way.
+ */
+export function signUpErrorMessage(
+  error: { status?: number | null } | null | undefined
+): string {
+  if (error?.status === 429) {
+    return "Too many requests. Wait a minute, then try again.";
+  }
+  return "We couldn’t create your account. If you already have a Reelhouse account, sign in instead.";
+}
+
 /** CR/LF and friends: a Location header must never carry a control character. */
 function hasControlChars(value: string): boolean {
   for (let i = 0; i < value.length; i += 1) {
