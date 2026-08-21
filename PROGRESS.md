@@ -807,13 +807,16 @@ way — it is what holds the flow safe if the setting is ever turned back off.
 
 ### Not done — the rest of the audit (needs separate approval)
 
-- **P1 (7):** map sign-in errors / 429 + the latent "Email not confirmed"
-  enumeration channel · password-visibility toggle on sign-in and sign-up ·
-  confirm-password field on sign-up · persistent password-rule text +
-  `aria-invalid`/`aria-describedby` · `/reset-password` accepts **any** session as
-  a recovery session with no reauthentication · a completed reset does not revoke
-  other sessions · sign-up has no URL, and `<h1>Welcome back</h1>` / title
-  `"Sign in"` stay wrong in sign-up mode.
+- **P1 (7) — five are now done**, in the approved P1 batch section below (P1-1 to
+  P1-4 and P1-7); the list is kept in its original order because that order is
+  what pins the numbering: map sign-in errors / 429 + the latent "Email not
+  confirmed" enumeration channel **[done]** · password-visibility toggle on
+  sign-in and sign-up **[done]** · confirm-password field on sign-up **[done]** ·
+  persistent password-rule text + `aria-invalid`/`aria-describedby` **[done]** ·
+  `/reset-password` accepts **any** session as a recovery session with no
+  reauthentication **[P1-5, open]** · a completed reset does not revoke other
+  sessions **[P1-6, open]** · sign-up has no URL, and `<h1>Welcome back</h1>` /
+  title `"Sign in"` stay wrong in sign-up mode **[done]**.
 - **P2 (9):** `if (busy) return` guards · `autoFocus` on the sign-in email field ·
   `name` attributes + remounting the password input on mode switch ·
   `role="status"` on the sign-up notice · `/login` ignoring `?error=link_invalid`
@@ -829,6 +832,123 @@ way — it is what holds the flow safe if the setting is ever turned back off.
 - Auth-page bundle size is **not** a finding: `/login` 737 887 B,
   `/forgot-password` 737 491 B and `/reset-password` 738 827 B first-load JS are
   the three lightest real routes, ~3–4 KB of own code over the shared shell.
+
+## Auth UI/UX audit → approved P1 batch: five UX/validation/a11y items (2026-08-21)
+
+**Approved:** P1-1, P1-2, P1-3, P1-4 and P1-7 from the audit list above,
+implemented as one reviewed batch. **P1-5 and P1-6 (the two session-security
+items) were explicitly excluded**, along with Supabase configuration,
+auth/session infrastructure, RLS, the proxy, callbacks and providers. Every P2
+item is still untouched.
+
+**Numbering note:** the P0-1 section above refers to sign-in error mapping as
+"P1-2", while the deferred list numbers it first. The list's numbering is the one
+that holds, pinned by its own "the two session-security items (P1-5, P1-6)" line
+— positions 5 and 6. Either reading yields the same approved set, since the
+exclusions are fixed.
+
+### Implemented
+
+- **P1-1 — sign-in errors, and the latent enumeration channel.** New pure
+  `signInErrorMessage(error)` in `src/lib/auth.ts`. GoTrue answers a wrong
+  password with `invalid_credentials` but an unconfirmed address with
+  `email_not_confirmed`, and only an address that *has* an account can ever get
+  the second reply — so both collapse onto one sentence, deliberately without a
+  branch that could tell them apart (the same construction `signUpErrorMessage`
+  uses, for the same reason). 429 reuses the reset screen's wording verbatim.
+  Transport failures (5xx, or a fetch that never got a status) map separately and
+  safely: they say nothing about the account, and claiming the password was wrong
+  when the network was down would be false.
+- **P1-2 — password-visibility toggle.** One `reveal` state driving both password
+  fields, mirroring `ResetPasswordForm`'s existing Show/Hide button
+  (`aria-pressed`, `aria-label`). Purely presentational: it touches `type`,
+  `aria-*` and the button label and nothing else — no password value, no request.
+- **P1-3 — confirm-password field on sign-up.** New pure
+  `confirmPasswordError(password, confirm)`, wording taken verbatim from the reset
+  screen so both places that ask for a password twice answer a mismatch
+  identically. The guard `return`s before `setBusy(true)`, so a mismatch cannot
+  reach `supabase.auth.signUp()`.
+- **P1-4 — persistent rule text + field-level ARIA.** `PASSWORD_HINT` moved out of
+  the vanishing placeholder into a persistent `<p id="password-rule">` (sign-up
+  only), wired via `aria-describedby`. Error state became
+  `{ target, message }` so the offending input carries `aria-invalid` and points
+  at the message: `"email"`, `"password"`, `"confirm"`, `"credentials"` (both
+  email and password — what a rejected sign-in actually means) and `"form"` for
+  anything no single field caused. Every `aria-describedby` reference is gated on
+  the same condition that renders its target, so no dangling ids.
+- **P1-7 — sign-up gets a URL, and mode-correct copy.** `?mode=signup` is that
+  URL. New `authModeFromParam`, `authModeQuery` and `authScreenCopy` in
+  `src/lib/auth.ts`; `/login` reads the mode in both `generateMetadata` and the
+  page (static `metadata` became `generateMetadata`), so the tab title, the `<h1>`
+  and the rendered view can no longer disagree — a first-time visitor is no longer
+  greeted with "Welcome back" under a tab reading "Sign in". Switching mode syncs
+  the URL with `window.history.replaceState` (the documented Next 16 shallow
+  update, which the router follows): no navigation, no remount, so a half-typed
+  email survives the switch, and `replaceState` rather than `pushState` keeps the
+  toggle from stacking history entries. `authModeQuery` preserves every other
+  parameter, so switching mode can't discard a `next=`. Anything unrecognised
+  falls back to sign-in, which is what `/login` has always shown.
+
+### Files changed (four — `git diff --stat`: +452 / −42)
+
+- `src/lib/auth.ts` (+124 / −0) — five new pure helpers plus the `AuthMode` type
+  and `AUTH_MODE_PARAM`. Existing exports untouched. They live here for the reason
+  the module header gives, and because the Vitest config is `environment: "node"`
+  and scoped to pure-function suites.
+- `src/components/auth/LoginForm.tsx` (+143 / −30) — the four form-side items, the
+  `initialMode` prop, and a **file-local** `inputClass` const so a third input
+  didn't add a third inline copy of that class string (this mirrors the local const
+  `ResetPasswordForm` already has; the cross-file extraction is still an open P2).
+- `src/app/login/page.tsx` (+27 / −11) — `generateMetadata`, mode-aware
+  heading/blurb, `initialMode` passed down.
+- `src/lib/__tests__/auth.test.ts` (+158 / −1) — 15 new tests, 12 → 27.
+
+### Unchanged
+
+Both Supabase calls, the `data.session` branch, the confirmation-notice branch,
+both `router.push`/`router.refresh` pairs, and the signed-in `redirect("/")` —
+which still runs *before* `searchParams` is awaited, so mode never affects it. The
+"Accounts aren't enabled here" panel is byte-identical. `ForgotPasswordForm.tsx`,
+`ResetPasswordForm.tsx` and `/auth/callback` were never opened. **No raw
+`AuthError.message` reaches the UI any more:** the only two places an error object
+is consumed are `signInErrorMessage(error)` and `signUpErrorMessage(error)`.
+
+### Verified
+
+- `npx tsc --noEmit` → exit 0.
+- `npx vitest run` → **13 files, 173 tests, all green** (158 → 173).
+- `npm run build` → exit 0 (21 routes, `ƒ Proxy (Middleware)` present).
+- `git status --porcelain` → exactly four modified files, no untracked files.
+- **Security sweep of the added lines:** no secret-like literal, no new
+  `process.env` read, no `console.*`.
+- **Forbidden areas untouched:** no diff match for `supabase/migrations`,
+  `supabase/{client,server,config,middleware}`, `proxy.ts`, `site-url`,
+  `next.config`, `auth/callback`, `ForgotPasswordForm`, `ResetPasswordForm`,
+  `reset-password`, `forgot-password`, or any `VIDEO_PROVIDER_*` file.
+- **P1-5/P1-6 surfaces absent from the diff:** no `signOut`, `reauthenticat*`,
+  `getSession`, `onAuthStateChange`, `updateUser` or `scope:` on any changed line.
+- **No P2 work included:** `if (busy) return` 0, `autoFocus` 0, `name="` 0,
+  `role="status"` 0 in `LoginForm`; `?error=link_invalid`, the `as EmailOtpType`
+  cast, the `"checking"` height shift and the cross-file `inputClass` extraction
+  all still open.
+
+**Test-coverage limitation:** the 15 new tests cover the *pure* logic — P1-1 (4),
+P1-3's validation (3), P1-7's mode/URL/copy (8). Vitest is `environment: "node"`
+with `include: ["src/**/*.test.ts"]` (not `.tsx`) and no `@testing-library` is
+installed, so **P1-2's toggle and P1-4's ARIA markup are verified by typecheck,
+build and review only**, not by automated DOM assertions. Adding component tests
+would mean new dependencies and a config change — a separate, approvable piece of
+work.
+
+### One trade-off to know
+
+Collapsing `email_not_confirmed` into the generic message means a genuinely
+unconfirmed visitor gets no "check your inbox" guidance. That state is unreachable
+today (`mailer_autoconfirm: true` — confirmation off), and the alternative is a
+distinguishable message, which is the leak itself. If **Confirm email** is ever
+turned on, any guidance for those users has to live *inside* that one shared
+string — shown for a wrong password too — or the channel reopens. The rule is
+recorded in the helper's doc comment.
 
 ## What has been implemented
 
@@ -850,7 +970,7 @@ way — it is what holds the flow safe if the setting is ever turned back off.
 
 ## Known issues
 
-- **Sign-up is not fully indistinguishable while `mailer_autoconfirm: true`.** The explicit enumeration leak is fixed (`3c827a2`, section above): every non-429 sign-up failure now reads identically and never states that an address is registered. But with email confirmation **off**, a genuinely new address is signed in and navigated to `/` while a known address stays on the form with an error — an *inference*, indistinguishable from a network failure, yet still observable. Closing it at the source means turning **Confirm email** ON in the Supabase dashboard (yours to do; also makes the currently-dead `"Account created. Check your email…"` branch reachable for the first time).
+- **Sign-up is not fully indistinguishable while `mailer_autoconfirm: true`.** The explicit enumeration leak is fixed (`3c827a2`, section above): every non-429 sign-up failure now reads identically and never states that an address is registered. But with email confirmation **off**, a genuinely new address is signed in and navigated to `/` while a known address stays on the form with an error — an *inference*, indistinguishable from a network failure, yet still observable. Closing it at the source means turning **Confirm email** ON in the Supabase dashboard (yours to do; also makes the currently-dead `"Account created. Check your email…"` branch reachable for the first time, and means an unconfirmed visitor who then tries to sign in gets the generic credential message rather than inbox guidance — see the trade-off in the approved P1 batch section).
 - **`/watch/*` leaves the page beneath it in the tab order.** The playback surface is `fixed inset-0 z-50` over the site rather than its own route group, so 14–17 site-chrome controls stay focusable behind the player — a focus-order and screen-reader defect on desktop as much as on touch. Found by the mobile audit; not fixed there because the correct fix is route-group restructuring, not `tabindex` patching.
 - **Small touch targets:** 9–15 controls per route (measured per profile) present a target under 24px — mostly icon-only chrome and inline text links. Nothing is unreachable; they are simply below the comfortable minimum.
 - **`PlayerSettings` tab strip uses plain `<button>`s** without `role="tab"`/`aria-selected`, so the panel's tabs are announced as ordinary buttons.
