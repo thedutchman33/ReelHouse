@@ -5,6 +5,7 @@ import {
   searchSubtitles,
   OpenSubtitlesError,
 } from "@/lib/opensubtitles";
+import { clientKeyFrom, createRateLimiter } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // GET /api/subtitles/search?type=movie&tmdbId=1003596
@@ -17,11 +18,38 @@ import {
 //   { status: "ok",             canDownload, results: [...] }
 //   { status: "not_configured", canDownload: false, results: [] }   // no API key
 //   { status: "error",          code, message }
+//
+// Unauthenticated, and it spends the server's OpenSubtitles API key, so it is
+// rate limited per caller. Single-instance, best-effort — see src/lib/rate-limit.ts
+// for exactly what that does and does not protect.
 // ---------------------------------------------------------------------------
 
 export const dynamic = "force-dynamic";
 
+// Module scope on purpose: the counters have to outlive individual requests.
+// Generous relative to real use — the player fires one search per open plus one
+// per language/episode change, so this only bites on a loop.
+const limiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
+
 export async function GET(request: Request) {
+  const gate = limiter.check(clientKeyFrom(request.headers), Date.now());
+  if (!gate.allowed) {
+    return NextResponse.json(
+      {
+        status: "error",
+        code: "rate_limited",
+        message: "Too many subtitle searches. Wait a moment, then try again.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(gate.retryAfterSeconds),
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
   const tmdbId = Number(searchParams.get("tmdbId") ?? searchParams.get("id"));

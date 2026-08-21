@@ -4,6 +4,7 @@ import {
   isDownloadConfigured,
   OpenSubtitlesError,
 } from "@/lib/opensubtitles";
+import { clientKeyFrom, createRateLimiter } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // GET /api/subtitles/download?fileId=123456
@@ -18,11 +19,44 @@ import {
 //   { status: "not_configured", message }   // no account configured
 //   { status: "quota",          message }    // daily limit reached
 //   { status: "error",          code, message }
+//
+// This is the expensive one: unauthenticated, and every success consumes one of
+// a finite number of downloads the OpenSubtitles account gets per day. It is
+// therefore limited harder than search. Single-instance, best-effort — see
+// src/lib/rate-limit.ts for exactly what that does and does not protect.
 // ---------------------------------------------------------------------------
 
 export const dynamic = "force-dynamic";
 
+// Module scope on purpose: the counters have to outlive individual requests.
+// A person picking subtitles clicks a handful of times; 10/min is far above
+// that and far below anything that could drain the daily quota.
+const limiter = createRateLimiter({ limit: 10, windowMs: 60_000 });
+
 export async function GET(request: Request) {
+  // Note the deliberate distinction from the `quota` branch below, which is
+  // also a 429: that one means OpenSubtitles refused us for the rest of the
+  // day, this one means one caller is going too fast. Reported as
+  // `code: "rate_limited"` under the route's existing error shape, which the
+  // player already renders via its generic message branch.
+  const gate = limiter.check(clientKeyFrom(request.headers), Date.now());
+  if (!gate.allowed) {
+    return NextResponse.json(
+      {
+        status: "error",
+        code: "rate_limited",
+        message: "Too many subtitle downloads. Wait a moment, then try again.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(gate.retryAfterSeconds),
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const fileId = Number(searchParams.get("fileId"));
 
