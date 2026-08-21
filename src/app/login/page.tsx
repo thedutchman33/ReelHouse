@@ -2,15 +2,31 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
+import { authModeFromParam, authScreenCopy } from "@/lib/auth";
 import { getUser } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-export const metadata: Metadata = {
-  title: "Sign in",
-  description: "Sign in to sync your watchlist and history across devices.",
-};
+// `?mode=signup` is sign-up's URL. It is what makes the mode linkable, and it is
+// read here as well as in the form so the tab title, the heading and the rendered
+// view all agree on which screen this is.
+type LoginSearchParams = Promise<{ mode?: string | string[] }>;
 
-export default async function LoginPage() {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: LoginSearchParams;
+}): Promise<Metadata> {
+  const { title, description } = authScreenCopy(
+    authModeFromParam((await searchParams).mode)
+  );
+  return { title, description };
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: LoginSearchParams;
+}) {
   const configured = isSupabaseConfigured();
 
   // Already signed in → nothing to do here.
@@ -19,18 +35,18 @@ export default async function LoginPage() {
     if (user) redirect("/");
   }
 
+  const mode = authModeFromParam((await searchParams).mode);
+  const { heading, blurb } = authScreenCopy(mode);
+
   return (
     <div className="container-rh flex min-h-[70svh] items-center justify-center py-12">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-6 shadow-xl sm:p-8">
-        <h1 className="text-2xl font-semibold text-text">Welcome back</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          Sign in to sync your watchlist, history, and playback progress across
-          devices.
-        </p>
+        <h1 className="text-2xl font-semibold text-text">{heading}</h1>
+        <p className="mt-1.5 text-sm text-muted">{blurb}</p>
 
         <div className="mt-6">
           {configured ? (
-            <LoginForm />
+            <LoginForm initialMode={mode} />
           ) : (
             <div className="rounded-xl border border-border bg-bg/50 p-4 text-sm text-muted">
               <p className="font-medium text-text">
