@@ -43,10 +43,12 @@ import {
 // documented for the operator; it cannot be enforced here.
 // ---------------------------------------------------------------------------
 
-const SLOTS: ProviderSlotNumber[] = [1, 2, 3, 4, 5];
+const SLOTS: ProviderSlotNumber[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+];
 
 /** Compile-time cross-check that the slot list matches the declared count. */
-const _slotCount: typeof PROVIDER_SLOT_COUNT = SLOTS.length as 5;
+const _slotCount: typeof PROVIDER_SLOT_COUNT = SLOTS.length as 11;
 void _slotCount;
 
 function readVar(slot: ProviderSlotNumber, key: string): string | undefined {
