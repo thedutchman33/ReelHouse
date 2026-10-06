@@ -301,12 +301,12 @@ describe("five-slot registry", () => {
       "Provider 3",
       "Provider 4",
       "Provider 5",
-      "provider 6",
-      "provider 7",
-      "provider 8",
-      "provider 9",
-      "provider 10",
-      "provider 11",
+      "Provider 6",
+      "Provider 7",
+      "Provider 8",
+      "Provider 9",
+      "Provider 10",
+      "Provider 11",
     ]);
   });
 
