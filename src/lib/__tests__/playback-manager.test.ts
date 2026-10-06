@@ -264,7 +264,7 @@ afterEach(clearSlotEnv);
 describe("five-slot registry", () => {
   it("ships five slots, all unconfigured and disabled", () => {
     const slots = readProviderSlots();
-    expect(slots).toHaveLength(5);
+    expect(slots).toHaveLength(11);
     expect(slots.map((s) => s.id)).toEqual([
       "provider-1",
       "provider-2",
@@ -301,12 +301,12 @@ describe("five-slot registry", () => {
       "Provider 3",
       "Provider 4",
       "Provider 5",
-      "provider-6",
-      "provider-7",
-      "provider-8",
-      "provider-9",
-      "provider-10",
-      "provider-11",
+      "provider 6",
+      "provider 7",
+      "provider 8",
+      "provider 9",
+      "provider 10",
+      "provider 11",
     ]);
   });
 
