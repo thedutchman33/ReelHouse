@@ -95,7 +95,7 @@ export default function ProviderSelector({
             role="listbox"
             aria-label="Playback providers"
             onKeyDown={(e) => rovingKeyDown(e, optionButtons(listRef.current))}
-            className="no-scrollbar max-h-72 overflow-y-auto p-1.5"
+            className="max-h-72 overflow-y-auto p-1.5"
           >
             {listed.map((p) => {
               const active = p.id === selectedId;
