@@ -20,9 +20,11 @@ import type { MediaType, PlaybackServer } from "@/types";
 // ---------------------------------------------------------------------------
 
 /** Reelhouse prepares exactly five future provider slots. */
-export const PROVIDER_SLOT_COUNT = 5;
+export const PROVIDER_SLOT_COUNT = 11;
 
-export type ProviderSlotNumber = 1 | 2 | 3 | 4 | 5;
+export type ProviderSlotNumber =
+  | 1 | 2 | 3 | 4 | 5
+  | 6 | 7 | 8 | 9 | 10 | 11;
 
 /**
  * How a provider's player is rendered inside the playback container.
