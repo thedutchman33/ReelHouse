@@ -48,7 +48,7 @@ const SLOTS: ProviderSlotNumber[] = [
 ];
 
 /** Compile-time cross-check that the slot list matches the declared count. */
-const _slotCount: typeof PROVIDER_SLOT_COUNT = SLOTS.length as 11;
+const _slotCount: typeof PROVIDER_SLOT_COUNT = SLOTS.length;
 void _slotCount;
 
 function readVar(slot: ProviderSlotNumber, key: string): string | undefined {
