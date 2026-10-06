@@ -254,7 +254,7 @@ const SLOT_KEYS = [
 ];
 
 function clearSlotEnv(): void {
-  for (const slot of [1, 2, 3, 4, 5]) {
+  for (const slot of [1, 2, 3, 4, 5,6,7,8,9,10,11]) {
     for (const key of SLOT_KEYS) delete process.env[`VIDEO_PROVIDER_${slot}_${key}`];
   }
 }
@@ -271,6 +271,12 @@ describe("five-slot registry", () => {
       "provider-3",
       "provider-4",
       "provider-5",
+      "provider-6",
+      "provider-7",
+      "provider-8",
+      "provider-9",
+      "provider-10",
+      "provider-11",
     ]);
     for (const slot of slots) {
       expect(slot.enabled).toBe(false);
@@ -288,13 +294,19 @@ describe("five-slot registry", () => {
 
   it("defaults priority to slot order and the name to the slot number", () => {
     const slots = readProviderSlots();
-    expect(slots.map((s) => s.priority)).toEqual([10, 20, 30, 40, 50]);
+    expect(slots.map((s) => s.priority)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]);
     expect(slots.map((s) => s.displayName)).toEqual([
       "Provider 1",
       "Provider 2",
       "Provider 3",
       "Provider 4",
       "Provider 5",
+      "provider-6",
+      "provider-7",
+      "provider-8",
+      "provider-9",
+      "provider-10",
+      "provider-11",
     ]);
   });
 
