@@ -43,9 +43,9 @@ import {
 // documented for the operator; it cannot be enforced here.
 // ---------------------------------------------------------------------------
 
-const SLOTS: ProviderSlotNumber[] = [
+const SLOTS = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
-];
+] as const satisfies readonly ProviderSlotNumber[];
 
 /** Compile-time cross-check that the slot list matches the declared count. */
 const _slotCount: typeof PROVIDER_SLOT_COUNT = SLOTS.length;
