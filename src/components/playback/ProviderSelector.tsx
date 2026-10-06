@@ -88,8 +88,7 @@ export default function ProviderSelector({
       </button>
 
       {open && (
-      {open && (
-  <div className="panel absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw-1rem)]">
+          <div className="panel absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw-1rem)]">
           <p className="panel-label border-b border-border/70">Provider</p>
           <ul
             ref={listRef}
