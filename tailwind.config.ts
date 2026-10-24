@@ -66,6 +66,7 @@ const config: Config = {
       animation: {
         shimmer: "shimmer 1.6s infinite",
         "fade-up": "fade-up 0.4s ease-out both",
+        "route-fade": "route-fade 0.25s ease-out both",
         "fade-in": "fade-in 0.2s ease-out both",
       },
     },
