@@ -104,7 +104,7 @@ function mockHomeRows(): MediaRow[] {
     },
   ];
 
-  return rows.filter((r) => r.items.length > 0);
+  return rows.map((r) => ({ ...r, items: r.items.map(compactForCard) })).filter((r) => r.items.length > 0);
 }
 
 function mockHero(): MediaSummary[] {
@@ -255,6 +255,16 @@ const doomsdayWatchOrder = cache(async (): Promise<MediaSummary[]> => {
 const threeYearsAgo = `${new Date().getFullYear() - 3}-01-01`;
 const todayISO = new Date().toISOString().slice(0, 10);
 
+/**
+ * Row/grid cards render poster + title + year/rating only — overview text and
+ * the backdrop never appear in card UIs, but they dominated the streamed HTML
+ * payload (home page measured 537KB). Strip them at the source; the hero and
+ * detail views fetch/keep full summaries.
+ */
+function compactForCard(item: MediaSummary): MediaSummary {
+  return { ...item, overview: undefined, backdropUrl: undefined };
+}
+
 const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
 
   const [
@@ -372,7 +382,7 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
     { key: "action", title: "Action & Adventure", items: liveList(action, "movie").slice(0, 16) },
     { key: "feelgood", title: "Comedy & Feel-Good", items: liveList(comedy, "movie").slice(0, 16) },
   ];
-  return rows.filter((r) => r.items.length > 0);
+  return rows.map((r) => ({ ...r, items: r.items.map(compactForCard) })).filter((r) => r.items.length > 0);
 });
 
 // Watch-provider directory (TMDB /watch/providers), ordered by TMDB's own
@@ -452,7 +462,9 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
     character: c.character,
     profileUrl: img(c.profile_path, "w185"),
   }));
-  const recommendations = liveList(data.recommendations, type).slice(0, 12);
+  const recommendations = liveList(data.recommendations, type)
+    .slice(0, 12)
+    .map(compactForCard);
 
   // Official trailer: TMDB's videos list — official YouTube trailers first,
   // most recent first. Real data only; no trailer means the section hides.
@@ -680,7 +692,7 @@ async function liveBrowse(filters: BrowseFilters): Promise<BrowsePage | null> {
   let items = lists.length === 1 ? lists[0] : interleave(lists[0], lists[1] ?? []);
   if (lists.length > 1) items = sortByBrowse(items, filters.sort);
 
-  return { items, page: filters.page, totalPages };
+  return { items: items.map(compactForCard), page: filters.page, totalPages };
 }
 
 /** Re-sort an already-fetched list. Both fields exist on every summary. */
@@ -769,7 +781,7 @@ export async function fetchFeedPool(pool: FeedPool): Promise<MediaSummary[]> {
     params.with_original_language = "ko";
   }
   const data = await tmdb(path, params, 60 * 60 * 12);
-  return liveList(data, pool.kind).slice(0, 24);
+  return liveList(data, pool.kind).slice(0, 24).map(compactForCard);
 }
 
 export async function getHomeRows(): Promise<MediaRow[]> {

@@ -7,6 +7,10 @@ import SafetyNotice from "@/components/common/SafetyNotice";
 import { getHeroItems, getHomeRows, getWatchProviders, isLiveMetadata } from "@/lib/tmdb";
 import type { MediaRow as RowType } from "@/types";
 
+// ISR: TMDB data moves on TMDB's clock — revalidate in the background,
+// serve the cached page from the CDN edge (the reference's 25ms TTFB).
+export const revalidate = 300;
+
 // Editorial eyebrow label per row (reference section pattern: small uppercase
 // tracked label over a condensed display heading). Labels only — all content
 // comes from the real catalog.

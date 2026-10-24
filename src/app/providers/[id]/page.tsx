@@ -4,6 +4,10 @@ import MediaGrid from "@/components/media/MediaGrid";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
 import { getProviderName, getProviderTitles } from "@/lib/tmdb";
 
+// ISR: TMDB data moves on TMDB's clock — revalidate in the background,
+// serve the cached page from the CDN edge (the reference's 25ms TTFB).
+export const revalidate = 3600;
+
 type SearchParams = { [key: string]: string | string[] | undefined };
 
 function num(v: string | string[] | undefined): number {

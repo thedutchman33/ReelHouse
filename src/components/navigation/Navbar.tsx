@@ -66,11 +66,8 @@ function NavLinks({ pathname, className = "" }: { pathname: string; className?: 
 }
 
 export default function Navbar({
-  userEmail = null,
-  userName = null,
+
 }: {
-  userEmail?: string | null;
-  userName?: string | null;
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -130,7 +127,7 @@ export default function Navbar({
               >
                 <SearchIcon size={21} />
               </button>
-              <AuthStatus initialEmail={userEmail} initialName={userName} />
+              <AuthStatus />
             </div>
           </div>
 

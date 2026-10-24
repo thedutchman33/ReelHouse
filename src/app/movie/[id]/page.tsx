@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import DetailContent from "@/components/detail/DetailContent";
 import { getMediaDetail } from "@/lib/tmdb";
 
+// ISR: TMDB data moves on TMDB's clock — revalidate in the background,
+// serve the cached page from the CDN edge (the reference's 25ms TTFB).
+export const revalidate = 3600;
+
 export async function generateMetadata({
   params,
 }: {

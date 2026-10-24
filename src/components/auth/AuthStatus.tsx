@@ -47,16 +47,15 @@ const MENU_LINKS = [
   { href: "/my-list#history", label: "Watch History" },
 ];
 
-export default function AuthStatus({
-  initialEmail,
-  initialName = null,
-}: {
-  initialEmail: string | null;
-  initialName?: string | null;
-}) {
+export default function AuthStatus() {
   const configured = isSupabaseConfigured();
-  const [email, setEmail] = useState<string | null>(initialEmail);
-  const [name, setName] = useState<string | null>(initialName);
+  // Session state comes entirely from the browser client (see the effect
+  // below): the root layout no longer reads cookies server-side, which is
+  // what lets every page render statically from the CDN. A signed-in viewer
+  // may see the bare person icon for one hydration frame — a fair trade for
+  // CDN-cached pages.
+  const [email, setEmail] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const { open, rootRef, triggerRef, toggle, close, setOpen } = usePopover();
@@ -73,8 +72,7 @@ export default function AuthStatus({
     const supabase = getBrowserSupabase();
     if (!supabase) return;
 
-    // Reconcile with the live session on mount (the server-seeded value can be
-    // stale if the token was refreshed since render).
+    // Seed + reconcile with the live session on mount.
     supabase.auth.getUser().then(({ data }) => {
       setEmail(data.user?.email ?? null);
       setName(metadataName(data.user?.user_metadata));

@@ -4,7 +4,6 @@ import "./globals.css";
 import Navbar from "@/components/navigation/Navbar";
 import Footer from "@/components/common/Footer";
 import LibrarySync from "@/components/auth/LibrarySync";
-import { getUser } from "@/lib/supabase/server";
 
 // Reference design system: Inter for UI text, Bebas Neue (single weight,
 // condensed caps) for hero titles and section headings.
@@ -55,20 +54,16 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-side session read (null in local mode) so the navbar renders the
-  // correct auth state on first paint — no flash of "Sign in" for signed-in users.
-  const user = await getUser();
-  const metadata = user?.user_metadata ?? {};
-  const name = metadata.full_name ?? metadata.name;
-
+  // Deliberately NO server-side session read here: cookies() in the root
+  // layout would force EVERY route to render dynamically (measured: 13s
+  // DOMContentLoaded on a cold region vs 25ms for the reference's CDN-cached
+  // HTML). The navbar's AuthStatus resolves the session client-side instead,
+  // so every content page below can be statically rendered / ISR-cached.
   return (
     <html lang="en" className={`${inter.variable} ${bebasNeue.variable}`}>
       <body className="flex min-h-screen flex-col font-sans">
         <LibrarySync />
-        <Navbar
-          userEmail={user?.email ?? null}
-          userName={typeof name === "string" ? name : null}
-        />
+        <Navbar />
         {/* The navbar is a fixed floating bar; content clears it via --rh-nav-h
             (see globals.css). Pages that must slide beneath it (home hero,
             watch page) cancel this offset with a matching negative margin. */}

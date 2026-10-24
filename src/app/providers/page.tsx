@@ -4,6 +4,10 @@ import ProviderLogo from "@/components/providers/ProviderLogo";
 import { dedupeByFamily, sortProviders, wordmarkFor } from "@/lib/provider-logos";
 import { getWatchProviders } from "@/lib/tmdb";
 
+// ISR: TMDB data moves on TMDB's clock — revalidate in the background,
+// serve the cached page from the CDN edge (the reference's 25ms TTFB).
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: "Providers",
   description: "Browse Reelhouse's catalog by watch provider.",
