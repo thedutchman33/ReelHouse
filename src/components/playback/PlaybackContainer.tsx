@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import EpisodeDrawer from "@/components/player/EpisodeDrawer";
 import VideoPlayer from "@/components/player/VideoPlayer";
-import { BackIcon, EpisodesIcon } from "@/components/player/icons";
+import { BackIcon } from "@/components/player/icons";
+import PosterImage from "@/components/media/PosterImage";
+import WatchDock from "@/components/playback/WatchDock";
+import ServerPanel from "@/components/playback/ServerPanel";
+import WatchDetails from "@/components/playback/WatchDetails";
+import WatchEpisodes from "@/components/playback/WatchEpisodes";
+import { RecommendationsSection, TrailerSection } from "@/components/playback/WatchExtras";
+import { formatRuntime } from "@/lib/utils";
 import type { EpisodeRef } from "@/lib/library";
 import { markPlaybackStarted } from "@/lib/library";
 import {
@@ -20,7 +26,7 @@ import {
   type ProgressRecorder,
 } from "@/lib/playback/progress";
 import type { PlaybackFailure, PlaybackPlan } from "@/lib/playback/types";
-import type { MediaSummary, MediaType, Season } from "@/types";
+import type { Media, MediaSummary, MediaType, Season } from "@/types";
 import EmbedSurface from "./EmbedSurface";
 import {
   FallbackNotice,
@@ -100,6 +106,7 @@ function episodeFromUrl(fallback: { season: number; episode: number }): {
 export default function PlaybackContainer({
   type,
   media,
+  detail = null,
   overview,
   runtime,
   seasons,
@@ -111,6 +118,9 @@ export default function PlaybackContainer({
 }: {
   type: MediaType;
   media: MediaSummary;
+  /** Full detail record (cast, tagline, recommendations) for the info section
+      below the player. Optional so playback keeps working without it. */
+  detail?: Media | null;
   overview?: string;
   runtime?: number;
   seasons: Season[];
@@ -133,8 +143,33 @@ export default function PlaybackContainer({
   const [attempted, setAttempted] = useState<string[]>([]);
   const [notice, setNotice] = useState<{ from: string; to: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [episodesOpen, setEpisodesOpen] = useState(false);
+  // Stage element for the dock's Fullscreen control.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const toggleStageFullscreen = useCallback(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void el.requestFullscreen?.().catch(() => undefined);
+  }, []);
+  // "Switch server" actions (amber row + dock More menu): scroll the servers
+  // panel into view AND run the reference's border-attention pulse — a light
+  // streak laps the panel border twice while the panel flashes a soft ring.
+  // The class is removed once the animation settles so the next click can
+  // restart it (matches the reference's add/remove timing).
+  const focusServerPanel = useCallback(() => {
+    const el = document.getElementById("server-list");
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (el) {
+      el.classList.remove("ax-server-attention");
+      void el.offsetWidth; // reflow so a rapid re-click restarts the run
+      el.classList.add("ax-server-attention");
+      window.setTimeout(() => el.classList.remove("ax-server-attention"), 2400);
+    }
+  }, []);
   const [autoplay, setAutoplay] = useState(true);
+  // Theater mode: player stage expands past its 1180px column to the full
+  // content width (reference watch-page "Theater" control).
+  const [theater, setTheater] = useState(false);
   // A `?t=` deep link applies to the first mount only; after a provider switch the
   // saved position (which the switch must not reset) takes over.
   const [switched, setSwitched] = useState(false);
@@ -249,7 +284,6 @@ export default function PlaybackContainer({
 
   const selectEpisode = useCallback(
     (nextSeason: number, nextEpisode: number) => {
-      setEpisodesOpen(false);
       if (nextSeason === season && nextEpisode === episode) return;
       setSeason(nextSeason);
       setEpisode(nextEpisode);
@@ -294,144 +328,242 @@ export default function PlaybackContainer({
     );
   }
 
-  const selector = (
-    <ProviderSelector
-      providers={plan.providers}
-      selectedId={selectedId}
-      onSelect={selectProvider}
-    />
-  );
+  const selector =
+    plan.providers.length > 0 ? (
+      <ProviderSelector
+        providers={plan.providers}
+        selectedId={selectedId}
+        onSelect={selectProvider}
+      />
+    ) : null;
 
-  // ---- native surface: the existing custom player, untouched ----
-  if (candidate.surface.kind === "native") {
-    return (
-      <>
-        <VideoPlayer
-          // Remounting per provider keeps the player's own lifecycle intact
-          // (it re-reads saved progress on mount) instead of mutating it.
-          key={`native:${selectedId}`}
-          type={type}
-          media={media}
-          overview={overview}
-          runtime={runtime}
-          seasons={seasons}
-          servers={candidate.surface.servers}
-          initialSeasonNumber={season}
-          initialEpisodeNumber={episode}
-          initialSeconds={switched ? undefined : initialSeconds}
-          backHref={backHref}
-        />
-        {plan.providers.length > 0 && (
-          <div className="fixed left-1/2 top-3 z-[60] -translate-x-1/2">
-            {selector}
-          </div>
-        )}
-        {notice && (
-          <div className="fixed left-1/2 top-16 z-[60] -translate-x-1/2">
-            <FallbackNotice
-              fromName={notice.from}
-              toName={notice.to}
-              onDismiss={() => setNotice(null)}
-            />
-          </div>
-        )}
-      </>
-    );
-  }
-
-  // ---- embed surface: the provider draws its own player ----
-  const embedSrc = expandTemplate(candidate.surface.urlTemplate, {
-    id: media.tmdbId,
-    ...(hasEpisodes ? { season, episode } : {}),
-  });
-
+  const nativeSurface =
+    candidate.surface.kind === "native" ? candidate.surface : null;
+  const embedSurface =
+    candidate.surface.kind === "embed" ? candidate.surface : null;
+  const isNative = nativeSurface !== null;
   const contextLabel = hasEpisodes
     ? `${media.title} · S${season}:E${episode}`
     : media.title;
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black text-text">
-      {failure ? (
-        <PlaybackError
-          providerName={provider.displayName}
-          detail={failure.detail}
-          onRetry={() => {
-            setFailure(null);
-            setReloadKey((k) => k + 1);
-          }}
-          onSwitch={
-            manualAlternative
-              ? () => selectProvider(manualAlternative.provider.id)
-              : undefined
-          }
-          nextProviderName={manualAlternative?.provider.displayName}
-        />
-      ) : (
-        <EmbedSurface
-          provider={provider}
-          src={embedSrc}
-          title={`${provider.displayName} player — ${contextLabel}`}
-          reloadKey={reloadKey}
-          onProgress={(seconds, duration) =>
-            recorderRef.current?.report({ seconds, duration })
-          }
-          onEnded={handleEnded}
-          onFailure={handleFailure}
-        />
-      )}
+  const noticeNode = notice ? (
+    <div className="fixed left-1/2 top-16 z-[70] -translate-x-1/2">
+      <FallbackNotice
+        fromName={notice.from}
+        toName={notice.to}
+        onDismiss={() => setNotice(null)}
+      />
+    </div>
+  ) : null;
 
-      {/* Surrounding chrome only — no playback controls: those are the
-          provider's, inside the frame. Stays below EpisodeDrawer's z-40 layer:
-          the drawer is modal and its own top row (close, autoplay) sits at these
-          same coordinates, so chrome above it would swallow those taps. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start gap-3 p-3 sm:px-5">
-        <div className="pointer-events-auto">
-          <BackButton href={backHref} />
-        </div>
-        <div className="min-w-0 flex-1 pt-1">
-          <p className="truncate text-sm font-semibold text-text/90">{contextLabel}</p>
-          <p className="truncate text-xs text-muted">{provider.displayName}</p>
-        </div>
-        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
-          {selector}
-          {hasEpisodes && (
-            <button
-              type="button"
-              onClick={() => setEpisodesOpen(true)}
-              aria-label="Episodes"
-              className="grid h-9 w-9 place-items-center rounded-full border border-border bg-surface/90 text-muted shadow-lg backdrop-blur transition hover:text-text"
+  // ---- shared watch-page layout (reference replica, REA-verified) ----
+  // Expanded embed URL per provider id — feeds the ServerPanel's live
+  // reachability probe (each provider's origin gets a no-cors ping).
+  const embedUrls: Record<string, string> = {};
+  for (const c of plan.candidates) {
+    if (c.surface.kind === "embed") {
+      embedUrls[c.provider.id] = expandTemplate(c.surface.urlTemplate, {
+        id: media.tmdbId,
+        ...(hasEpisodes ? { season, episode } : {}),
+      });
+    }
+  }
+
+  return (
+    <div className="relative min-h-screen bg-bg text-text -mt-[var(--rh-nav-h)]">
+      {/* Fixed, blurred backdrop wash (reference: fixed scaled backdrop img) */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <PosterImage
+          src={media.backdropUrl}
+          title={media.title}
+          type={media.type}
+          variant="backdrop"
+          className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-3xl"
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(0,0,0,0.35),rgba(0,0,0,0.85)_55%,#000_100%)]" />
+      </div>
+
+      {/* Floating back chip (reference geometry: left-3 top-1, sm:left-6 sm:top-4) */}
+      <div className="fixed left-3 top-1 z-[60] sm:left-6 sm:top-4">
+        <BackButton href={backHref} />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-[1700px] px-4 pt-16 sm:pt-6 md:px-8">
+        {/* Player column: glow mask + stage + dock + switch row */}
+        <div className="relative px-1">
+          {/* Glow behind the stage (reference: radial mask + blur-64 backdrop) */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            style={{
+              maskImage:
+                "radial-gradient(60% 56%, rgb(0, 0, 0) 28%, rgba(0, 0, 0, 0.5) 58%, rgba(0, 0, 0, 0) 82%)",
+              WebkitMaskImage:
+                "radial-gradient(60% 56%, rgb(0, 0, 0) 28%, rgba(0, 0, 0, 0.5) 58%, rgba(0, 0, 0, 0) 82%)",
+            }}
+          >
+            <PosterImage
+              src={media.backdropUrl}
+              title={media.title}
+              type={media.type}
+              variant="backdrop"
+              className="h-full w-full scale-125 object-cover blur-[64px]"
+            />
+          </div>
+
+          <div className="relative flex flex-col items-center px-2 pb-0 pt-10 sm:pt-14 md:px-8 md:pt-20">
+            {/* Stage (reference: max-w-1180, aspect-video, rounded top only) */}
+            <div
+              ref={stageRef}
+              className={`relative aspect-video w-full overflow-hidden rounded-2xl rounded-b-none border border-b-0 border-white/[0.09] bg-black shadow-[0_60px_160px_-24px_rgba(0,0,0,0.98),0_28px_70px_-12px_rgba(0,0,0,0.85)] ${
+                theater ? "" : "max-w-[1180px]"
+              }`}
             >
-              <EpisodesIcon size={18} />
-            </button>
+              {isNative ? (
+                <VideoPlayer
+                  // Remounting per provider keeps the player's own lifecycle intact
+                  // (it re-reads saved progress on mount) instead of mutating it.
+                  key={`native:${selectedId}`}
+                  embedded
+                  type={type}
+                  media={media}
+                  overview={overview}
+                  runtime={runtime}
+                  seasons={seasons}
+                  servers={nativeSurface.servers}
+                  initialSeasonNumber={season}
+                  initialEpisodeNumber={episode}
+                  initialSeconds={switched ? undefined : initialSeconds}
+                  backHref={backHref}
+                />
+              ) : (
+                <>
+                  {failure ? (
+                    <PlaybackError
+                      providerName={provider.displayName}
+                      detail={failure.detail}
+                      onRetry={() => {
+                        setFailure(null);
+                        setReloadKey((k) => k + 1);
+                      }}
+                      onSwitch={
+                        manualAlternative
+                          ? () => selectProvider(manualAlternative.provider.id)
+                          : undefined
+                      }
+                      nextProviderName={manualAlternative?.provider.displayName}
+                    />
+                  ) : (
+                    <EmbedSurface
+                      provider={provider}
+                      src={expandTemplate(
+                        (embedSurface as { urlTemplate: string }).urlTemplate,
+                        {
+                          id: media.tmdbId,
+                          ...(hasEpisodes ? { season, episode } : {}),
+                        }
+                      )}
+                      title={`${provider.displayName} player — ${contextLabel}`}
+                      reloadKey={reloadKey}
+                      onProgress={(seconds, duration) =>
+                        recorderRef.current?.report({ seconds, duration })
+                      }
+                      onEnded={handleEnded}
+                      onFailure={handleFailure}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Control dock joined under the stage (reference anatomy) */}
+            <div className={`relative z-[2] w-full ${theater ? "" : "max-w-[1180px]"}`}>
+              <WatchDock
+                media={media}
+                theater={theater}
+                season={season}
+                episode={episode}
+                onToggleTheater={() => setTheater((v) => !v)}
+                onFullscreen={toggleStageFullscreen}
+                onNotPlaying={focusServerPanel}
+              />
+              {/* "Not playing? Switch server" — its own right-aligned row under
+                  the dock (reference: mt-3 justify-end, amber). */}
+              <div className="mt-3 flex w-full items-center justify-end px-1">
+                <button
+                  type="button"
+                  onClick={focusServerPanel}
+                  className="group inline-flex items-center gap-2 text-[12px] text-amber-400/75 transition-colors hover:text-amber-300"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" x2="12" y1="8" y2="12" />
+                    <line x1="12" x2="12.01" y1="16" y2="16" />
+                  </svg>
+                  <span>
+                    Not playing?{" "}
+                    {/* Reference: the link text itself is the brighter amber
+                        (amber-300), constant — only the underline is hover-only. */}
+                    <span className="font-semibold text-amber-300 underline-offset-2 group-hover:underline">
+                      Switch server
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {noticeNode}
+
+        {/* Servers panel (reference: full container width, mt-3 px-1) */}
+        <div className="mt-3 px-1 pb-16">
+          {plan.providers.length > 0 && (
+            <ServerPanel
+              providers={plan.providers}
+              selectedId={selectedId}
+              onSelect={selectProvider}
+              embedUrls={embedUrls}
+            />
+          )}
+
+          {/* Episodes (TV only, reference position: directly below the
+              servers panel) */}
+          {hasEpisodes && (
+            <WatchEpisodes
+              seasons={seasons}
+              season={season}
+              episode={episode}
+              onSelectEpisode={selectEpisode}
+              media={media}
+            />
+          )}
+
+          {/* Details card (reference: mt-3 px-1, full width glass) */}
+          {detail && (
+            <div className="mt-3">
+              <WatchDetails
+                detail={detail}
+                seasonInfo={hasEpisodes ? `S${season} · E${episode}` : undefined}
+              />
+            </div>
           )}
         </div>
       </div>
 
-      {notice && (
-        <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2">
-          <FallbackNotice
-            fromName={notice.from}
-            toName={notice.to}
-            onDismiss={() => setNotice(null)}
-          />
+      {/* Trailer + recommendations (reference: second container, py-10) */}
+      {detail && (
+        <div className="relative z-10 mx-auto max-w-[1700px] px-4 py-10 md:px-8">
+          {detail.trailerKey && (
+            <TrailerSection trailerKey={detail.trailerKey} trailerName={detail.trailerName} />
+          )}
+          <RecommendationsSection title={detail.title} items={detail.recommendations ?? []} />
         </div>
       )}
 
-      {hasEpisodes && (
-        <EpisodeDrawer
-          open={episodesOpen}
-          onClose={() => setEpisodesOpen(false)}
-          mediaId={media.id}
-          mediaTitle={media.title}
-          mediaOverview={overview}
-          seasons={seasons}
-          currentSeason={season}
-          currentEpisode={episode}
-          autoplay={autoplay}
-          onToggleAutoplay={() => setAutoplay((v) => !v)}
-          onSelectEpisode={selectEpisode}
-        />
-      )}
+      {/* TV watch page: the reference has no episode drawer/button — episode
+          selection happens from the series detail page, and the native player
+          keeps its own next-episode flow when it is the surface. */}
     </div>
   );
 }
@@ -441,9 +573,10 @@ function BackButton({ href }: { href: string }) {
     <Link
       href={href}
       aria-label="Back"
-      className="grid h-10 w-10 place-items-center rounded-full border border-border bg-surface/90 text-text shadow-lg backdrop-blur transition hover:bg-surface"
+      className="group inline-flex cursor-pointer select-none items-center gap-2 rounded-[11px] border border-white/[0.09] bg-[hsl(150_3%_12%)] py-2.5 pl-2.5 pr-3.5 text-[13px] font-semibold text-foreground shadow-[0_10px_28px_-10px_rgba(0,0,0,0.9)] transition-colors hover:bg-[hsl(150_3%_16%)] sm:py-2"
     >
-      <BackIcon size={20} />
+      <BackIcon size={18} className="text-[hsl(150_3%_62%)] transition-transform duration-200 group-hover:-translate-x-0.5" />
+      Back
     </Link>
   );
 }

@@ -7,9 +7,10 @@ import {
   TYPE_OPTIONS,
   browseHref,
   hasActiveFilters,
-  sortLabel,
   type BrowseFilters,
 } from "@/lib/browse";
+import { dedupeByFamily, sortProviders } from "@/lib/provider-logos";
+import type { WatchProvider } from "@/lib/tmdb";
 import { rovingKeyDown, usePopover } from "@/lib/use-popover";
 
 // ---------------------------------------------------------------------------
@@ -77,13 +78,17 @@ function FilterMenu({
         }}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`pill h-9 ${narrowed || open ? "pill-active" : ""}`}
+        className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition ${
+          narrowed || open
+            ? "border-accent/50 bg-surface text-text"
+            : "border-white/10 bg-surface/60 text-text/90 hover:border-white/25"
+        }`}
       >
         <span className="text-muted/80">{label}</span>
-        <span className={narrowed ? "font-semibold" : "text-text"}>{value}</span>
+        <span>{value}</span>
         <ChevronRightIcon
           size={13}
-          className={`shrink-0 transition ${open ? "-rotate-90" : "rotate-90"}`}
+          className={`shrink-0 text-muted transition ${open ? "-rotate-90" : "rotate-90"}`}
         />
       </button>
 
@@ -163,10 +168,12 @@ export default function FilterBar({
   filters,
   genres,
   years,
+  providers = [],
 }: {
   filters: BrowseFilters;
   genres: string[];
   years: number[];
+  providers?: WatchProvider[];
 }) {
   const sheet = usePopover();
 
@@ -184,6 +191,25 @@ export default function FilterBar({
     (value) => browseHref(filters, { year: value === null ? null : Number(value), page: 1 })
   );
 
+  // Source options mirror the homepage provider rail exactly: one entry per
+  // brand family (Netflix, not Netflix Kids + Netflix; HBO Max, not the
+  // Amazon Channel reseller), in the family priority order. The option filters
+  // by the family flagship's TMDB id — the same id the homepage cards link.
+  const familyProviders: WatchProvider[] = sortProviders(dedupeByFamily(providers));
+  const providerOptions: Option[] = [
+    {
+      label: "All providers",
+      href: browseHref(filters, { provider: null, page: 1 }),
+      active: filters.provider === null,
+    },
+    ...familyProviders.map((p) => ({
+      label: p.name,
+      href: browseHref(filters, { provider: p.id, page: 1 }),
+      active: filters.provider === p.id,
+    })),
+  ];
+  const activeProvider = familyProviders.find((p) => p.id === filters.provider);
+
   const sortOptions: Option[] = SORT_OPTIONS.map((option) => ({
     label: option.label,
     href: browseHref(filters, { sort: option.value, page: 1 }),
@@ -191,33 +217,55 @@ export default function FilterBar({
   }));
 
   const active = hasActiveFilters(filters);
+  // The industry toggle is not reset here — it's a header switch, not a
+  // dropdown filter; the page's own empty-state Clear Filters resets it.
   const clearHref = browseHref({
     type: filters.type,
     genre: null,
+    provider: null,
     year: null,
     sort: "popularity",
+    industry: filters.industry,
     page: 1,
   });
 
+  // Sort is an inline pill toggle row (reference pattern); Genre, Source and
+  // Year stay dropdowns. The phone sheet keeps them all as groups.
   const dropdowns = (
     <>
       <FilterMenu label="Genre" value={filters.genre ?? "All Genres"} options={genreOptions} />
+      {providerOptions.length > 1 && (
+        <FilterMenu
+          label="Source"
+          value={activeProvider?.name ?? "All providers"}
+          options={providerOptions}
+        />
+      )}
       <FilterMenu
         label="Year"
         value={filters.year ? String(filters.year) : "All Years"}
         options={yearOptions}
-      />
-      <FilterMenu
-        label="Sort by"
-        value={sortLabel(filters.sort)}
-        options={sortOptions}
-        align="right"
       />
     </>
   );
 
   return (
     <div className="space-y-3">
+      {/* Sort pills — the reference's Popular/Recent/Top IMDb toggle row. */}
+      <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5">
+        {sortOptions.map((option) => (
+          <Link
+            key={option.href}
+            href={option.href}
+            scroll={false}
+            aria-current={option.active ? "true" : undefined}
+            className={`pill ${option.active ? "pill-active" : ""}`}
+          >
+            {option.label}
+          </Link>
+        ))}
+      </div>
+
       <div className="flex items-center gap-2">
         {/* Content type doubles as navigation between the three browse routes. */}
         <div className="no-scrollbar -mx-1 flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-0.5">
@@ -242,12 +290,12 @@ export default function FilterBar({
           {active && (
             <Link href={clearHref} className="pill h-9 gap-1.5">
               <CloseIcon size={13} />
-              Clear Filters
+              Reset
             </Link>
           )}
         </div>
 
-        {/* Phone: one trigger for all three dropdowns. */}
+        {/* Phone: one trigger for all four dropdowns. */}
         <div ref={sheet.rootRef} className="relative ml-auto shrink-0 md:hidden">
           <button
             ref={sheet.triggerRef}
@@ -268,6 +316,13 @@ export default function FilterBar({
                   options={genreOptions}
                   onNavigate={() => sheet.close()}
                 />
+                {providerOptions.length > 1 && (
+                  <FilterGroup
+                    label="Source"
+                    options={providerOptions}
+                    onNavigate={() => sheet.close()}
+                  />
+                )}
                 <FilterGroup
                   label="Year"
                   options={yearOptions}

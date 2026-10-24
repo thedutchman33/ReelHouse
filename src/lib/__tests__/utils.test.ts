@@ -1,40 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
   mediaId,
-  parseMediaId,
   yearOf,
   formatRating,
   formatRuntime,
   clamp,
   placeholderArt,
 } from "@/lib/utils";
-import type { MediaType } from "@/types";
 
-describe("mediaId / parseMediaId", () => {
+describe("mediaId", () => {
   it("builds the internal id from type + tmdb id", () => {
     expect(mediaId("movie", 603)).toBe("movie-603");
     expect(mediaId("tv", 1399)).toBe("tv-1399");
-  });
-
-  it("round-trips id → parse → id for both media types", () => {
-    const cases: Array<[MediaType, number]> = [
-      ["movie", 603],
-      ["tv", 1399],
-      ["movie", 0],
-    ];
-    for (const [type, tmdbId] of cases) {
-      expect(parseMediaId(mediaId(type, tmdbId))).toEqual({ type, tmdbId });
-    }
-  });
-
-  it("parses leading-zero ids numerically", () => {
-    expect(parseMediaId("movie-007")).toEqual({ type: "movie", tmdbId: 7 });
-  });
-
-  it("returns null for malformed ids", () => {
-    for (const bad of ["", "movie-", "show-1", "movie-abc", "movie-1.5", "603", "tv_1399"]) {
-      expect(parseMediaId(bad)).toBeNull();
-    }
   });
 });
 

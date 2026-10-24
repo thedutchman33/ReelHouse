@@ -49,8 +49,11 @@ export default function SearchClient({ initialQuery }: { initialQuery: string })
 
   return (
     <div className="container-rh py-8">
-      <h1 className="mb-1 text-2xl font-bold sm:text-3xl">Search</h1>
-      <p className="mb-5 text-sm text-muted">
+      <p className="eyebrow">Search</p>
+      <h1 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide text-text sm:text-5xl">
+        Search
+      </h1>
+      <p className="mb-5 mt-2 text-sm text-muted">
         Look up any film or series by title, or browse by genre.
       </p>
 

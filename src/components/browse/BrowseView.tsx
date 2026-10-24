@@ -1,9 +1,10 @@
 import Link from "next/link";
 import FilterBar from "@/components/browse/FilterBar";
+import IndustryToggle from "@/components/browse/IndustryToggle";
 import MediaGrid from "@/components/media/MediaGrid";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
 import { browseHref, hasActiveFilters, parseBrowseFilters, type BrowseType } from "@/lib/browse";
-import { getBrowseOptions, getBrowseResults } from "@/lib/tmdb";
+import { getBrowseOptions, getBrowseResults, getWatchProviders } from "@/lib/tmdb";
 
 // ---------------------------------------------------------------------------
 // Shared browse screen.
@@ -29,6 +30,11 @@ export default async function BrowseView({
 }) {
   const filters = parseBrowseFilters(await searchParams, type);
   const options = getBrowseOptions(type);
+  // Provider ("Source") filter options — the same list the homepage carousel
+  // uses, scoped to this page's content type. Wide net on purpose: the
+  // FilterBar dedupes to family flagships (HBO Max over "…Amazon Channel"),
+  // and the flagship variant must be IN the fetched list to win.
+  const providers = await getWatchProviders("US", 100, type === "tv" ? "tv" : "movie");
   const { items, page, totalPages } = await getBrowseResults(filters);
 
   const hasPrev = page > 1;
@@ -36,12 +42,25 @@ export default async function BrowseView({
 
   return (
     <div className="container-rh py-8">
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
-        <p className="mt-1 text-sm text-muted">{subtitle}</p>
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="eyebrow">Browse</p>
+          <h1 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide text-text sm:text-5xl">
+            {title}
+          </h1>
+          <p className="mt-2 text-sm text-muted">{subtitle}</p>
+        </div>
+        {/* Bollywood ⇄ Hollywood slide — every filter below applies on top of
+            whichever industry is selected. */}
+        <IndustryToggle filters={filters} />
       </header>
 
-      <FilterBar filters={filters} genres={options.genres} years={options.years} />
+      <FilterBar
+        filters={filters}
+        genres={options.genres}
+        years={options.years}
+        providers={providers}
+      />
 
       <div className="mt-6">
         {items.length === 0 ? (
@@ -55,8 +74,10 @@ export default async function BrowseView({
                 href={browseHref({
                   type: filters.type,
                   genre: null,
+                  provider: null,
                   year: null,
                   sort: "popularity",
+                  industry: "hollywood",
                   page: 1,
                 })}
                 className="btn-ghost mt-6"
@@ -89,8 +110,7 @@ export default async function BrowseView({
           )}
 
           <span className="text-sm text-muted">
-            Page {page}
-            {totalPages > 0 && ` of ${totalPages}`}
+            {totalPages > 0 ? `${page}–${totalPages}` : `Page ${page}`}
           </span>
 
           {hasNext ? (

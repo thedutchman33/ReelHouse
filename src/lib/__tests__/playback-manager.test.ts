@@ -9,7 +9,6 @@ import {
   selectFallbackCandidate,
   selectInitialCandidate,
   switchableCandidates,
-  templateTokens,
 } from "@/lib/playback/manager";
 import {
   describePlaybackSlots,
@@ -230,14 +229,6 @@ describe("expandTemplate", () => {
     expect(expandTemplate("/p/{id}/{unknown}", { id: 1 })).toBe("/p/1/{unknown}");
   });
 
-  it("reports which tokens a template uses", () => {
-    expect(templateTokens("/p/{id}/{season}/{episode}/{id}")).toEqual([
-      "{id}",
-      "{season}",
-      "{episode}",
-    ]);
-    expect(templateTokens("/p/static")).toEqual([]);
-  });
 });
 
 // ------------------------- five-slot registry (env) -------------------------

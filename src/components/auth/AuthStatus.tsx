@@ -103,9 +103,17 @@ export default function AuthStatus({
   }
 
   if (!email) {
+    // Bare icon trigger (reference navbar shows only a person glyph).
     return (
-      <Link href="/login" className="btn-primary h-9 px-4 text-sm">
-        Sign in
+      <Link
+        href="/login"
+        aria-label="Sign in"
+        className="grid h-10 w-10 place-items-center rounded-lg text-white/80 transition hover:bg-white/5 hover:text-white"
+      >
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" strokeLinecap="round" />
+        </svg>
       </Link>
     );
   }
@@ -127,10 +135,8 @@ export default function AuthStatus({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className={`flex h-9 items-center gap-2 rounded-full border pl-1 pr-2 transition sm:pr-2.5 ${
-          open
-            ? "border-accent/50 bg-surface"
-            : "border-border bg-surface/70 hover:border-accent/40"
+        className={`grid h-10 w-10 place-items-center rounded-lg transition ${
+          open ? "bg-white/10" : "hover:bg-white/5"
         }`}
       >
         <span
@@ -139,15 +145,6 @@ export default function AuthStatus({
         >
           {initial(name, email)}
         </span>
-        <span className="hidden max-w-[9rem] truncate text-sm font-medium text-text sm:inline">
-          {label}
-        </span>
-        <ChevronRightIcon
-          size={13}
-          className={`hidden shrink-0 text-muted transition sm:block ${
-            open ? "-rotate-90" : "rotate-90"
-          }`}
-        />
       </button>
 
       {open && (

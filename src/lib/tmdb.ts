@@ -200,34 +200,236 @@ function liveList(data: any, forcedType?: MediaType): MediaSummary[] {
 // Wrapped in React's per-request cache() so the home page's parallel calls for
 // the hero and the rows share ONE computation (and one set of TMDB fetches)
 // within a single render, instead of running the eight-request fan-out twice.
+/**
+ * "Prepare for Doomsday" (reference pattern): a curated catch-up list — the
+ * exact titles, in the exact order, the operator wants viewers to watch before
+ * the next Avengers. Movies and series mix, so each entry carries its type.
+ * Every id below was verified to resolve to exactly the title named.
+ */
+const DOOMSDAY_WATCH_ORDER: { id: number; type: MediaType }[] = [
+  { id: 36657, type: "movie" }, // X-Men
+  { id: 36658, type: "movie" }, // X2: X-Men United
+  { id: 1771, type: "movie" }, // Captain America: The First Avenger
+  { id: 24428, type: "movie" }, // The Avengers
+  { id: 299536, type: "movie" }, // Avengers: Infinity War
+  { id: 299534, type: "movie" }, // Avengers: Endgame
+  { id: 84958, type: "tv" }, // Loki
+  { id: 566525, type: "movie" }, // Shang-Chi and the Legend of the Ten Rings
+  { id: 634649, type: "movie" }, // Spider-Man: No Way Home
+  { id: 453395, type: "movie" }, // Doctor Strange in the Multiverse of Madness
+  { id: 505642, type: "movie" }, // Black Panther: Wakanda Forever
+  { id: 533535, type: "movie" }, // Deadpool & Wolverine
+  { id: 822119, type: "movie" }, // Captain America: Brave New World
+  { id: 986056, type: "movie" }, // Thunderbolts*
+  { id: 617126, type: "movie" }, // The Fantastic 4: First Steps
+  { id: 969681, type: "movie" }, // Spider-Man: Brand New Day
+];
+
+/** Map a raw /movie/{id} or /tv/{id} payload to a card summary. */
+function rawTitleSummary(raw: any, type: MediaType): MediaSummary | null {
+  if (!raw?.id) return null;
+  return {
+    id: mediaId(type, raw.id),
+    tmdbId: raw.id,
+    type,
+    title: raw.title ?? raw.name ?? "Untitled",
+    posterUrl: img(raw.poster_path, "w500"),
+    backdropUrl: img(raw.backdrop_path, "w1280"),
+    rating: raw.vote_average || undefined,
+    releaseDate: raw.release_date || raw.first_air_date || undefined,
+    genres: Array.isArray(raw.genres) ? raw.genres.map((g: any) => g.name) : [],
+    overview: raw.overview || undefined,
+  };
+}
+
+const doomsdayWatchOrder = cache(async (): Promise<MediaSummary[]> => {
+  const details = await Promise.all(
+    DOOMSDAY_WATCH_ORDER.map(({ id, type }) => tmdb(`/${type}/${id}`, {}, 60 * 60 * 24))
+  );
+  return details
+    .map((d, i) => (d ? rawTitleSummary(d, DOOMSDAY_WATCH_ORDER[i].type) : null))
+    .filter((m): m is MediaSummary => m !== null);
+});
+
+/** Recency floor for genre/editorial rows — keeps sections feeling current. */
+const threeYearsAgo = `${new Date().getFullYear() - 3}-01-01`;
+const todayISO = new Date().toISOString().slice(0, 10);
+
 const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
-  const [trending, top, popMovies, popTv, topRated, scifi, action, comedy] =
-    await Promise.all([
-      tmdb("/trending/all/week", {}, 60 * 15),
-      tmdb("/trending/all/day", {}, 60 * 15),
-      tmdb("/movie/popular", {}, 60 * 30),
-      tmdb("/tv/popular", {}, 60 * 30),
-      tmdb("/movie/top_rated", {}, 60 * 60),
-      tmdb("/discover/movie", { with_genres: "878", sort_by: "popularity.desc" }),
-      tmdb("/discover/movie", { with_genres: "28", sort_by: "popularity.desc" }),
-      tmdb("/discover/movie", { with_genres: "35", sort_by: "popularity.desc" }),
-    ]);
+
+  const [
+    trending,
+    top,
+    popMovies,
+    popTv,
+    topRated,
+    scifi,
+    action,
+    comedy,
+    india,
+    bollywood,
+    editors,
+  ] = await Promise.all([
+    tmdb("/trending/movie/week", { language: "en-US", include_adult: "false" }, 60 * 15),
+    tmdb("/trending/all/day", { language: "en-US", include_adult: "false" }, 60 * 15),
+    tmdb("/movie/popular", { language: "en-US" }, 60 * 30),
+    tmdb("/tv/popular", { language: "en-US" }, 60 * 30),
+    tmdb("/movie/top_rated", { language: "en-US" }, 60 * 60),
+    // Genre rows: recency-biased (last 3 years) so rows feel current.
+    tmdb("/discover/movie", {
+      with_genres: "878",
+      sort_by: "popularity.desc",
+      language: "en-US",
+      "primary_release_date.gte": threeYearsAgo,
+    }),
+    tmdb("/discover/movie", {
+      with_genres: "28",
+      sort_by: "popularity.desc",
+      language: "en-US",
+      "primary_release_date.gte": threeYearsAgo,
+    }),
+    tmdb("/discover/movie", {
+      with_genres: "35",
+      sort_by: "popularity.desc",
+      language: "en-US",
+      "primary_release_date.gte": threeYearsAgo,
+    }),
+    // TMDB's region parameter on /movie/popular — a real India-specific ranking.
+    tmdb("/movie/popular", { region: "IN", language: "en-US" }, 60 * 60),
+    // Bollywood: one curated row mixing the best of Hindi cinema —
+    // most anticipated (upcoming, like Ramayana), latest 7+ rated releases,
+    // and box office superhits. Interleaved so the row reads fresh throughout.
+    tmdb("/discover/movie", {
+      with_original_language: "hi",
+      sort_by: "popularity.desc",
+      language: "en-US",
+      include_adult: "false",
+      "vote_count.gte": "1",
+    }, 60 * 30),
+    // Editor's choices: high-rated, but restricted to recent + enough votes.
+    tmdb("/discover/movie", {
+      sort_by: "vote_average.desc",
+      language: "en-US",
+      "vote_count.gte": "500",
+      "vote_average.gte": "7",
+      "primary_release_date.gte": threeYearsAgo,
+    }),
+  ]);
 
   const newPopular = [...liveList(popMovies, "movie"), ...liveList(popTv, "tv")]
     .sort((a, b) => (b.releaseDate ?? "").localeCompare(a.releaseDate ?? ""))
     .slice(0, 16);
 
+  // The curated Doomsday watch-order is fetched separately (per-id, cached).
+  const mcu = await doomsdayWatchOrder();
+
+  // ---- Bollywood curation: one row mixing the best Hindi cinema has ----
+  // Pull from the popularity-ranked Hindi pool and interleave three tiers:
+  //   1. Most anticipated (upcoming, massive buzz — e.g. Ramayana)
+  //   2. Latest quality releases (released in the last year, rating ≥ 7)
+  //   3. Box office superhits (already popular + released — blockbusters)
+  // Deduped and capped at 18 so the row is rich but scannable.
+  let bollywoodRow: MediaSummary[] = [];
+  {
+    const all = liveList(bollywood, "movie").filter((m) => m.posterUrl);
+    const upcoming = all
+      .filter((m) => (m.releaseDate ?? "") > todayISO)
+      .slice(0, 3);
+    const qualityRecent = all
+      .filter(
+        (m) =>
+          (m.releaseDate ?? "") <= todayISO &&
+          (m.releaseDate ?? "") >= `${new Date().getFullYear() - 1}-01-01` &&
+          (m.rating ?? 0) >= 7
+      )
+      .slice(0, 8);
+    const blockbusters = all
+      .filter((m) => (m.releaseDate ?? "") <= todayISO)
+      .slice(0, 8);
+    const seen = new Set<string>();
+    for (const m of [...upcoming, ...qualityRecent, ...blockbusters]) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      bollywoodRow.push(m);
+      if (bollywoodRow.length >= 18) break;
+    }
+  }
+
   const rows: MediaRow[] = [
     { key: "trending", title: "Trending Now", items: liveList(trending).slice(0, 16) },
     { key: "top10", title: "Top 10 Today", ranked: true, items: liveList(top).slice(0, 10) },
+    { key: "topIndia", title: "Top Movies in India", items: liveList(india, "movie").slice(0, 16) },
+    { key: "bollywood", title: "Bollywood", items: bollywoodRow },
+    {
+      key: "doomsday",
+      title: "Prepare for Doomsday",
+      items: mcu,
+    },
     { key: "new", title: "New & Popular", items: newPopular },
     { key: "acclaimed", title: "Critically Acclaimed", items: liveList(topRated, "movie").slice(0, 16) },
+    { key: "editors", title: "Editor's Choices", items: liveList(editors, "movie").slice(0, 16) },
     { key: "scifi", title: "Sci-Fi & Fantasy", items: liveList(scifi, "movie").slice(0, 16) },
     { key: "action", title: "Action & Adventure", items: liveList(action, "movie").slice(0, 16) },
     { key: "feelgood", title: "Comedy & Feel-Good", items: liveList(comedy, "movie").slice(0, 16) },
   ];
   return rows.filter((r) => r.items.length > 0);
 });
+
+// Watch-provider directory (TMDB /watch/providers), ordered by TMDB's own
+// display priority. Real logos come from the provider records themselves.
+export interface WatchProvider {
+  id: number;
+  name: string;
+  logoUrl: string;
+}
+
+export async function getWatchProviders(
+  region = "US",
+  limit = 14,
+  kind: "movie" | "tv" = "movie"
+): Promise<WatchProvider[]> {
+  if (!USE_LIVE) return [];
+  const data = await tmdb<{ results?: any[] }>(
+    `/watch/providers/${kind}`,
+    { watch_region: region },
+    60 * 60 * 24
+  );
+  if (!data?.results?.length) return [];
+  return data.results
+    .slice()
+    .sort((a, b) => (a.display_priority ?? 999) - (b.display_priority ?? 999))
+    .slice(0, limit)
+    .map((p) => ({
+      id: p.provider_id as number,
+      name: (p.provider_name as string) ?? "Provider",
+      logoUrl: p.logo_path ? img(p.logo_path, "w300") ?? "" : "",
+    }))
+    .filter((p) => p.logoUrl !== "");
+}
+
+/** One page of titles for a watch provider (real provider-filtered catalog). */
+export async function getProviderTitles(
+  providerId: number,
+  page: number,
+  region = "US"
+): Promise<MediaSummary[]> {
+  if (!USE_LIVE) return [];
+  const data = await tmdb("/discover/movie", {
+    with_watch_providers: String(providerId),
+    watch_region: region,
+    sort_by: "popularity.desc",
+    page: String(Math.max(1, page)),
+  });
+  return liveList(data, "movie");
+}
+
+export async function getProviderName(
+  providerId: number,
+  region = "US"
+): Promise<WatchProvider | null> {
+  const all = await getWatchProviders(region, 100);
+  return all.find((p) => p.id === providerId) ?? null;
+}
 
 // Wrapped in React's per-request cache(), keyed on (type, tmdbId), for the same
 // reason as liveHomeRows above: every detail-ish route calls getMediaDetail()
@@ -239,7 +441,7 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
 // requests or users.
 const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media | null> => {
   const data = await tmdb(`/${type}/${tmdbId}`, {
-    append_to_response: "credits,recommendations",
+    append_to_response: "credits,recommendations,videos",
   });
   if (!data) return null;
 
@@ -251,6 +453,15 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
     profileUrl: img(c.profile_path, "w185"),
   }));
   const recommendations = liveList(data.recommendations, type).slice(0, 12);
+
+  // Official trailer: TMDB's videos list — official YouTube trailers first,
+  // most recent first. Real data only; no trailer means the section hides.
+  const videos: any[] = data.videos?.results ?? [];
+  const trailer =
+    videos
+      .filter((v) => v.site === "YouTube" && /trailer/i.test(v.type || ""))
+      .sort((a, b) => (b.official === true ? 1 : 0) - (a.official === true ? 1 : 0))
+      .find(Boolean) ?? videos.find((v) => v.site === "YouTube");
 
   let seasons;
   if (type === "tv" && Array.isArray(data.seasons)) {
@@ -266,6 +477,7 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
           overview: e.overview,
           runtime: e.runtime,
           stillUrl: img(e.still_path, "w300"),
+          rating: e.vote_average || undefined,
           airDate: e.air_date,
         }));
         return {
@@ -277,6 +489,14 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
       })
     );
   }
+
+  // Detail-hero extras, same treatment the homepage hero gets: official title
+  // logo artwork + the US certification. Both helpers carry their own long
+  // TMDB caches, so this adds no meaningful cost to the dynamic detail route.
+  const [certification, logoUrl] = await Promise.all([
+    getCertification(type, tmdbId),
+    getTitleLogo(type, tmdbId),
+  ]);
 
   return {
     id: mediaId(type, tmdbId),
@@ -294,6 +514,10 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
     cast,
     recommendations,
     seasons,
+    trailerKey: trailer?.key,
+    trailerName: trailer?.name,
+    certification,
+    logoUrl,
   };
 });
 
@@ -381,6 +605,20 @@ function discoverParams(
 
   const genreId = genreIdFor(filters.genre, type);
   if (genreId) params.with_genres = String(genreId);
+  // Industry toggle (header slide control): Bollywood = Indian cinema across
+  // its major languages (pipe = OR in TMDB's discover), Hollywood = English
+  // originals. The industry owns all language narrowing — there is no
+  // Bollywood genre option in the dropdown.
+  if (filters.industry === "bollywood") {
+    params.with_original_language = "hi|ta|te|kn|ml|mr|bn|pa|gu";
+  } else if (filters.industry === "hollywood") {
+    params.with_original_language = "en";
+  }
+  // "Source" filter: TMDB watch-provider availability (US region).
+  if (filters.provider) {
+    params.with_watch_providers = String(filters.provider);
+    params.watch_region = "US";
+  }
 
   if (filters.year) {
     if (type === "movie") params.primary_release_year = String(filters.year);
@@ -493,6 +731,47 @@ export function isLiveMetadata(): boolean {
   return USE_LIVE;
 }
 
+/** Idle-state seed for the search overlay: today's trending titles. */
+export async function getTrendingSeed(): Promise<MediaSummary[]> {
+  if (USE_LIVE) {
+    const data = await tmdb("/trending/all/day", {}, 60 * 30);
+    const list = liveList(data).slice(0, 8);
+    if (list.length) return list;
+  }
+  const mock = mockHomeRows().find((r) => r.key === "trending");
+  return (mock?.items ?? []).slice(0, 8);
+}
+
+// ------------------------- curated "My Feed" pools --------------------------
+// Pool definitions live in feed-pools.ts (pure data, shared with the client
+// row); this side only knows how to fetch one pool.
+import type { FeedPool } from "@/lib/feed-pools";
+export type { FeedPool } from "@/lib/feed-pools";
+export { FEED_POOLS } from "@/lib/feed-pools";
+
+/**
+ * One curated all-time pool. Vote floors keep `vote_average.desc` from
+ * surfacing unrated titles; TV floors sit lower because reality/documentary
+ * series legitimately carry fewer votes than movies.
+ */
+export async function fetchFeedPool(pool: FeedPool): Promise<MediaSummary[]> {
+  if (!USE_LIVE) return [];
+  const path = pool.kind === "movie" ? "/discover/movie" : "/discover/tv";
+  const params: Record<string, string> = {
+    sort_by: "vote_average.desc",
+    include_adult: "false",
+    "vote_count.gte": pool.kind === "movie" ? "1500" : "300",
+  };
+  if (pool.genreId && pool.id !== "korean-tv") {
+    params.with_genres = String(pool.genreId);
+  }
+  if (pool.id === "korean-tv") {
+    params.with_original_language = "ko";
+  }
+  const data = await tmdb(path, params, 60 * 60 * 12);
+  return liveList(data, pool.kind).slice(0, 24);
+}
+
 export async function getHomeRows(): Promise<MediaRow[]> {
   if (USE_LIVE) {
     const rows = await liveHomeRows();
@@ -501,11 +780,116 @@ export async function getHomeRows(): Promise<MediaRow[]> {
   return mockHomeRows();
 }
 
+/**
+ * Official title-logo artwork (the movie/series' own logotype, like the
+ * reference hero). Prefers wide English logos, then language-free ones, then
+ * anything TMDB ranks highly — text fallback covers the rest.
+ */
+async function getTitleLogo(
+  type: MediaType,
+  tmdbId: number
+): Promise<string | undefined> {
+  const path = type === "movie" ? `/movie/${tmdbId}/images` : `/tv/${tmdbId}/images`;
+  const data = await tmdb<{ logos?: any[] }>(
+    path,
+    { include_image_language: "en,null" },
+    60 * 60 * 24 * 7
+  );
+  const logos = (data?.logos ?? []).filter((l) => l.file_path);
+  if (!logos.length) return undefined;
+  const rank = (l: any) =>
+    (l.iso_639_1 === "en" ? 4 : l.iso_639_1 ? 1 : 2) +
+    ((l.width ?? 0) > (l.height ?? 1) ? 2 : 0) +
+    Math.min((l.vote_average ?? 0) / 10, 0.9);
+  logos.sort((a, b) => rank(b) - rank(a));
+  return img(logos[0].file_path, "w500") ?? undefined;
+}
+
+/** US content rating for one title (hero meta chip; reference pattern). */
+async function getCertification(
+  type: MediaType,
+  tmdbId: number
+): Promise<string | undefined> {
+  if (type === "movie") {
+    const data = await tmdb<{ results?: any[] }>(
+      `/movie/${tmdbId}/release_dates`,
+      {},
+      60 * 60 * 24
+    );
+    const us = data?.results?.find((r: any) => r.iso_3166_1 === "US");
+    const cert = us?.release_dates?.find((r: any) => r.certification)?.certification;
+    return cert || undefined;
+  }
+  const data = await tmdb<{ results?: any[] }>(
+    `/tv/${tmdbId}/content_ratings`,
+    {},
+    60 * 60 * 24
+  );
+  const us = data?.results?.find((r) => r.iso_3166_1 === "US");
+  return us?.rating || undefined;
+}
+
+/** The single Indian hero slot: pinned to Ramayana: Rise of a Legend
+    (TMDB 656908, India's most anticipated film). Falls back to the most
+    popular upcoming Hindi title if the lookup ever fails. */
+async function getIndianHero(): Promise<MediaSummary | null> {
+  // Pinned: Ramayana: Rise of a Legend (2026).
+  const ramayana = await tmdb("/movie/656908", { language: "en-US" }, 60 * 60);
+  const pinned = ramayana ? rawTitleSummary(ramayana, "movie") : null;
+  if (pinned?.posterUrl && pinned?.backdropUrl) return pinned;
+
+  // Fallback: most popular upcoming Hindi title with full artwork.
+  const data = await tmdb("/discover/movie", {
+    with_original_language: "hi",
+    sort_by: "popularity.desc",
+    language: "en-US",
+    include_adult: "false",
+    "vote_count.gte": "1",
+  }, 60 * 30);
+  const today = todayISO;
+  const list = liveList(data, "movie").filter(
+    (m) => m.posterUrl && m.backdropUrl
+  );
+  const upcoming = list.find((m) => (m.releaseDate ?? "") > today);
+  return upcoming ?? list[0] ?? null;
+}
+
 export async function getHeroItems(): Promise<MediaSummary[]> {
   if (USE_LIVE) {
-    const rows = await liveHomeRows();
-    const trending = rows.find((r) => r.key === "trending")?.items ?? [];
-    if (trending.length) return trending.slice(0, 5);
+    const today = todayISO;
+    const [trending, indian] = await Promise.all([
+      tmdb("/trending/movie/week", {
+        language: "en-US",
+        include_adult: "false",
+      }, 60 * 15),
+      getIndianHero(),
+    ]);
+
+    // Hollywood slots: trending this week, released, full artwork.
+    const released = liveList(trending, "movie").filter(
+      (m) =>
+        m.posterUrl &&
+        m.backdropUrl &&
+        m.releaseDate &&
+        m.releaseDate <= today
+    );
+    // 1 Indian + 4 Hollywood, Indian first.
+    const picks: MediaSummary[] = [];
+    if (indian) picks.push(indian);
+    for (const m of released) {
+      if (picks.length >= 5) break;
+      if (indian && m.tmdbId === indian.tmdbId) continue;
+      picks.push(m);
+    }
+    if (picks.length >= 3) {
+      return Promise.all(
+        picks.map(async (item) => ({
+          ...item,
+          certification: await getCertification(item.type, item.tmdbId),
+          logoUrl: await getTitleLogo(item.type, item.tmdbId),
+        }))
+      );
+    }
   }
   return mockHero();
 }
@@ -549,8 +933,9 @@ export async function getBrowseResults(filters: BrowseFilters): Promise<BrowsePa
  */
 export function getBrowseOptions(type: BrowseType): BrowseOptions {
   if (USE_LIVE) {
-    const genres = BROWSE_GENRES.filter((g) =>
-      type === "all" ? g.movieId || g.tvId : type === "movie" ? g.movieId : g.tvId
+    const genres = BROWSE_GENRES.filter(
+      (g) =>
+        type === "all" ? g.movieId || g.tvId : type === "movie" ? g.movieId : g.tvId
     ).map((g) => g.name);
     const latest = new Date().getFullYear();
     const years: number[] = [];

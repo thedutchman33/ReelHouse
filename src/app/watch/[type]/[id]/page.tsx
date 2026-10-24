@@ -23,7 +23,8 @@ export async function generateMetadata({
   const { type, id } = await params;
   if (!isMediaType(type)) return { title: "Watch" };
   const media = await getMediaDetail(type, Number(id));
-  return { title: media ? `Watch · ${media.title}` : "Watch" };
+  // Reference tab-title format: "Inception Watch | 7REELS".
+  return { title: media ? `${media.title} Watch` : "Watch" };
 }
 
 export default async function WatchPage({
@@ -89,6 +90,7 @@ export default async function WatchPage({
     <PlaybackContainer
       type={type}
       media={summary}
+      detail={media}
       overview={media.overview}
       runtime={media.runtime}
       seasons={seasons}

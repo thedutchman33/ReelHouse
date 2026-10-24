@@ -1,20 +1,42 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/navigation/Navbar";
 import Footer from "@/components/common/Footer";
 import LibrarySync from "@/components/auth/LibrarySync";
 import { getUser } from "@/lib/supabase/server";
 
+// Reference design system: Inter for UI text, Bebas Neue (single weight,
+// condensed caps) for hero titles and section headings.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "900"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const bebasNeue = Bebas_Neue({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-bebas",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com/"),
   title: {
-    default: "Reelhouse — Stream films & series",
-    template: "%s · Reelhouse",
+    // Reference tab-title format: "{Page} | 7REELS" with the brand uppercase;
+    // the home page carries the tagline instead of the bare brand.
+    default: "Watch Free Movies & TV Shows Online | REELHOUSE",
+    template: "%s | REELHOUSE",
   },
   description:
     "Reelhouse is a cinematic streaming discovery experience — browse trending films and series, search, dive into rich detail pages, and build your watchlist.",
   applicationName: "Reelhouse",
-  icons: { icon: "/favicon.svg" },
+  // Tab logo: the operator's favicon, served from public/ exactly as provided.
+  icons: {
+    icon: "/favicon.png",
+  },
   openGraph: {
     title: "Reelhouse — Stream films & series",
     description: "Discover, search, and track films and series in one cinematic experience.",
@@ -24,7 +46,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#100e0c",
+  themeColor: "#111212",
   colorScheme: "dark",
 };
 
@@ -40,14 +62,17 @@ export default async function RootLayout({
   const name = metadata.full_name ?? metadata.name;
 
   return (
-    <html lang="en">
-      <body className="flex min-h-screen flex-col">
+    <html lang="en" className={`${inter.variable} ${bebasNeue.variable}`}>
+      <body className="flex min-h-screen flex-col font-sans">
         <LibrarySync />
         <Navbar
           userEmail={user?.email ?? null}
           userName={typeof name === "string" ? name : null}
         />
-        <main className="flex-1">{children}</main>
+        {/* The navbar is a fixed floating bar; content clears it via --rh-nav-h
+            (see globals.css). Pages that must slide beneath it (home hero,
+            watch page) cancel this offset with a matching negative margin. */}
+        <main className="flex-1 pt-[var(--rh-nav-h)]">{children}</main>
         <Footer />
       </body>
     </html>

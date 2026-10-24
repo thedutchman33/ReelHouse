@@ -18,13 +18,13 @@ import { useEffect } from "react";
 // Reelhouse brand tokens (mirrors the CSS variables in globals.css, which are
 // unavailable in this document). Space-separated RGB to match the source.
 const C = {
-  bg: "rgb(16 14 12)",
-  surface: "rgb(26 22 19)",
-  border: "rgb(50 42 36)",
-  text: "rgb(245 241 236)",
-  muted: "rgb(168 155 143)",
-  accent: "rgb(232 163 61)",
-  accentInk: "rgb(34 23 4)",
+  bg: "rgb(17 18 18)",
+  surface: "rgb(26 28 27)",
+  border: "rgb(43 45 44)",
+  text: "rgb(242 243 242)",
+  muted: "rgb(137 144 140)",
+  accent: "rgb(16 185 129)",
+  accentInk: "rgb(4 18 12)",
 };
 
 export default function GlobalError({

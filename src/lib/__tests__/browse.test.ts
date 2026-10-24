@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   browseHref,
   browsePathFor,
+  DEFAULT_INDUSTRY,
   DEFAULT_SORT,
   hasActiveFilters,
   parseBrowseFilters,
-  sortLabel,
   type BrowseFilters,
 } from "@/lib/browse";
 
@@ -16,8 +16,10 @@ import {
 const base: BrowseFilters = {
   type: "all",
   genre: null,
+  provider: null,
   year: null,
   sort: DEFAULT_SORT,
+  industry: DEFAULT_INDUSTRY,
   page: 1,
 };
 
@@ -26,16 +28,28 @@ describe("parseBrowseFilters", () => {
     expect(parseBrowseFilters({})).toEqual(base);
   });
 
-  it("reads type, genre, year, sort and page", () => {
+  it("reads type, genre, provider, year, sort and page", () => {
     expect(
       parseBrowseFilters({
         type: "tv",
         genre: "Drama",
+        provider: "8",
         year: "2021",
         sort: "rating",
         page: "3",
       })
-    ).toEqual({ type: "tv", genre: "Drama", year: 2021, sort: "rating", page: 3 });
+    ).toEqual({
+      type: "tv",
+      genre: "Drama",
+      provider: 8,
+      year: 2021,
+      sort: "rating",
+      industry: "hollywood",
+      page: 3,
+    });
+    // Non-numeric / non-positive provider values fall back to "all".
+    expect(parseBrowseFilters({ provider: "abc" }).provider).toBeNull();
+    expect(parseBrowseFilters({ provider: "-4" }).provider).toBeNull();
   });
 
   it("pins the type on /movies and /tv-shows, ignoring a conflicting param", () => {
@@ -107,8 +121,10 @@ describe("browseHref", () => {
     const filters: BrowseFilters = {
       type: "movie",
       genre: "Drama",
+      provider: null,
       year: 2020,
       sort: "rating",
+      industry: DEFAULT_INDUSTRY,
       page: 1,
     };
     expect(browseHref(filters, { year: null })).toBe("/movies?genre=Drama&sort=rating");
@@ -135,10 +151,19 @@ describe("labels and routes", () => {
     expect(browsePathFor("tv")).toBe("/tv-shows");
   });
 
-  it("labels every sort it offers", () => {
-    expect(sortLabel("popularity")).toBe("Popularity");
-    expect(sortLabel("latest")).toBe("Latest");
-    expect(sortLabel("rating")).toBe("Rating");
-    expect(sortLabel("oldest")).toBe("Oldest");
+});
+
+describe("industry toggle", () => {
+  it("defaults to Hollywood and accepts the bollywood param", () => {
+    expect(parseBrowseFilters({}).industry).toBe("hollywood");
+    expect(parseBrowseFilters({ industry: "bollywood" }).industry).toBe("bollywood");
+    expect(parseBrowseFilters({ industry: "nonsense" }).industry).toBe("hollywood");
+  });
+
+  it("serializes only when off the default and participates in hasActiveFilters", () => {
+    expect(browseHref(base)).toBe("/browse");
+    expect(browseHref(base, { industry: "bollywood" })).toBe("/browse?industry=bollywood");
+    expect(hasActiveFilters(base)).toBe(false);
+    expect(hasActiveFilters({ ...base, industry: "bollywood" })).toBe(true);
   });
 });

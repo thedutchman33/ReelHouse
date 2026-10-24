@@ -70,6 +70,7 @@ export default function VideoPlayer({
   initialEpisodeNumber,
   initialSeconds,
   backHref,
+  embedded = false,
 }: {
   type: MediaType;
   media: MediaSummary;
@@ -81,6 +82,10 @@ export default function VideoPlayer({
   initialEpisodeNumber?: number;
   initialSeconds?: number;
   backHref: string;
+  /** Render inside a 16:9 page section (watch-page layout) instead of a
+      fullscreen takeover. All controls, settings and overlays are unchanged —
+      they are absolutely positioned within this container either way. */
+  embedded?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -595,8 +600,10 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={`fixed inset-0 z-50 select-none bg-black ${
-        controlsVisible ? "" : "cursor-none"
+      className={`select-none bg-black ${
+        embedded
+          ? "relative aspect-video w-full overflow-hidden"
+          : `fixed inset-0 z-50 ${controlsVisible ? "" : "cursor-none"}`
       }`}
       onMouseMove={bump}
       onPointerDown={bump}
@@ -698,6 +705,7 @@ export default function VideoPlayer({
         hasEpisodes={hasEpisodes}
         canNext={Boolean(next)}
         isFullscreen={isFullscreen}
+        hideBack={embedded}
         subtitlesOn={subtitleUrl !== null}
         serversActive={settingsOpen && settingsTab === "servers"}
         onNext={() => next && gotoEpisode(next.seasonNumber, next.episodeNumber)}

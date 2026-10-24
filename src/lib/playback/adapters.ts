@@ -135,12 +135,5 @@ export function getMessageAdapter(
  * The origin an embed's messages must come from, derived from the URL actually
  * loaded. A same-origin path (`/media/...`) resolves to this app's own origin.
  * Messages from any other origin are dropped by the embed surface — a frame must
- * not be able to speak for a provider it is not.
+ * not be able to speak for a provider it is not (see EmbedSurface).
  */
-export function expectedOriginFor(url: string, pageOrigin: string): string | null {
-  try {
-    return new URL(url, pageOrigin).origin;
-  } catch {
-    return null;
-  }
-}

@@ -15,11 +15,14 @@ export default function CastRow({ cast }: { cast?: CastMember[] }) {
 
   return (
     <section className="container-rh py-6">
-      <h2 className="mb-4 text-xl font-semibold">Cast</h2>
+      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted">Starring</p>
+      <h2 className="mb-4 mt-1 font-display text-2xl tracking-tight text-foreground md:text-3xl">
+        Cast
+      </h2>
       <div className="row-scroll no-scrollbar">
         {cast.map((c) => (
           <div key={c.id} className="w-24 shrink-0 text-center sm:w-28">
-            <div className="mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-full border border-border bg-surface-2 sm:h-28 sm:w-28">
+            <div className="mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-full bg-surface-2 ring-1 ring-white/10 transition hover:ring-accent/40 sm:h-28 sm:w-28">
               {c.profileUrl ? (
                 // Profile stills are portrait; a square crop biased upward keeps
                 // the face centred in the circle instead of trimming the head.

@@ -72,15 +72,16 @@ export default function ProviderSelector({
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="Change playback provider"
-        className={`inline-flex max-w-[70vw] items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur transition ${
+        aria-label="Change playback server"
+        className={`inline-flex h-9 max-w-[70vw] items-center gap-2 rounded-lg border px-3 text-xs font-semibold shadow-lg backdrop-blur transition ${
           open
-            ? "border-accent/50 bg-surface text-text"
-            : "border-border bg-surface/85 text-text hover:border-accent/40 hover:bg-surface"
+            ? "border-accent/60 bg-surface text-text"
+            : "border-white/15 bg-black/50 text-text hover:border-white/35"
         }`}
       >
         <SourceIcon size={15} className="shrink-0 text-accent" />
-        <span className="truncate">{selected?.displayName ?? "Select provider"}</span>
+        <span className="text-muted">Servers</span>
+        <span className="max-w-[10rem] truncate">{selected?.displayName ?? "Select server"}</span>
         <ChevronRightIcon
           size={14}
           className={`shrink-0 text-muted transition ${open ? "-rotate-90" : "rotate-90"}`}
@@ -89,11 +90,11 @@ export default function ProviderSelector({
 
       {open && (
           <div className="panel absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw-1rem)]">
-          <p className="panel-label border-b border-border/70">Provider</p>
+          <p className="panel-label border-b border-white/10">Servers</p>
           <ul
             ref={listRef}
             role="listbox"
-            aria-label="Playback providers"
+            aria-label="Playback servers"
             onKeyDown={(e) => rovingKeyDown(e, optionButtons(listRef.current))}
             className="max-h-72 overflow-y-auto p-1.5"
           >
@@ -111,7 +112,7 @@ export default function ProviderSelector({
                       onSelect(p.id);
                       close(true);
                     }}
-                    className={`flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left transition ${
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition ${
                       active
                         ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/30"
                         : p.available
@@ -119,6 +120,15 @@ export default function ProviderSelector({
                           : "cursor-not-allowed text-muted"
                     }`}
                   >
+                    {/* Status dot: green when this server can serve the title. */}
+                    <span
+                      aria-hidden
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        p.available
+                          ? "bg-accent-strong shadow-[0_0_6px_rgb(var(--rh-accent-strong))]"
+                          : "bg-danger/60"
+                      }`}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">
                         {p.displayName}

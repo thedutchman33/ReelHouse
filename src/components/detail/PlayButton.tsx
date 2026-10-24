@@ -31,7 +31,7 @@ export default function PlayButton({ media }: { media: MediaSummary }) {
   }
 
   return (
-    <Link href={href} className="btn-primary">
+    <Link href={href} className="btn-primary h-12 px-8 text-base">
       <PlayIcon /> {label}
     </Link>
   );

@@ -168,7 +168,3 @@ export function expandTemplate(template: string, values: TemplateValues): string
   );
 }
 
-/** Tokens a template actually uses — for config diagnostics. */
-export function templateTokens(template: string): string[] {
-  return [...new Set(template.match(/\{(?:id|season|episode)\}/g) ?? [])];
-}

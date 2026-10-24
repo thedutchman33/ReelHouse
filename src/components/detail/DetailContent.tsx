@@ -30,7 +30,10 @@ export default function DetailContent({ media }: { media: Media }) {
       <CastRow cast={media.cast} />
 
       {recs.length > 0 && (
-        <MediaRow row={{ key: "recs", title: "More Like This", items: recs }} />
+        <MediaRow
+          row={{ key: "recs", title: "More Like This", items: recs }}
+          eyebrow="Recommended"
+        />
       )}
     </article>
   );

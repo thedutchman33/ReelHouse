@@ -47,6 +47,6 @@ export const config = {
   matcher: [
     // Run on all routes except static assets, Next internals, the favicon, and
     // our bundled media clips (which never need a session).
-    "/((?!_next/static|_next/image|favicon.svg|media/).*)",
+    "/((?!_next/static|_next/image|favicon.png|icons/|media/).*)",
   ],
 };

@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import PosterImage from "@/components/media/PosterImage";
-import { PlayIcon } from "@/components/player/icons";
+import { StarIcon } from "@/components/player/icons";
 import { useProgressEntry } from "@/lib/library";
-import { formatRuntime } from "@/lib/utils";
-import type { Episode, MediaSummary, Season } from "@/types";
+import type { MediaSummary, Season } from "@/types";
 
-function EpisodeRow({ media, episode }: { media: MediaSummary; episode: Episode }) {
+// Episodes section, set in the watch page's WatchEpisodes anatomy: an
+// nm-glass panel with the "EPISODES" eyebrow + display "Season N" heading, a
+// season chip grid (nm-raise / nm-raise-sm), and a horizontal rail of episode
+// cards — 16:9 stills with an E-badge, star rating, saved-progress bar, and
+// title/overview/air date. Cards deep-link into the watch page.
+
+function EpisodeCard({
+  media,
+  episode,
+}: {
+  media: MediaSummary;
+  episode: Season["episodes"][number];
+}) {
   const entry = useProgressEntry(media.id, {
     seasonNumber: episode.seasonNumber,
     episodeNumber: episode.episodeNumber,
@@ -16,49 +27,54 @@ function EpisodeRow({ media, episode }: { media: MediaSummary; episode: Episode 
   });
   const pct =
     entry && entry.duration ? Math.min(100, Math.round((entry.position / entry.duration) * 100)) : 0;
-  const runtime = formatRuntime(episode.runtime);
   const href = `/watch/${media.type}/${media.tmdbId}?s=${episode.seasonNumber}&e=${episode.episodeNumber}`;
 
   return (
-    <Link
-      href={href}
-      className="group flex gap-4 rounded-xl border border-transparent p-2 transition hover:border-border hover:bg-surface/60"
-    >
-      <div className="still-frame w-36 shrink-0 rounded-lg border border-border sm:w-44">
-        <PosterImage
-          src={episode.stillUrl || media.backdropUrl}
-          title={episode.title}
-          type="tv"
-          variant="backdrop"
-          className="frame-img"
-        />
-        <div className="absolute inset-0 grid place-items-center bg-black/30 opacity-0 transition group-hover:opacity-100">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-accent text-accent-ink">
-            <PlayIcon size={18} />
+    <div className="relative w-[260px] shrink-0 sm:w-[300px]">
+      <Link href={href} className="group block w-full">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-muted ring-1 ring-white/[0.08] transition-transform duration-200 group-hover:-translate-y-1">
+          <PosterImage
+            src={episode.stillUrl || media.backdropUrl}
+            title={episode.title}
+            type="tv"
+            variant="backdrop"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+          />
+          <span className="absolute left-2 top-2 rounded-md bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
+            E{episode.episodeNumber}
           </span>
+          {episode.rating ? (
+            <span className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[11px] font-bold text-amber-400 backdrop-blur-sm">
+              <StarIcon size={12} className="text-amber-500" /> {episode.rating.toFixed(1)}
+            </span>
+          ) : null}
+          {pct > 0 && (
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+              <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+            </div>
+          )}
         </div>
-        {pct > 0 && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50">
-            <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
-          </div>
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1 py-0.5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="truncate font-sans text-sm font-semibold tracking-normal text-text">
-            {episode.episodeNumber}. {episode.title}
-          </h3>
-          <div className="flex shrink-0 items-center gap-2 text-xs text-muted">
-            {entry?.completed && <span className="text-accent">Watched</span>}
-            {runtime && <span>{runtime}</span>}
-          </div>
+        <div className="mt-2 px-0.5">
+          <p className="line-clamp-1 text-sm font-semibold text-foreground group-hover:text-accent">
+            E{episode.episodeNumber} · {episode.title}
+          </p>
+          {episode.overview && (
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground/85">
+              {episode.overview}
+            </p>
+          )}
+          <p className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/60">
+            {episode.airDate &&
+              new Date(episode.airDate).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            {entry?.completed && <span className="font-semibold uppercase tracking-wide text-accent/80">Watched</span>}
+          </p>
         </div>
-        {episode.overview && (
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{episode.overview}</p>
-        )}
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -70,33 +86,92 @@ export default function EpisodeList({
   seasons: Season[];
 }) {
   const [selected, setSelected] = useState(seasons[0]?.seasonNumber ?? 1);
+  const railRef = useRef<HTMLDivElement>(null);
   const season = seasons.find((s) => s.seasonNumber === selected) ?? seasons[0];
-  if (!season) return null;
+  if (!season || season.episodes.length === 0) return null;
+
+  const nudge = (dir: number) => {
+    const el = railRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
+  };
 
   return (
-    <section className="container-rh py-6">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold">Episodes</h2>
-        {seasons.length > 1 && (
-          <select
-            value={selected}
-            onChange={(e) => setSelected(Number(e.target.value))}
-            aria-label="Select season"
-            className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text focus:border-accent focus:outline-none"
-          >
-            {seasons.map((s) => (
-              <option key={s.seasonNumber} value={s.seasonNumber}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+    <section className="container-rh py-6" aria-label="Episodes">
+      <div className="nm-glass rounded-2xl p-4 md:p-6">
+        {/* Header: eyebrow + display heading, episode count inset chip right. */}
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+              Episodes
+            </p>
+            <h2 className="mt-1 font-display text-2xl tracking-tight text-foreground md:text-3xl">
+              Season {season.seasonNumber}
+            </h2>
+          </div>
+          <div className="nm-inset flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold sm:rounded-lg sm:py-1.5">
+            <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-accent/90">
+              {season.episodeCount} Episodes
+            </span>
+          </div>
+        </div>
 
-      <div className="flex flex-col gap-1">
-        {season.episodes.map((ep) => (
-          <EpisodeRow key={ep.id} media={media} episode={ep} />
-        ))}
+        {/* Season selector chips */}
+        {seasons.length > 1 && (
+          <div className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9">
+            {seasons.map((s) => {
+              const active = s.seasonNumber === selected;
+              return (
+                <button
+                  key={s.seasonNumber}
+                  type="button"
+                  onClick={() => setSelected(s.seasonNumber)}
+                  className={`nm-tab flex items-baseline justify-center gap-1.5 rounded-lg px-2 py-1.5 text-center transition ${
+                    active
+                      ? "nm-raise text-foreground ring-1 ring-accent/50"
+                      : "nm-raise-sm text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">
+                    Season
+                  </span>
+                  <span className="text-sm font-black tabular-nums">{s.seasonNumber}</span>
+                  <span className="text-[9px] tabular-nums opacity-50">{s.episodeCount}ep</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Episode rail */}
+        <div className="group/eprail relative">
+          <button
+            type="button"
+            aria-label="Scroll left"
+            onClick={() => nudge(-1)}
+            className="nm-raise-sm absolute left-1 top-[30%] z-10 hidden h-10 w-10 items-center justify-center rounded-full text-foreground/80 shadow-lg transition-opacity hover:text-foreground lg:flex"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="rotate-90">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll right"
+            onClick={() => nudge(1)}
+            className="nm-raise-sm absolute right-1 top-[30%] z-10 hidden h-10 w-10 items-center justify-center rounded-full text-foreground/80 shadow-lg transition-opacity hover:text-foreground lg:flex"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="-rotate-90">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          <div ref={railRef} className="-mx-1 -mt-3 flex gap-4 overflow-x-auto px-1 pb-3 pt-3 no-scrollbar">
+            {season.episodes.map((ep) => (
+              <EpisodeCard key={ep.id} media={media} episode={ep} />
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );

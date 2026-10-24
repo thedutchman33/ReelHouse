@@ -20,6 +20,8 @@ export interface Episode {
   runtime?: number;
   stillUrl?: string;
   airDate?: string;
+  /** Episode rating (watch-page episode card). */
+  rating?: number;
 }
 
 export interface Season {
@@ -47,6 +49,14 @@ export interface Media {
   cast?: CastMember[];
   recommendations?: MediaSummary[];
   seasons?: Season[];
+  /** Official YouTube trailer key (watch-page trailer section). */
+  trailerKey?: string;
+  /** Official trailer title from TMDB (e.g. "Final Trailer"). */
+  trailerName?: string;
+  /** US content rating, e.g. "PG-13" / "TV-MA" (detail hero meta). */
+  certification?: string;
+  /** Official title-logo artwork (TMDB images), used by the detail hero. */
+  logoUrl?: string;
 }
 
 /** Lightweight shape used for cards and rows. */
@@ -61,6 +71,10 @@ export interface MediaSummary {
   releaseDate?: string;
   genres: string[];
   overview?: string;
+  /** Content rating for the US region, e.g. "PG-13" / "TV-MA" (hero meta). */
+  certification?: string;
+  /** Official title-logo artwork (TMDB images), used by the hero when present. */
+  logoUrl?: string;
 }
 
 export interface MediaRow {

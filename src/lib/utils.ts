@@ -5,13 +5,6 @@ export function mediaId(type: MediaType, tmdbId: number): string {
   return `${type}-${tmdbId}`;
 }
 
-/** Parse an internal id like "movie-603" back into its parts. */
-export function parseMediaId(id: string): { type: MediaType; tmdbId: number } | null {
-  const m = /^(movie|tv)-(\d+)$/.exec(id);
-  if (!m) return null;
-  return { type: m[1] as MediaType, tmdbId: Number(m[2]) };
-}
-
 export function yearOf(releaseDate?: string): string {
   if (!releaseDate) return "";
   const y = releaseDate.slice(0, 4);

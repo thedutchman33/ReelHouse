@@ -144,8 +144,11 @@ export default function EmbedSurface({
         title={title}
         className="h-full w-full border-0"
         // The provider's player needs these to function; nothing here grants it
-        // access to Reelhouse itself.
-        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        // access to Reelhouse itself. Wildcards are REQUIRED for cross-origin
+        // embeds (reference syntax): a bare `fullscreen` token leaves
+        // document.fullscreenEnabled false inside the frame, so the embed's
+        // own fullscreen button silently does nothing.
+        allow="encrypted-media; fullscreen *; autoplay *; picture-in-picture *"
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
         onLoad={markLoaded}

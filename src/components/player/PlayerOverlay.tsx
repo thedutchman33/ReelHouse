@@ -32,6 +32,7 @@ export default function PlayerOverlay({
   hasEpisodes,
   canNext,
   isFullscreen,
+  hideBack = false,
   subtitlesOn,
   serversActive,
   onNext,
@@ -62,6 +63,8 @@ export default function PlayerOverlay({
   hasEpisodes: boolean;
   canNext: boolean;
   isFullscreen: boolean;
+  /** Embedded (in-page) layout has its own page-level Back control. */
+  hideBack?: boolean;
   subtitlesOn: boolean;
   serversActive: boolean;
   onNext: () => void;
@@ -82,14 +85,16 @@ export default function PlayerOverlay({
     >
       {/* Top: gradient + back button */}
       <div className="relative bg-gradient-to-b from-black/70 via-black/10 to-transparent px-3 pb-10 pt-3 sm:px-5">
-        <Link
-          href={backHref}
-          onClick={stop}
-          aria-label="Back to details"
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur transition hover:bg-black/60 ${io}`}
-        >
-          <BackIcon size={22} />
-        </Link>
+        {!hideBack && (
+          <Link
+            href={backHref}
+            onClick={stop}
+            aria-label="Back to details"
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur transition hover:bg-black/60 ${io}`}
+          >
+            <BackIcon size={22} />
+          </Link>
+        )}
       </div>
 
       {/* Center transport */}

@@ -115,6 +115,13 @@ export const FullscreenExitIcon = (p: IconProps) => (
   </Svg>
 );
 
+// Filled rating star (classic five-point). Color via `currentColor`.
+export const StarIcon = ({ size = 14, className }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+    <path d="M12 2l2.9 6.26L21.5 9.3l-4.75 4.4 1.15 6.55L12 17l-5.9 3.25L7.25 13.7 2.5 9.3l6.6-1.04L12 2z" />
+  </svg>
+);
+
 export const CloseIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6 6l12 12M18 6L6 18" />

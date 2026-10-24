@@ -39,3 +39,8 @@ prd-cineby-style-streaming-platform (1).md
 
 # Third-party UI reference screenshots — kept locally, never published.
 docs/cineby-player-reference/
+
+# REA working evidence (probes, screenshots, logs) — local only, never published
+.rea-evidence/
+
+CLAUDE.md

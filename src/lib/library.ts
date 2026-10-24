@@ -189,6 +189,21 @@ export function removeProgress(key: string): void {
   if (serverEnabled) void deleteProgressRemote(entry);
 }
 
+/**
+ * Remove EVERY record of one title from history (all its episodes). The
+ * history list shows one row per title, so its remove action is per-title too
+ * — deleting only the displayed episode would just resurface an older one.
+ */
+export function removeTitleProgress(mediaId: string): void {
+  ensureLoaded();
+  const removed = Object.values(cache.progress).filter((p) => p.media.id === mediaId);
+  if (removed.length === 0) return;
+  const progress = { ...cache.progress };
+  for (const entry of removed) delete progress[entry.key];
+  commit({ ...cache, progress });
+  if (serverEnabled) removed.forEach((entry) => void deleteProgressRemote(entry));
+}
+
 export function clearHistory(): void {
   ensureLoaded();
   commit({ ...cache, progress: {} });
@@ -424,18 +439,21 @@ export function useIsInWatchlist(id: string): boolean {
 
 export function useContinueWatching(): ProgressEntry[] {
   const { progress } = useLibrary();
-  return useMemo(
-    () =>
-      // Anything started and not finished, newest first. An entry only exists
-      // because playback actually started, so there is nothing else to gate on —
-      // a minimum-position threshold here used to hide titles the viewer had
-      // genuinely started (and every title playing on a provider that reports no
-      // position at all).
-      Object.values(progress)
-        .filter((p) => !p.completed)
-        .sort((a, b) => b.updatedAt - a.updatedAt),
-    [progress]
-  );
+  return useMemo(() => {
+    // One card per TITLE, newest activity first (reference pattern: its
+    // continue-watching store holds a single entry per show carrying the
+    // current season/episode, never one row per episode). Without this, a
+    // show watched across episodes would fill the rail with duplicate cards.
+    // Per-episode records stay in storage/history — only the display dedupes,
+    // so resuming an older episode still picks up its saved position.
+    const byMedia = new Map<string, ProgressEntry>();
+    for (const p of Object.values(progress)) {
+      if (p.completed) continue;
+      const prev = byMedia.get(p.media.id);
+      if (!prev || p.updatedAt > prev.updatedAt) byMedia.set(p.media.id, p);
+    }
+    return [...byMedia.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [progress]);
 }
 
 export function useHistory(): ProgressEntry[] {
@@ -464,14 +482,6 @@ export function useLatestProgressFor(mediaId: string): ProgressEntry | undefined
         .filter((p) => p.media.id === mediaId)
         .sort((a, b) => b.updatedAt - a.updatedAt)[0],
     [progress, mediaId]
-  );
-}
-
-/** Stable callback bundle for imperative use inside components. */
-export function useLibraryActions() {
-  return useMemo(
-    () => ({ toggleWatchlist, saveProgress, removeProgress, clearHistory }),
-    []
   );
 }
 
