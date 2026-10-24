@@ -1,17 +1,20 @@
-import Link from "next/link";
-import FilterBar from "@/components/browse/FilterBar";
-import IndustryToggle from "@/components/browse/IndustryToggle";
-import MediaGrid from "@/components/media/MediaGrid";
-import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
-import { browseHref, hasActiveFilters, parseBrowseFilters, type BrowseType } from "@/lib/browse";
-import { getBrowseOptions, getBrowseResults, getWatchProviders } from "@/lib/tmdb";
+import { Suspense } from "react";
+import BrowseClient from "@/components/browse/BrowseClient";
+import type { BrowseType } from "@/lib/browse";
+import { getBrowseOptions, getWatchProviders } from "@/lib/tmdb";
 
 // ---------------------------------------------------------------------------
-// Shared browse screen.
+// Shared browse screen — now a PRERENDERED SHELL.
 //
-// /browse, /movies and /tv-shows are the same view with a different content type
-// pinned, so there is one implementation of filtering, paging and empty states
-// instead of three that drift apart.
+// The page carries no user- or query-dependent server data: the genre/year
+// options and provider list are static-ish (fetched once per revalidation at
+// the edge), and the results grid is fetched client-side from /api/browse by
+// BrowseClient. That is what makes /movies and /tv-shows CDN-fast like the
+// reference: the HTML is served from the edge, filter picks are one small
+// JSON fetch.
+//
+// /browse, /movies and /tv-shows are the same shell with a different content
+// type pinned.
 // ---------------------------------------------------------------------------
 
 export type BrowseSearchParams = Record<string, string | string[] | undefined>;
@@ -20,112 +23,29 @@ export default async function BrowseView({
   type,
   title,
   subtitle,
-  searchParams,
 }: {
   /** Pinned content type: "all" on /browse, "movie" on /movies, "tv" on /tv-shows. */
   type: BrowseType;
   title: string;
   subtitle: string;
-  searchParams: Promise<BrowseSearchParams>;
 }) {
-  const filters = parseBrowseFilters(await searchParams, type);
   const options = getBrowseOptions(type);
-  // Provider ("Source") filter options — the same list the homepage carousel
-  // uses, scoped to this page's content type. Wide net on purpose: the
-  // FilterBar dedupes to family flagships (HBO Max over "…Amazon Channel"),
-  // and the flagship variant must be IN the fetched list to win.
   const providers = await getWatchProviders("US", 100, type === "tv" ? "tv" : "movie");
-  const { items, page, totalPages } = await getBrowseResults(filters);
-
-  const hasPrev = page > 1;
-  const hasNext = totalPages > page;
 
   return (
     <div className="container-rh py-8">
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="eyebrow">Browse</p>
-          <h1 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide text-text sm:text-5xl">
-            {title}
-          </h1>
-          <p className="mt-2 text-sm text-muted">{subtitle}</p>
-        </div>
-        {/* Bollywood ⇄ Hollywood slide — every filter below applies on top of
-            whichever industry is selected. */}
-        <IndustryToggle filters={filters} />
-      </header>
-
-      <FilterBar
-        filters={filters}
-        genres={options.genres}
-        years={options.years}
-        providers={providers}
-      />
-
-      <div className="mt-6">
-        {items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-surface/40 px-6 py-16 text-center">
-            <p className="text-lg font-semibold text-text">No titles match these filters</p>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-              Try a different genre or year — or clear the filters to see everything.
-            </p>
-            {hasActiveFilters(filters) && (
-              <Link
-                href={browseHref({
-                  type: filters.type,
-                  genre: null,
-                  provider: null,
-                  year: null,
-                  sort: "popularity",
-                  industry: "hollywood",
-                  page: 1,
-                })}
-                className="btn-ghost mt-6"
-              >
-                Clear Filters
-              </Link>
-            )}
-          </div>
-        ) : (
-          <MediaGrid items={items} />
-        )}
-      </div>
-
-      {/* Paging is only offered when the source actually reports another page. */}
-      {(hasPrev || hasNext) && (
-        <nav
-          className="mt-8 flex items-center justify-center gap-3"
-          aria-label="Pagination"
-        >
-          {hasPrev ? (
-            <Link href={browseHref(filters, { page: page - 1 })} className="btn-ghost h-9 px-4">
-              <ChevronLeftIcon size={16} />
-              Previous
-            </Link>
-          ) : (
-            <span className="btn-ghost h-9 cursor-not-allowed px-4 opacity-40" aria-disabled="true">
-              <ChevronLeftIcon size={16} />
-              Previous
-            </span>
-          )}
-
-          <span className="text-sm text-muted">
-            {totalPages > 0 ? `${page}–${totalPages}` : `Page ${page}`}
-          </span>
-
-          {hasNext ? (
-            <Link href={browseHref(filters, { page: page + 1 })} className="btn-ghost h-9 px-4">
-              Next
-              <ChevronRightIcon size={16} />
-            </Link>
-          ) : (
-            <span className="btn-ghost h-9 cursor-not-allowed px-4 opacity-40" aria-disabled="true">
-              Next
-              <ChevronRightIcon size={16} />
-            </span>
-          )}
-        </nav>
-      )}
+      {/* useSearchParams inside the client component requires a Suspense
+          boundary for the prerender — the shell itself renders immediately. */}
+      <Suspense fallback={<div className="min-h-[60vh]" aria-hidden="true" />}>
+        <BrowseClient
+          type={type}
+          title={title}
+          subtitle={subtitle}
+          genres={options.genres}
+          years={options.years}
+          providers={providers}
+        />
+      </Suspense>
     </div>
   );
 }

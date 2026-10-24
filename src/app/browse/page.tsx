@@ -1,23 +1,18 @@
 import type { Metadata } from "next";
-import BrowseView, { type BrowseSearchParams } from "@/components/browse/BrowseView";
+import BrowseView from "@/components/browse/BrowseView";
 
-// ISR: TMDB data moves on TMDB's clock — revalidate in the background,
-// serve the cached page from the CDN edge (the reference's 25ms TTFB).
-export const revalidate = 300;
+// ISR: the shell (genre/year options + provider list) refreshes hourly; the
+// results grid is fetched client-side from /api/browse.
+export const revalidate = 3600;
 
 export const metadata: Metadata = { title: "Browse" };
 
-export default async function BrowsePage({
-  searchParams,
-}: {
-  searchParams: Promise<BrowseSearchParams>;
-}) {
+export default function BrowsePage() {
   return (
     <BrowseView
       type="all"
       title="Browse"
-      subtitle="Films and series together — filter by genre, year and sort order."
-      searchParams={searchParams}
+      subtitle="Films and series together — filter by type, genre, year and sort order."
     />
   );
 }

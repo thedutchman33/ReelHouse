@@ -1,15 +1,20 @@
-import Link from "next/link";
-import { browseHref, INDUSTRY_OPTIONS, type BrowseFilters } from "@/lib/browse";
+"use client";
 
-// Industry slide toggle (Movies / TV Shows header, viewer-marked top-right):
-// a two-segment pill with a sliding emerald thumb. Both segments are plain
-// links through the existing browse URL contract, so it needs no client JS —
-// the thumb animates between segments with a plain CSS transform, and every
-// other filter (genre/source/year/sort) is preserved because browseHref
-// serializes the whole filter state.
+import { INDUSTRY_OPTIONS, type BrowseIndustry } from "@/lib/browse";
 
-export default function IndustryToggle({ filters }: { filters: BrowseFilters }) {
-  const bollywood = filters.industry === "bollywood";
+// Industry slide toggle (Movies / TV Shows header): a two-segment pill with a
+// sliding emerald thumb. Now a client control — it flips the BrowseClient's
+// filter state (no page navigation), so switching industries feels instant
+// and every other filter is preserved.
+
+export default function IndustryToggle({
+  industry,
+  onChange,
+}: {
+  industry: BrowseIndustry;
+  onChange: (industry: BrowseIndustry) => void;
+}) {
+  const bollywood = industry === "bollywood";
 
   return (
     <div
@@ -25,18 +30,19 @@ export default function IndustryToggle({ filters }: { filters: BrowseFilters }) 
         }`}
       />
       {INDUSTRY_OPTIONS.map((opt) => {
-        const active = filters.industry === opt.value;
+        const active = industry === opt.value;
         return (
-          <Link
+          <button
             key={opt.value}
-            href={browseHref(filters, { industry: opt.value, page: 1 })}
+            type="button"
+            onClick={() => onChange(opt.value)}
             aria-pressed={active}
-            className={`relative z-10 flex-1 rounded-full py-1.5 text-center text-xs font-semibold transition-colors duration-300 ${
+            className={`relative z-10 flex-1 cursor-pointer rounded-full py-1.5 text-center text-xs font-semibold transition-colors duration-300 ${
               active ? "text-accent-ink" : "text-muted hover:text-text"
             }`}
           >
             {opt.label}
-          </Link>
+          </button>
         );
       })}
     </div>

@@ -16,12 +16,15 @@ import { rovingKeyDown, usePopover } from "@/lib/use-popover";
 // ---------------------------------------------------------------------------
 // Browse filter bar.
 //
-// Every control is a plain link built from the current filters, so filtering
-// works as ordinary navigation: shareable URLs, working back button, and no
-// client-side state to fall out of sync with what the server rendered.
+// Client-side filtering (7reels pattern): every control updates the
+// BrowseClient's filter state through `onChange` instead of navigating, so a
+// filter pick is one fast /api/browse fetch — no server round-trip for the
+// page itself. The URL stays in sync via history state (see BrowseClient), so
+// filter views remain shareable.
 //
-// The option lists come from the page (which asks the metadata source what it can
-// actually satisfy) — this component never invents a genre or a year.
+// The type pills are the one exception: they switch between the /browse,
+// /movies and /tv-shows pages, which are separate prerendered shells — plain
+// links, CDN-fast.
 //
 // Below `md` the three dropdowns collapse into one "Filters" popover so the bar
 // stays a single non-overflowing row on a phone.
@@ -29,7 +32,7 @@ import { rovingKeyDown, usePopover } from "@/lib/use-popover";
 
 interface Option {
   label: string;
-  href: string;
+  onSelect: () => void;
   active: boolean;
 }
 
@@ -37,19 +40,19 @@ function optionsFrom(
   values: (string | number)[],
   allLabel: string,
   isActive: (value: string | number | null) => boolean,
-  hrefFor: (value: string | number | null) => string
+  select: (value: string | number | null) => void
 ): Option[] {
   return [
-    { label: allLabel, href: hrefFor(null), active: isActive(null) },
+    { label: allLabel, onSelect: () => select(null), active: isActive(null) },
     ...values.map((value) => ({
       label: String(value),
-      href: hrefFor(value),
+      onSelect: () => select(value),
       active: isActive(value),
     })),
   ];
 }
 
-/** One dropdown: a labelled trigger over a list of navigation options. */
+/** One dropdown: a labelled trigger over a list of filter options. */
 function FilterMenu({
   label,
   value,
@@ -109,19 +112,21 @@ function FilterMenu({
           <p className="panel-label border-b border-border/70">{label}</p>
           <div className="no-scrollbar max-h-72 overflow-y-auto p-1.5">
             {options.map((option) => (
-              <Link
-                key={option.href}
-                href={option.href}
+              <button
+                key={option.label}
+                type="button"
                 role="menuitem"
-                scroll={false}
-                onClick={() => close()}
-                className={`menu-item justify-between ${
+                onClick={() => {
+                  option.onSelect();
+                  close();
+                }}
+                className={`menu-item w-full justify-between ${
                   option.active ? "bg-accent/15 text-accent hover:bg-accent/15" : ""
                 }`}
               >
                 <span className="truncate">{option.label}</span>
                 {option.active && <CheckIcon size={15} className="shrink-0" />}
-              </Link>
+              </button>
             ))}
           </div>
         </div>
@@ -135,29 +140,31 @@ function FilterMenu({
 function FilterGroup({
   label,
   options,
-  onNavigate,
+  onSelect,
 }: {
   label: string;
   options: Option[];
-  onNavigate: () => void;
+  onSelect: () => void;
 }) {
   return (
     <section>
       <p className="panel-label px-0">{label}</p>
       <div className="no-scrollbar max-h-40 space-y-0.5 overflow-y-auto">
         {options.map((option) => (
-          <Link
-            key={option.href}
-            href={option.href}
-            scroll={false}
-            onClick={onNavigate}
-            className={`menu-item justify-between ${
+          <button
+            key={option.label}
+            type="button"
+            onClick={() => {
+              option.onSelect();
+              onSelect();
+            }}
+            className={`menu-item w-full justify-between ${
               option.active ? "bg-accent/15 text-accent hover:bg-accent/15" : ""
             }`}
           >
             <span className="truncate">{option.label}</span>
             {option.active && <CheckIcon size={15} className="shrink-0" />}
-          </Link>
+          </button>
         ))}
       </div>
     </section>
@@ -166,11 +173,14 @@ function FilterGroup({
 
 export default function FilterBar({
   filters,
+  onChange,
   genres,
   years,
   providers = [],
 }: {
   filters: BrowseFilters;
+  /** Merge a patch into the browse filter state (resets paging itself). */
+  onChange: (patch: Partial<Omit<BrowseFilters, "type">>) => void;
   genres: string[];
   years: number[];
   providers?: WatchProvider[];
@@ -181,14 +191,14 @@ export default function FilterBar({
     genres,
     "All Genres",
     (value) => filters.genre === value,
-    (value) => browseHref(filters, { genre: value === null ? null : String(value), page: 1 })
+    (value) => onChange({ genre: value === null ? null : String(value), page: 1 })
   );
 
   const yearOptions = optionsFrom(
     years,
     "All Years",
     (value) => filters.year === value,
-    (value) => browseHref(filters, { year: value === null ? null : Number(value), page: 1 })
+    (value) => onChange({ year: value === null ? null : Number(value), page: 1 })
   );
 
   // Source options mirror the homepage provider rail exactly: one entry per
@@ -199,12 +209,12 @@ export default function FilterBar({
   const providerOptions: Option[] = [
     {
       label: "All providers",
-      href: browseHref(filters, { provider: null, page: 1 }),
+      onSelect: () => onChange({ provider: null, page: 1 }),
       active: filters.provider === null,
     },
     ...familyProviders.map((p) => ({
       label: p.name,
-      href: browseHref(filters, { provider: p.id, page: 1 }),
+      onSelect: () => onChange({ provider: p.id, page: 1 }),
       active: filters.provider === p.id,
     })),
   ];
@@ -212,22 +222,15 @@ export default function FilterBar({
 
   const sortOptions: Option[] = SORT_OPTIONS.map((option) => ({
     label: option.label,
-    href: browseHref(filters, { sort: option.value, page: 1 }),
+    onSelect: () => onChange({ sort: option.value, page: 1 }),
     active: filters.sort === option.value,
   }));
 
   const active = hasActiveFilters(filters);
   // The industry toggle is not reset here — it's a header switch, not a
   // dropdown filter; the page's own empty-state Clear Filters resets it.
-  const clearHref = browseHref({
-    type: filters.type,
-    genre: null,
-    provider: null,
-    year: null,
-    sort: "popularity",
-    industry: filters.industry,
-    page: 1,
-  });
+  const clear = () =>
+    onChange({ genre: null, provider: null, year: null, sort: "popularity", page: 1 });
 
   // Sort is an inline pill toggle row (reference pattern); Genre, Source and
   // Year stay dropdowns. The phone sheet keeps them all as groups.
@@ -254,24 +257,26 @@ export default function FilterBar({
       {/* Sort pills — the reference's Popular/Recent/Top IMDb toggle row. */}
       <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5">
         {sortOptions.map((option) => (
-          <Link
-            key={option.href}
-            href={option.href}
-            scroll={false}
+          <button
+            key={option.label}
+            type="button"
+            onClick={option.onSelect}
             aria-current={option.active ? "true" : undefined}
-            className={`pill ${option.active ? "pill-active" : ""}`}
+            className={`pill cursor-pointer ${option.active ? "pill-active" : ""}`}
           >
             {option.label}
-          </Link>
+          </button>
         ))}
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Content type doubles as navigation between the three browse routes. */}
+        {/* Content type doubles as navigation between the three browse pages
+            (each a prerendered shell — these stay links on purpose). */}
         <div className="no-scrollbar -mx-1 flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-0.5">
           {TYPE_OPTIONS.map((option) => (
             <Link
               key={option.value}
+              // browseHref carries the current filters across the switch.
               href={
                 option.value === filters.type
                   ? browseHref(filters)
@@ -288,10 +293,10 @@ export default function FilterBar({
         <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex">
           {dropdowns}
           {active && (
-            <Link href={clearHref} className="pill h-9 gap-1.5">
+            <button type="button" onClick={clear} className="pill h-9 cursor-pointer gap-1.5">
               <CloseIcon size={13} />
               Reset
-            </Link>
+            </button>
           )}
         </div>
 
@@ -314,34 +319,37 @@ export default function FilterBar({
                 <FilterGroup
                   label="Genre"
                   options={genreOptions}
-                  onNavigate={() => sheet.close()}
+                  onSelect={() => sheet.close()}
                 />
                 {providerOptions.length > 1 && (
                   <FilterGroup
                     label="Source"
                     options={providerOptions}
-                    onNavigate={() => sheet.close()}
+                    onSelect={() => sheet.close()}
                   />
                 )}
                 <FilterGroup
                   label="Year"
                   options={yearOptions}
-                  onNavigate={() => sheet.close()}
+                  onSelect={() => sheet.close()}
                 />
                 <FilterGroup
                   label="Sort by"
                   options={sortOptions}
-                  onNavigate={() => sheet.close()}
+                  onSelect={() => sheet.close()}
                 />
               </div>
               {active && (
-                <Link
-                  href={clearHref}
-                  onClick={() => sheet.close()}
-                  className="btn-ghost mt-3 h-9 w-full py-0 text-sm"
+                <button
+                  type="button"
+                  onClick={() => {
+                    clear();
+                    sheet.close();
+                  }}
+                  className="btn-ghost mt-3 h-9 w-full cursor-pointer py-0 text-sm"
                 >
                   Clear Filters
-                </Link>
+                </button>
               )}
             </div>
           )}
