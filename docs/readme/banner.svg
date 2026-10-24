@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="240" viewBox="0 0 1200 240" role="img" aria-label="Reelhouse — stream films and series">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0c0b"/>
+      <stop offset="0.5" stop-color="#111212"/>
+      <stop offset="1" stop-color="#0a0c0b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.65">
+      <stop offset="0" stop-color="#10b981" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accentline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#10b981" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#f40612" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f40612" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#f40612" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#f40612" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="240" fill="url(#bg)"/>
+  <rect width="1200" height="240" fill="url(#glow)"/>
+
+  <!-- film-strip perforations -->
+  <g fill="#1d211f">
+    <rect y="10" width="1200" height="22"/>
+    <rect y="208" width="1200" height="22"/>
+  </g>
+  <g fill="#2a2f2c">
+    <!-- top perforations -->
+    <rect x="24"  y="14" width="30" height="14" rx="3"/><rect x="86"  y="14" width="30" height="14" rx="3"/><rect x="148" y="14" width="30" height="14" rx="3"/><rect x="210" y="14" width="30" height="14" rx="3"/><rect x="272" y="14" width="30" height="14" rx="3"/><rect x="334" y="14" width="30" height="14" rx="3"/><rect x="396" y="14" width="30" height="14" rx="3"/><rect x="458" y="14" width="30" height="14" rx="3"/><rect x="520" y="14" width="30" height="14" rx="3"/><rect x="582" y="14" width="30" height="14" rx="3"/><rect x="644" y="14" width="30" height="14" rx="3"/><rect x="706" y="14" width="30" height="14" rx="3"/><rect x="768" y="14" width="30" height="14" rx="3"/><rect x="830" y="14" width="30" height="14" rx="3"/><rect x="892" y="14" width="30" height="14" rx="3"/><rect x="954" y="14" width="30" height="14" rx="3"/><rect x="1016" y="14" width="30" height="14" rx="3"/><rect x="1078" y="14" width="30" height="14" rx="3"/><rect x="1140" y="14" width="30" height="14" rx="3"/>
+    <!-- bottom perforations -->
+    <rect x="24"  y="212" width="30" height="14" rx="3"/><rect x="86"  y="212" width="30" height="14" rx="3"/><rect x="148" y="212" width="30" height="14" rx="3"/><rect x="210" y="212" width="30" height="14" rx="3"/><rect x="272" y="212" width="30" height="14" rx="3"/><rect x="334" y="212" width="30" height="14" rx="3"/><rect x="396" y="212" width="30" height="14" rx="3"/><rect x="458" y="212" width="30" height="14" rx="3"/><rect x="520" y="212" width="30" height="14" rx="3"/><rect x="582" y="212" width="30" height="14" rx="3"/><rect x="644" y="212" width="30" height="14" rx="3"/><rect x="706" y="212" width="30" height="14" rx="3"/><rect x="768" y="212" width="30" height="14" rx="3"/><rect x="830" y="212" width="30" height="14" rx="3"/><rect x="892" y="212" width="30" height="14" rx="3"/><rect x="954" y="212" width="30" height="14" rx="3"/><rect x="1016" y="212" width="30" height="14" rx="3"/><rect x="1078" y="212" width="30" height="14" rx="3"/><rect x="1140" y="212" width="30" height="14" rx="3"/>
+  </g>
+
+  <!-- red reel mark -->
+  <g transform="translate(300,118) scale(1.9)" fill="none" stroke="#f40612" stroke-width="2.4">
+    <circle r="20"/>
+    <circle r="3.6" fill="#f40612" stroke="none"/>
+    <circle cy="-11" r="3" fill="#f40612" stroke="none"/>
+    <circle cy="11" r="3" fill="#f40612" stroke="none"/>
+    <circle cx="-11" r="3" fill="#f40612" stroke="none"/>
+    <circle cx="11" r="3" fill="#f40612" stroke="none"/>
+  </g>
+
+  <!-- wordmark -->
+  <g transform="skewX(-8)" font-family="'Arial Black',Arial,sans-serif" font-weight="900" font-size="78" letter-spacing="3">
+    <text x="380" y="138" fill="#ffffff">REEL</text>
+    <text x="613" y="138" fill="#f40612">HOUSE</text>
+  </g>
+
+  <!-- accent lines + tagline -->
+  <rect x="120" y="162" width="960" height="2" fill="url(#accentline)"/>
+  <text x="600" y="192" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="15" letter-spacing="7" fill="#10b981">STREAM FILMS &amp; SERIES · DISCOVER · WATCHLIST · CONTINUE</text>
+  <rect x="120" y="200" width="960" height="1.5" fill="url(#redline)"/>
+</svg>

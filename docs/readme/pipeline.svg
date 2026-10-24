@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="460" viewBox="0 0 1240 460" role="img" aria-label="Reelhouse rendering pipeline">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7a72"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#10b981"/>
+    </marker>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0f0e"/>
+      <stop offset="1" stop-color="#111212"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1240" height="460" rx="16" fill="url(#panel)"/>
+  <rect x="1" y="1" width="1238" height="458" rx="15" fill="none" stroke="#1f2422"/>
+
+  <!-- ============ main flow ============ -->
+  <!-- Viewer -->
+  <ellipse cx="86" cy="235" rx="62" ry="42" fill="#161918" stroke="#3a423e"/>
+  <text x="86" y="230" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="16" fill="#e8ece9">Viewer</text>
+  <text x="86" y="250" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#8b968f">any device</text>
+
+  <!-- CDN edge -->
+  <rect x="220" y="188" width="190" height="94" rx="12" fill="#12100e" stroke="#10b981" stroke-opacity="0.75"/>
+  <text x="315" y="222" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="16" fill="#10b981">CDN EDGE</text>
+  <text x="315" y="244" text-anchor="middle" font-family="Arial,sans-serif" font-size="11.5" fill="#aab4ae">prerendered shell</text>
+  <text x="315" y="261" text-anchor="middle" font-family="Arial,sans-serif" font-size="11.5" fill="#aab4ae">ISR · 5m home / 1h detail</text>
+
+  <!-- Browser shell -->
+  <rect x="480" y="188" width="180" height="94" rx="12" fill="#161918" stroke="#3a423e"/>
+  <text x="570" y="222" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="15" fill="#e8ece9">BROWSER SHELL</text>
+  <text x="570" y="244" text-anchor="middle" font-family="Arial,sans-serif" font-size="11.5" fill="#aab4ae">HTML from the edge</text>
+  <text x="570" y="261" text-anchor="middle" font-family="Arial,sans-serif" font-size="11.5" fill="#aab4ae">hydrate → client React</text>
+
+  <!-- Client React -->
+  <rect x="730" y="188" width="180" height="94" rx="12" fill="#161918" stroke="#3a423e"/>
+  <text x="820" y="222" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="15" fill="#e8ece9">CLIENT REACT</text>
+  <text x="820" y="244" text-anchor="middle" font-family="Arial,sans-serif" font-size="11.5" fill="#aab4ae">filter state · library UI</text>
+  <text x="820" y="261" text-anchor="middle" font-family="Arial,sans-serif" font-size="11.5" fill="#aab4ae">250 ms route fade</text>
+
+  <!-- main arrows -->
+  <line x1="150" y1="235" x2="216" y2="235" stroke="#6b7a72" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="183" y="222" text-anchor="middle" font-family="Arial,sans-serif" font-size="10.5" fill="#8b968f">HTTPS</text>
+  <line x1="410" y1="235" x2="476" y2="235" stroke="#10b981" stroke-width="1.8" marker-end="url(#arrE)"/>
+  <text x="443" y="222" text-anchor="middle" font-family="Arial,sans-serif" font-size="10.5" fill="#10b981">HTML · CDN-fast</text>
+  <line x1="660" y1="235" x2="726" y2="235" stroke="#6b7a72" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- ============ lane A: data (top) ============ -->
+  <rect x="980" y="46" width="200" height="86" rx="12" fill="#12100e" stroke="#10b981" stroke-opacity="0.55"/>
+  <text x="1080" y="80" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="14" fill="#10b981">GET /api/browse</text>
+  <text x="1080" y="100" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#aab4ae">s-maxage=300 · edge-cached</text>
+  <text x="1080" y="117" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#aab4ae">grid results as JSON</text>
+
+  <path d="M 880 200 C 930 160, 940 120, 976 100" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrE)"/>
+  <text x="880" y="150" text-anchor="middle" font-family="Arial,sans-serif" font-size="10.5" fill="#8b968f">one JSON fetch per filter pick</text>
+
+  <path d="M 1180 100 C 1214 130, 1214 170, 1186 196" fill="none" stroke="#6b7a72" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+  <rect x="1064" y="196" width="152" height="52" rx="24" fill="#0f1413" stroke="#3a423e"/>
+  <text x="1140" y="218" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="13" fill="#01b4e4">TMDB</text>
+  <text x="1140" y="236" text-anchor="middle" font-family="Arial,sans-serif" font-size="10.5" fill="#8b968f">discover · cached 30 min</text>
+
+  <!-- ============ lane B: personal (middle) ============ -->
+  <path d="M 855 284 L 855 296" stroke="#6b7a72" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="770" y="300" width="170" height="78" rx="12" fill="#161918" stroke="#3a423e"/>
+  <text x="855" y="332" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="14" fill="#e8ece9">localStorage</text>
+  <text x="855" y="352" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#aab4ae">continue watching</text>
+  <text x="855" y="368" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#aab4ae">history · watchlist · feed</text>
+
+  <path d="M 944 339 L 988 339" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrE)" stroke-dasharray="6 4"/>
+  <path d="M 988 348 L 944 348" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrE)" stroke-dasharray="6 4"/>
+  <rect x="992" y="300" width="170" height="78" rx="12" fill="#12100e" stroke="#3FCF8E" stroke-opacity="0.55"/>
+  <text x="1077" y="332" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="14" fill="#3FCF8E">SUPABASE</text>
+  <text x="1077" y="352" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#aab4ae">mirror when signed in</text>
+  <text x="1077" y="368" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#aab4ae">auth · one-way owner guard</text>
+
+  <!-- ============ lane C: playback (bottom) ============ -->
+  <path d="M 790 284 C 740 330, 680 372, 640 412" fill="none" stroke="#f40612" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="600" y="386" text-anchor="middle" font-family="Arial,sans-serif" font-size="10.5" fill="#8b968f">/watch · dynamic by design</text>
+
+  <rect x="430" y="416" width="240" height="34" rx="10" fill="#120e0e" stroke="#f40612" stroke-opacity="0.55"/>
+  <text x="550" y="438" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="12.5" fill="#f40612">PLAYBACK PLAN → PROVIDER IFRAME</text>
+  </svg>
