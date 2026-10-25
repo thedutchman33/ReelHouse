@@ -21,8 +21,15 @@ export default function ContinueWatching() {
   return (
     // The footer links here (/#continue), so the anchor has to be real.
     <section id="continue" className="group/row relative mb-8 scroll-mt-24">
-      <div className="mx-auto mb-3 flex w-full max-w-[1480px] items-center justify-between gap-4 px-5 sm:px-6 md:px-16">
-        <h2 className="font-sans text-lg font-bold text-text sm:text-xl">Continue Watching</h2>
+      {/* Same editorial header as every other home row: uppercase eyebrow
+          over the display-face heading; Clear all aligns to the heading. */}
+      <div className="mx-auto mb-3 flex w-full max-w-[1480px] items-end justify-between gap-4 px-5 sm:px-6 md:px-16">
+        <div>
+          <p className="eyebrow mb-1">Pick up where you left off</p>
+          <h2 className="font-display text-3xl uppercase tracking-wide text-text sm:text-4xl">
+            Continue Watching
+          </h2>
+        </div>
         <button
           type="button"
           onClick={clearHistory}

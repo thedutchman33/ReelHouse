@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import PosterImage from "@/components/media/PosterImage";
+import RailSlider from "@/components/media/RailSlider";
 import { StarIcon } from "@/components/player/icons";
 import { useProgressEntry } from "@/lib/library";
-import type { MediaSummary, Season } from "@/types";
+import type { Episode, MediaSummary, Season } from "@/types";
 
 // Episodes section, set in the watch page's WatchEpisodes anatomy: an
 // nm-glass panel with the "EPISODES" eyebrow + display "Season N" heading, a
@@ -18,7 +19,7 @@ function EpisodeCard({
   episode,
 }: {
   media: MediaSummary;
-  episode: Season["episodes"][number];
+  episode: Episode;
 }) {
   const entry = useProgressEntry(media.id, {
     seasonNumber: episode.seasonNumber,
@@ -33,13 +34,25 @@ function EpisodeCard({
     <div className="relative w-[260px] shrink-0 sm:w-[300px]">
       <Link href={href} className="group block w-full">
         <div className="relative aspect-video overflow-hidden rounded-xl bg-muted ring-1 ring-white/[0.08] transition-transform duration-200 group-hover:-translate-y-1">
-          <PosterImage
-            src={episode.stillUrl || media.backdropUrl}
-            title={episode.title}
-            type="tv"
-            variant="backdrop"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
-          />
+          {episode.stillUrl || media.type !== "anime" ? (
+              <PosterImage
+                src={episode.stillUrl || media.backdropUrl}
+                title={episode.title}
+                type="tv"
+                variant="backdrop"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              /* Anime stub without a streaming still: the title's own poster
+                 art (cover cropped to the 16:9 frame). */
+              <PosterImage
+                src={media.posterUrl || media.backdropUrl}
+                title={episode.title}
+                type="anime"
+                variant="backdrop"
+                className="h-full w-full object-cover"
+              />
+            )}
           <span className="absolute left-2 top-2 rounded-md bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
             E{episode.episodeNumber}
           </span>
@@ -88,7 +101,35 @@ export default function EpisodeList({
   const [selected, setSelected] = useState(seasons[0]?.seasonNumber ?? 1);
   const railRef = useRef<HTMLDivElement>(null);
   const season = seasons.find((s) => s.seasonNumber === selected) ?? seasons[0];
-  if (!season || season.episodes.length === 0) return null;
+
+  // Seasons arrive as metadata; a season's episodes load on demand (cached
+  // in component state; bundled-catalog seasons already inline them).
+  const [episodes, setEpisodes] = useState<Episode[]>(
+    () => season?.episodes ?? []
+  );
+  useEffect(() => {
+    if (!season) return;
+    if (season.episodes) {
+      setEpisodes(season.episodes);
+      return;
+    }
+    let alive = true;
+    setEpisodes([]);
+    (async () => {
+      try {
+        const res = await fetch(`/api/seasons/${media.tmdbId}/${season.seasonNumber}`);
+        const data = (await res.json()) as { episodes?: Episode[] };
+        if (alive) setEpisodes(data.episodes ?? []);
+      } catch {
+        if (alive) setEpisodes([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [season, media.tmdbId]);
+
+  if (!season) return null;
 
   const nudge = (dir: number) => {
     const el = railRef.current;
@@ -106,7 +147,7 @@ export default function EpisodeList({
               Episodes
             </p>
             <h2 className="mt-1 font-display text-2xl tracking-tight text-foreground md:text-3xl">
-              Season {season.seasonNumber}
+              {season.name || "Season " + season.seasonNumber}
             </h2>
           </div>
           <div className="nm-inset flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold sm:rounded-lg sm:py-1.5">
@@ -166,11 +207,22 @@ export default function EpisodeList({
             </svg>
           </button>
 
-          <div ref={railRef} className="-mx-1 -mt-3 flex gap-4 overflow-x-auto px-1 pb-3 pt-3 no-scrollbar">
-            {season.episodes.map((ep) => (
+          <div ref={railRef} className="no-scrollbar -mx-1 -mt-3 flex gap-4 overflow-x-auto px-1 pb-3 pt-3">
+            {episodes.length === 0 &&
+              // Season episodes still loading — placeholder cards, same size.
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="w-[260px] shrink-0 sm:w-[300px]" aria-hidden="true">
+                  <div className="aspect-video animate-pulse rounded-xl bg-muted/60" />
+                  <div className="mt-2 h-4 w-2/3 animate-pulse rounded bg-muted/40" />
+                  <div className="mt-1.5 h-3 w-full animate-pulse rounded bg-muted/30" />
+                </div>
+              ))}
+            {episodes.map((ep) => (
               <EpisodeCard key={ep.id} media={media} episode={ep} />
             ))}
           </div>
+          {/* Reference scrubber: range slider under the rail. */}
+          <RailSlider railRef={railRef} />
         </div>
       </div>
     </section>

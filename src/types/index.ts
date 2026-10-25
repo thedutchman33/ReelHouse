@@ -2,7 +2,11 @@
 // These types are provider-agnostic: TMDB (or any future source) is mapped
 // into these shapes in lib/tmdb, and the UI only ever depends on these.
 
-export type MediaType = "movie" | "tv";
+/**
+ * "anime" is AniList-backed end to end: ids are ANILIST ids and the detail /
+ * watch routes live under /anime. Movies and series remain TMDB-backed.
+ */
+export type MediaType = "movie" | "tv" | "anime";
 
 export interface CastMember {
   id: number;
@@ -28,7 +32,13 @@ export interface Season {
   seasonNumber: number;
   name: string;
   episodeCount: number;
-  episodes: Episode[];
+  /**
+   * Loaded lazily per season (via /api/seasons) on the detail and watch
+   * pages — long-running shows carry dozens of seasons and eagerly shipping
+   * every episode made detail pages huge and capped seasons at 8. Bundled
+   * mock data still inlines them.
+   */
+  episodes?: Episode[];
 }
 
 export interface Media {
@@ -55,6 +65,13 @@ export interface Media {
   trailerName?: string;
   /** US content rating, e.g. "PG-13" / "TV-MA" (detail hero meta). */
   certification?: string;
+
+  /**
+   * ANIME ONLY: the TMDB entry (tv for series, movie for films) matched by
+   * title+year — providers whose anime embeds are TMDB-id based (Cineverse,
+   * GD Mirror, VidOut) expand {tmdbId} from this. Undefined when no match.
+   */
+  resolvedTmdbId?: number;
   /** Official title-logo artwork (TMDB images), used by the detail hero. */
   logoUrl?: string;
 }
@@ -71,6 +88,10 @@ export interface MediaSummary {
   releaseDate?: string;
   genres: string[];
   overview?: string;
+  /** Raw TMDB genre ids (search results only — search dedup uses these). */
+  genreIds?: number[];
+  /** TMDB original language (search results only). */
+  originalLanguage?: string;
   /** Content rating for the US region, e.g. "PG-13" / "TV-MA" (hero meta). */
   certification?: string;
   /** Official title-logo artwork (TMDB images), used by the hero when present. */

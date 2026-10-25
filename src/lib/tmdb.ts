@@ -4,7 +4,8 @@ import { cache } from "react";
 import type { BrowseFilters, BrowseSort, BrowseType } from "@/lib/browse";
 import { MOCK_MEDIA } from "@/lib/mock";
 import { mediaId } from "@/lib/utils";
-import type { Media, MediaRow, MediaSummary, MediaType } from "@/types";
+import type { Episode, Media, MediaRow, MediaSummary, MediaType } from "@/types";
+import { ANILIST_GENRES, anilistBrowse, anilistDetail, anilistSearch, anilistTrending } from "@/lib/anilist";
 
 // ---------------------------------------------------------------------------
 // Metadata source.
@@ -71,6 +72,11 @@ function mockHomeRows(): MediaRow[] {
       title: "Top 10 This Week",
       ranked: true,
       items: [...all].sort(byRating).slice(0, 10).map(toSummary),
+    },
+    {
+      key: "anime",
+      title: "Anime",
+      items: all.filter((m) => hasGenre(m, ["Animation"])).map(toSummary),
     },
     {
       key: "new",
@@ -186,6 +192,10 @@ function liveSummary(raw: any, forcedType?: MediaType): MediaSummary | null {
     releaseDate: raw.release_date || raw.first_air_date || undefined,
     genres,
     overview: raw.overview || undefined,
+    // Raw genre ids + original language — the search API uses these to drop
+    // TMDB anime entries that duplicate an AniList result.
+    genreIds: Array.isArray(raw.genre_ids) ? raw.genre_ids : undefined,
+    originalLanguage: raw.original_language || undefined,
   };
 }
 
@@ -279,6 +289,8 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
     india,
     bollywood,
     editors,
+    animeTv,
+    animeMovie,
   ] = await Promise.all([
     tmdb("/trending/movie/week", { language: "en-US", include_adult: "false" }, 60 * 15),
     tmdb("/trending/all/day", { language: "en-US", include_adult: "false" }, 60 * 15),
@@ -324,7 +336,25 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
       "vote_average.gte": "7",
       "primary_release_date.gte": threeYearsAgo,
     }),
+    // Anime row: same cross-type definition as the /anime page — Japanese
+    // originals with the Animation genre, both series and films.
+    tmdb("/discover/tv", {
+      with_genres: "16",
+      with_original_language: "ja",
+      sort_by: "popularity.desc",
+      include_adult: "false",
+    }, 60 * 30),
+    tmdb("/discover/movie", {
+      with_genres: "16",
+      with_original_language: "ja",
+      sort_by: "popularity.desc",
+      include_adult: "false",
+    }, 60 * 30),
   ]);
+
+  // Anime row is AniList-native (trending right now) — the two TMDB discover
+  // fetches remain only as the fallback when AniList is unreachable.
+  const anilistRow = await anilistTrending(18);
 
   const newPopular = [...liveList(popMovies, "movie"), ...liveList(popTv, "tv")]
     .sort((a, b) => (b.releaseDate ?? "").localeCompare(a.releaseDate ?? ""))
@@ -375,6 +405,14 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
       title: "Prepare for Doomsday",
       items: mcu,
     },
+    {
+      key: "anime",
+      title: "Anime",
+      items:
+        anilistRow.length > 0
+          ? anilistRow
+          : interleave(liveList(animeTv, "tv"), liveList(animeMovie, "movie")).slice(0, 18),
+    },
     { key: "new", title: "New & Popular", items: newPopular },
     { key: "acclaimed", title: "Critically Acclaimed", items: liveList(topRated, "movie").slice(0, 16) },
     { key: "editors", title: "Editor's Choices", items: liveList(editors, "movie").slice(0, 16) },
@@ -393,9 +431,33 @@ export interface WatchProvider {
   logoUrl: string;
 }
 
+/**
+ * Providers TMDB catalogs outside the US region that the operator pins onto
+ * the (US-based) provider rail anyway. Every field is copied verbatim from
+ * TMDB's own watch-provider list for the entry's region — never guessed.
+ * Their catalog pages and Source-filter queries ride that region instead of
+ * the US one (providerRegion), and the rail logo comes from the bundled
+ * wordmark (TMDB only carries the square app icon).
+ */
+const PINNED_REGIONAL_PROVIDERS: (WatchProvider & { region: string })[] = [
+  // JioHotstar — TMDB lists it under watch_region=IN only (id 2336, display
+  // priority 3 in India; verified against /watch/providers/movie?watch_region=IN).
+  {
+    id: 2336,
+    name: "JioHotstar",
+    logoUrl: "https://image.tmdb.org/t/p/w300/ledoS6EgdjTNq8F1e6wubUQer18.png",
+    region: "IN",
+  },
+];
+
+/** The region a provider's TMDB catalog actually lives in (fallback = US). */
+export function providerRegion(providerId: number, fallback = "US"): string {
+  const hit = PINNED_REGIONAL_PROVIDERS.find((p) => p.id === providerId);
+  return hit ? hit.region : fallback;
+}
+
 export async function getWatchProviders(
   region = "US",
-  limit = 14,
   kind: "movie" | "tv" = "movie"
 ): Promise<WatchProvider[]> {
   if (!USE_LIVE) return [];
@@ -405,39 +467,67 @@ export async function getWatchProviders(
     60 * 60 * 24
   );
   if (!data?.results?.length) return [];
-  return data.results
+  // Full list, priority-ordered — NEVER slice here. Consumers dedupe by brand
+  // family afterwards, and the flagship variant ("HBO Max", not "HBO Max
+  // Amazon Channel") can sit past position 100 in TMDB's ordering; a truncated
+  // list loses it and the reseller wins the tiebreak instead.
+  const list = data.results
     .slice()
     .sort((a, b) => (a.display_priority ?? 999) - (b.display_priority ?? 999))
-    .slice(0, limit)
     .map((p) => ({
       id: p.provider_id as number,
       name: (p.provider_name as string) ?? "Provider",
       logoUrl: p.logo_path ? img(p.logo_path, "w300") ?? "" : "",
     }))
     .filter((p) => p.logoUrl !== "");
+  // Pin the regional entries into the US display list — TMDB's US catalog
+  // never includes them, and the rail, directory and Source dropdown all read
+  // this list. Region-aware consumers resolve their catalog via providerRegion.
+  if (region === "US") {
+    for (const pinned of PINNED_REGIONAL_PROVIDERS) {
+      if (pinned.logoUrl && !list.some((p) => p.id === pinned.id)) {
+        list.push({ id: pinned.id, name: pinned.name, logoUrl: pinned.logoUrl });
+      }
+    }
+  }
+  return list;
 }
 
 /** One page of titles for a watch provider (real provider-filtered catalog). */
 export async function getProviderTitles(
   providerId: number,
   page: number,
-  region = "US"
+  region = "US",
+  query?: string
 ): Promise<MediaSummary[]> {
   if (!USE_LIVE) return [];
-  const data = await tmdb("/discover/movie", {
+  const params: Record<string, string> = {
     with_watch_providers: String(providerId),
-    watch_region: region,
+    // Pinned regional providers catalog in their own region (JioHotstar = IN).
+    watch_region: providerRegion(providerId, region),
     sort_by: "popularity.desc",
     page: String(Math.max(1, page)),
-  });
-  return liveList(data, "movie");
+  };
+  const q = query?.trim();
+  if (!q) {
+    const data = await tmdb("/discover/movie", params);
+    return liveList(data, "movie");
+  }
+  // A search spans both catalogs — queries like "Wednesday" or "Foundation"
+  // are series, and a movie-only search would report misses for titles the
+  // provider actually carries. Results interleave and cap at one page.
+  const [movies, tv] = await Promise.all([
+    tmdb("/discover/movie", { ...params, with_text_query: q }),
+    tmdb("/discover/tv", { ...params, with_text_query: q }),
+  ]);
+  return interleave(liveList(movies, "movie"), liveList(tv, "tv")).slice(0, 20);
 }
 
 export async function getProviderName(
   providerId: number,
   region = "US"
 ): Promise<WatchProvider | null> {
-  const all = await getWatchProviders(region, 100);
+  const all = await getWatchProviders(region, "movie");
   return all.find((p) => p.id === providerId) ?? null;
 }
 
@@ -475,31 +565,19 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
       .sort((a, b) => (b.official === true ? 1 : 0) - (a.official === true ? 1 : 0))
       .find(Boolean) ?? videos.find((v) => v.site === "YouTube");
 
+  // Seasons ship as METADATA only (number, name, count) with no cap —
+  // long-running anime (Naruto: Shippuden's 22, One Piece's 20+) used to be
+  // truncated at 8 because every season's episodes were fetched and embedded
+  // here. Episodes load per season on demand (getSeasonEpisodes + /api/seasons).
   let seasons;
   if (type === "tv" && Array.isArray(data.seasons)) {
-    const real = data.seasons.filter((s: any) => s.season_number > 0).slice(0, 8);
-    seasons = await Promise.all(
-      real.map(async (s: any) => {
-        const sd = await tmdb(`/tv/${tmdbId}/season/${s.season_number}`, {}, 60 * 60);
-        const episodes = (sd?.episodes ?? []).map((e: any) => ({
-          id: `s${e.season_number}e${e.episode_number}`,
-          seasonNumber: e.season_number,
-          episodeNumber: e.episode_number,
-          title: e.name,
-          overview: e.overview,
-          runtime: e.runtime,
-          stillUrl: img(e.still_path, "w300"),
-          rating: e.vote_average || undefined,
-          airDate: e.air_date,
-        }));
-        return {
-          seasonNumber: s.season_number,
-          name: s.name,
-          episodeCount: episodes.length,
-          episodes,
-        };
-      })
-    );
+    seasons = data.seasons
+      .filter((s: any) => s.season_number > 0)
+      .map((s: any) => ({
+        seasonNumber: s.season_number as number,
+        name: (s.name as string) ?? `Season ${s.season_number}`,
+        episodeCount: (s.episode_count as number) ?? 0,
+      }));
   }
 
   // Detail-hero extras, same treatment the homepage hero gets: official title
@@ -536,6 +614,15 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
 async function liveSearch(query: string): Promise<MediaSummary[]> {
   const data = await tmdb("/search/multi", { query, include_adult: "false" }, 60 * 5);
   return liveList(data);
+}
+
+/** Type-scoped search (page-level search bars): only films, or only series. */
+async function liveSearchScoped(
+  query: string,
+  type: "movie" | "tv"
+): Promise<MediaSummary[]> {
+  const data = await tmdb(`/search/${type}`, { query, include_adult: "false" }, 60 * 5);
+  return liveList(data, type);
 }
 
 // ------------------------------- BROWSE ------------------------------------
@@ -584,11 +671,21 @@ const genreIdFor = (name: string | null, type: MediaType): number | undefined =>
 /** Oldest year offered in the year filter — TMDB has usable coverage from here. */
 const EARLIEST_BROWSE_YEAR = 1950;
 
+// Anime never reaches TMDB discover (its browse goes to AniList), but the
+// record is total over MediaType so the anime entry is a documented stub.
 const SORT_FIELD: Record<BrowseSort, Record<MediaType, string>> = {
-  popularity: { movie: "popularity.desc", tv: "popularity.desc" },
-  latest: { movie: "primary_release_date.desc", tv: "first_air_date.desc" },
-  oldest: { movie: "primary_release_date.asc", tv: "first_air_date.asc" },
-  rating: { movie: "vote_average.desc", tv: "vote_average.desc" },
+  popularity: { movie: "popularity.desc", tv: "popularity.desc", anime: "" },
+  latest: {
+    movie: "primary_release_date.desc",
+    tv: "first_air_date.desc",
+    anime: "",
+  },
+  oldest: {
+    movie: "primary_release_date.asc",
+    tv: "first_air_date.asc",
+    anime: "",
+  },
+  rating: { movie: "vote_average.desc", tv: "vote_average.desc", anime: "" },
 };
 
 export interface BrowsePage {
@@ -615,21 +712,31 @@ function discoverParams(
     page: String(filters.page),
   };
 
+  // Anime is Japanese animation across BOTH media types: Animation (16)
+  // AND-combined with any picked genre, original language Japanese. The
+  // industry toggle does not apply here — the page is already language-scoped.
+  const anime = filters.type === "anime";
   const genreId = genreIdFor(filters.genre, type);
-  if (genreId) params.with_genres = String(genreId);
-  // Industry toggle (header slide control): Bollywood = Indian cinema across
-  // its major languages (pipe = OR in TMDB's discover), Hollywood = English
-  // originals. The industry owns all language narrowing — there is no
-  // Bollywood genre option in the dropdown.
-  if (filters.industry === "bollywood") {
-    params.with_original_language = "hi|ta|te|kn|ml|mr|bn|pa|gu";
-  } else if (filters.industry === "hollywood") {
-    params.with_original_language = "en";
+  if (anime) {
+    params.with_genres = ["16", genreId].filter(Boolean).join(",");
+    params.with_original_language = "ja";
+  } else {
+    if (genreId) params.with_genres = String(genreId);
+    // Industry toggle (header slide control): Bollywood = Indian cinema across
+    // its major languages (pipe = OR in TMDB's discover), Hollywood = English
+    // originals. The industry owns all language narrowing — there is no
+    // Bollywood genre option in the dropdown.
+    if (filters.industry === "bollywood") {
+      params.with_original_language = "hi|ta|te|kn|ml|mr|bn|pa|gu";
+    } else if (filters.industry === "hollywood") {
+      params.with_original_language = "en";
+    }
   }
   // "Source" filter: TMDB watch-provider availability (US region).
   if (filters.provider) {
     params.with_watch_providers = String(filters.provider);
-    params.watch_region = "US";
+    // Pinned regional providers catalog in their own region (JioHotstar = IN).
+    params.watch_region = providerRegion(filters.provider);
   }
 
   if (filters.year) {
@@ -663,7 +770,7 @@ function interleave<T>(a: T[], b: T[]): T[] {
 async function liveBrowse(filters: BrowseFilters): Promise<BrowsePage | null> {
   const today = new Date().toISOString().slice(0, 10);
   const wanted: MediaType[] =
-    filters.type === "all" ? ["movie", "tv"] : [filters.type];
+    filters.type === "all" || filters.type === "anime" ? ["movie", "tv"] : [filters.type];
 
   // A genre that does not exist for a type simply drops that type from the query
   // rather than returning that type unfiltered.
@@ -718,7 +825,9 @@ const mockYear = (m: Media): number | null => {
 
 function mockBrowse(filters: BrowseFilters): BrowsePage {
   const matched = MOCK_MEDIA.filter((m) => {
-    if (filters.type !== "all" && m.type !== filters.type) return false;
+    if (filters.type === "anime" && !m.genres.includes("Animation")) return false;
+    else if (filters.type !== "all" && filters.type !== "anime" && m.type !== filters.type)
+      return false;
     if (filters.genre && !m.genres.includes(filters.genre)) return false;
     if (filters.year && mockYear(m) !== filters.year) return false;
     return true;
@@ -906,10 +1015,53 @@ export async function getHeroItems(): Promise<MediaSummary[]> {
   return mockHero();
 }
 
+/**
+ * Official title-logo artwork for an AniList anime (AniList carries no
+ * logos): search TMDB by title — year-scoped first, then loose — and take
+ * the best hit's logo. Best-effort by design; wrong or absent matches fall
+ * back to the styled text title in the hero.
+ */
+async function anilistTmdbMatch(
+  media: Media
+): Promise<{ tmdbId?: number; logoUrl?: string } | null> {
+  // Series anime matches TMDB's tv side; MOVIE-format anime the movie side —
+  // mirroring how TMDB catalogs each. Year-scoped search first, then loose.
+  const type: "tv" | "movie" =
+    media.seasons && media.seasons.length > 0 ? "tv" : "movie";
+  const year = media.releaseDate ? Number(media.releaseDate.slice(0, 4)) : undefined;
+  const yearKey = type === "tv" ? "first_air_date_year" : "primary_release_year";
+  const attempts: Record<string, string>[] = [];
+  if (year) attempts.push({ query: media.title, [yearKey]: String(year), include_adult: "false" });
+  attempts.push({ query: media.title, include_adult: "false" });
+  for (const params of attempts) {
+    const data = await tmdb<{ results?: any[] }>(`/search/${type}`, params, 60 * 60);
+    const hit = data?.results?.[0];
+    if (!hit) continue;
+    const logoUrl = await getTitleLogo(type, hit.id);
+    return { tmdbId: hit.id as number, ...(logoUrl ? { logoUrl } : {}) };
+  }
+  return null;
+}
+
 export async function getMediaDetail(
   type: MediaType,
   tmdbId: number
 ): Promise<Media | null> {
+  // Anime is AniList-backed: the id IS an AniList id and the payload (single
+  // "Episodes" season of numbered stubs, AniList recommendations) comes from
+  // the GraphQL API. No TMDB fallback exists for anime ids. The one TMDB
+  // enrichment is the official title-logo artwork (AniList has none): a
+  // best-effort title+year match — a miss simply keeps the text title.
+  if (type === "anime") {
+    const anime = await anilistDetail(tmdbId);
+    if (!anime) return null;
+    const match = await anilistTmdbMatch(anime);
+    return {
+      ...anime,
+      ...(match?.logoUrl ? { logoUrl: match.logoUrl } : {}),
+      ...(match?.tmdbId ? { resolvedTmdbId: match.tmdbId } : {}),
+    };
+  }
   if (USE_LIVE) {
     const detail = await liveDetail(type, tmdbId);
     if (detail) return detail;
@@ -919,14 +1071,72 @@ export async function getMediaDetail(
   return { ...local, recommendations: mockRecommendations(local) };
 }
 
-export async function searchMedia(query: string): Promise<MediaSummary[]> {
+/** Episodes of ONE season — the lazy half of the season model above. */
+export async function getSeasonEpisodes(
+  tmdbId: number,
+  seasonNumber: number
+): Promise<Episode[]> {
+  if (USE_LIVE) {
+    const sd = await tmdb(`/tv/${tmdbId}/season/${seasonNumber}`, {}, 60 * 60 * 24);
+    if (sd?.episodes) {
+      return (sd.episodes as any[]).map(mapEpisode);
+    }
+  }
+  // Bundled-catalog fallback (offline mode inlines episodes per season).
+  const local = MOCK_MEDIA.find(
+    (m) => m.type === "tv" && m.tmdbId === tmdbId
+  );
+  return local?.seasons?.find((s) => s.seasonNumber === seasonNumber)?.episodes ?? [];
+}
+
+function mapEpisode(e: any): Episode {
+  return {
+    id: `s${e.season_number}e${e.episode_number}`,
+    seasonNumber: e.season_number,
+    episodeNumber: e.episode_number,
+    title: e.name,
+    overview: e.overview,
+    runtime: e.runtime,
+    stillUrl: img(e.still_path, "w300"),
+    rating: e.vote_average || undefined,
+    airDate: e.air_date,
+  };
+}
+
+export async function searchMedia(
+  query: string,
+  opts?: { type?: MediaType; anilistTmdbId?: number | null }
+): Promise<MediaSummary[]> {
   if (!query.trim()) return [];
-  if (USE_LIVE) return liveSearch(query);
-  return mockSearch(query);
+  // Anime-section search: AniList titles (the anime catalog), AniList only —
+  // a failed AniList call must not leak TMDB movie/series results onto the
+  // anime page. When the title has a resolved TMDB match, its TMDB entry is
+  // dropped so the section's own detail page isn't offered as a duplicate.
+  if (opts?.type === "anime") {
+    const anime = await anilistSearch(query, 20);
+    const filtered = opts.anilistTmdbId
+      ? anime.filter((a) => a.tmdbId !== opts.anilistTmdbId)
+      : anime;
+    return filtered.length ? filtered : anime;
+  }
+  if (USE_LIVE) {
+    if (opts?.type === "movie" || opts?.type === "tv") {
+      return liveSearchScoped(query, opts.type);
+    }
+    return liveSearch(query);
+  }
+  return mockSearch(query).filter((r) => !opts?.type || r.type === opts.type);
 }
 
 /** One page of browse results for the given filters. */
 export async function getBrowseResults(filters: BrowseFilters): Promise<BrowsePage> {
+  // Anime browse is AniList-native (ids are AniList ids). The TMDB discover
+  // path below stays as a fallback if AniList is unreachable, then the
+  // bundled catalog as the last resort.
+  if (filters.type === "anime") {
+    const anime = await anilistBrowse(filters);
+    if (anime) return anime;
+  }
   if (USE_LIVE) {
     const page = await liveBrowse(filters);
     // null means every TMDB request failed — fall back to the local catalog
@@ -945,10 +1155,18 @@ export async function getBrowseResults(filters: BrowseFilters): Promise<BrowsePa
  */
 export function getBrowseOptions(type: BrowseType): BrowseOptions {
   if (USE_LIVE) {
-    const genres = BROWSE_GENRES.filter(
-      (g) =>
-        type === "all" ? g.movieId || g.tvId : type === "movie" ? g.movieId : g.tvId
-    ).map((g) => g.name);
+    const genres =
+      type === "anime"
+        ? // AniList-backed page — AniList's own genre vocabulary.
+          [...ANILIST_GENRES]
+        : BROWSE_GENRES.filter(
+            (g) =>
+              type === "all"
+                ? g.movieId || g.tvId
+                : type === "movie"
+                  ? g.movieId
+                  : g.tvId
+          ).map((g) => g.name);
     const latest = new Date().getFullYear();
     const years: number[] = [];
     for (let y = latest; y >= EARLIEST_BROWSE_YEAR; y--) years.push(y);

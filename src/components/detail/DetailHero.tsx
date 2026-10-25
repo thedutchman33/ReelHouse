@@ -29,7 +29,19 @@ export default function DetailHero({ media }: { media: Media }) {
   const year = yearOf(media.releaseDate);
   const runtime = formatRuntime(media.runtime);
   const seasonCount = media.seasons?.length;
-  const metaLeft = [runtime, seasonCount ? `${seasonCount} Season${seasonCount > 1 ? "s" : ""}` : null]
+  // Anime is one continuous episode run — "1 Season" would read wrong, the
+  // episode total is the honest meta.
+  const animeEpisodes = media.seasons?.[0]?.episodeCount;
+  const metaLeft = [
+    runtime,
+    media.type === "anime"
+      ? animeEpisodes
+        ? `${animeEpisodes} Episodes`
+        : null
+      : seasonCount
+        ? `${seasonCount} Season${seasonCount > 1 ? "s" : ""}`
+        : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -65,7 +77,7 @@ export default function DetailHero({ media }: { media: Media }) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="eyebrow mb-3">{media.type === "tv" ? "Series" : "Film"}</p>
+            <p className="eyebrow mb-3">{media.type === "tv" ? "Series" : media.type === "anime" ? "Anime" : "Film"}</p>
 
             {media.logoUrl ? (
               <TitleLogo src={media.logoUrl} title={media.title} />
@@ -106,7 +118,9 @@ export default function DetailHero({ media }: { media: Media }) {
             {media.tagline && (
               <p className="mt-4 text-base italic text-text/70">“{media.tagline}”</p>
             )}
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text/85 sm:text-base">
+            {/* Clamped: AniList descriptions (and some TMDB ones) run long
+                enough to push the actions below the fold. */}
+            <p className="mt-3 line-clamp-4 max-w-2xl text-sm leading-relaxed text-text/85 sm:text-base">
               {media.overview}
             </p>
 

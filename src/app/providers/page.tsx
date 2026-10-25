@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 // artwork is a square app icon are left out — inverted they read as blank
 // white squares, which looks broken.
 export default async function ProvidersPage() {
-  const all = await getWatchProviders("US", 100);
+  const all = await getWatchProviders("US");
   const providers = sortProviders(dedupeByFamily(all.filter((p) => wordmarkFor(p.name))));
 
   return (

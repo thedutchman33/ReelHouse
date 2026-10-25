@@ -30,7 +30,12 @@ export default async function BrowseView({
   subtitle: string;
 }) {
   const options = getBrowseOptions(type);
-  const providers = await getWatchProviders("US", 100, type === "tv" ? "tv" : "movie");
+  // Anime is AniList-backed — watch providers are a TMDB concept, so the
+  // Source dropdown is simply not offered there.
+  const providers =
+    type === "anime"
+      ? []
+      : await getWatchProviders("US", type === "tv" ? "tv" : "movie");
 
   return (
     <div className="container-rh py-8">

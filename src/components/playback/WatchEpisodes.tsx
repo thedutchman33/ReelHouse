@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PosterImage from "@/components/media/PosterImage";
+import RailSlider from "@/components/media/RailSlider";
 import type { MediaSummary, Season } from "@/types";
 
 // Episodes section (reference anatomy, REA-verified from /tv/84958/watch):
@@ -17,18 +18,30 @@ export default function WatchEpisodes({
   episode,
   onSelectEpisode,
   media,
+  loadSeasonEpisodes,
 }: {
   seasons: Season[];
   season: number;
   episode: number;
   onSelectEpisode: (season: number, episode: number) => void;
   media: MediaSummary;
+  /** Loads (and caches in the container) one season's episodes on demand. */
+  loadSeasonEpisodes: (seasonNumber: number) => Promise<
+    import("@/types").Episode[]
+  >;
 }) {
   const [selectedSeason, setSelectedSeason] = useState(season);
   const railRef = useRef<HTMLDivElement>(null);
   const current = seasons.find((s) => s.seasonNumber === selectedSeason);
-  const currentEp = current?.episodes.find((e) => e.episodeNumber === episode);
-  if (!current || current.episodes.length === 0) return null;
+  // Seasons are metadata until their episodes load — pull the selected one.
+  useEffect(() => {
+    if (current && !(current.episodes ?? []).length) {
+      void loadSeasonEpisodes(selectedSeason);
+    }
+  }, [selectedSeason, current, loadSeasonEpisodes]);
+  const episodes = current?.episodes ?? [];
+  const currentEp = episodes.find((e) => e.episodeNumber === episode);
+  if (!current) return null;
 
   const nudge = (dir: number) => {
     const el = railRef.current;
@@ -46,7 +59,7 @@ export default function WatchEpisodes({
               Episodes
             </p>
             <h2 className="mt-1 font-display text-2xl tracking-tight text-foreground md:text-3xl">
-              Season {selectedSeason}
+              {current.name || `Season ${selectedSeason}`}
             </h2>
           </div>
           <div className="nm-inset flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold sm:rounded-lg sm:py-1.5">
@@ -113,8 +126,17 @@ export default function WatchEpisodes({
             </svg>
           </button>
 
-          <div ref={railRef} className="-mx-1 -mt-3 flex gap-4 overflow-x-auto px-1 pb-3 pt-3 no-scrollbar">
-            {current.episodes.map((ep) => {
+          <div ref={railRef} className="no-scrollbar -mx-1 -mt-3 flex gap-4 overflow-x-auto px-1 pb-3 pt-3">
+            {episodes.length === 0 &&
+              // Season episodes still loading — placeholder cards, same size.
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="w-[260px] shrink-0 sm:w-[300px]" aria-hidden="true">
+                  <div className="aspect-video animate-pulse rounded-xl bg-muted/60" />
+                  <div className="mt-2 h-4 w-2/3 animate-pulse rounded bg-muted/40" />
+                  <div className="mt-1.5 h-3 w-full animate-pulse rounded bg-muted/30" />
+                </div>
+              ))}
+            {episodes.map((ep) => {
               const isCurrent = ep.episodeNumber === episode && selectedSeason === season;
               return (
                 <div key={ep.episodeNumber} className="relative w-[260px] shrink-0 sm:w-[300px]">
@@ -128,13 +150,25 @@ export default function WatchEpisodes({
                         isCurrent ? "ring-2 ring-accent" : "ring-white/[0.08]"
                       }`}
                     >
-                      <PosterImage
-                        src={ep.stillUrl || media.backdropUrl}
-                        title={ep.title}
-                        type="tv"
-                        variant="backdrop"
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
-                      />
+                      {ep.stillUrl || media.type !== "anime" ? (
+                        <PosterImage
+                          src={ep.stillUrl || media.backdropUrl}
+                          title={ep.title}
+                          type="tv"
+                          variant="backdrop"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                        />
+                      ) : (
+                        /* Anime stub without a streaming still: the title's
+                           own poster art (cover cropped to the frame). */
+                        <PosterImage
+                          src={media.posterUrl || media.backdropUrl}
+                          title={ep.title}
+                          type="anime"
+                          variant="backdrop"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                        />
+                      )}
                       <span className="absolute left-2 top-2 rounded-md bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
                         E{ep.episodeNumber}
                       </span>
@@ -174,6 +208,9 @@ export default function WatchEpisodes({
               );
             })}
           </div>
+          {/* Reference scrubber: range slider under the rail (REA-verified
+              wiring: 0–1000 <-> scrollLeft). */}
+          <RailSlider railRef={railRef} />
         </div>
       </div>
     </section>

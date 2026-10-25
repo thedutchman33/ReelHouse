@@ -255,7 +255,7 @@ afterEach(clearSlotEnv);
 describe("five-slot registry", () => {
   it("ships five slots, all unconfigured and disabled", () => {
     const slots = readProviderSlots();
-    expect(slots).toHaveLength(11);
+    expect(slots).toHaveLength(15);
     expect(slots.map((s) => s.id)).toEqual([
       "provider-1",
       "provider-2",
@@ -268,6 +268,10 @@ describe("five-slot registry", () => {
       "provider-9",
       "provider-10",
       "provider-11",
+      "provider-12",
+      "provider-13",
+      "provider-14",
+      "provider-15",
     ]);
     for (const slot of slots) {
       expect(slot.enabled).toBe(false);
@@ -285,7 +289,9 @@ describe("five-slot registry", () => {
 
   it("defaults priority to slot order and the name to the slot number", () => {
     const slots = readProviderSlots();
-    expect(slots.map((s) => s.priority)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]);
+    expect(slots.map((s) => s.priority)).toEqual([
+      10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150,
+    ]);
     expect(slots.map((s) => s.displayName)).toEqual([
       "Provider 1",
       "Provider 2",
@@ -298,6 +304,10 @@ describe("five-slot registry", () => {
       "Provider 9",
       "Provider 10",
       "Provider 11",
+      "Provider 12",
+      "Provider 13",
+      "Provider 14",
+      "Provider 15",
     ]);
   });
 
@@ -555,14 +565,14 @@ describe("getPlaybackPlan", () => {
     );
   });
 
-  it("shows a half-configured slot as unavailable with the reason, and still plays", async () => {
+  it("omits a slot that does not serve the media type, and still plays", async () => {
+    // provider-1 is movie-only; on a TV page it must not appear at all —
+    // the server selector lists only servers for the current media type.
     process.env.VIDEO_PROVIDER_1_ENABLED = "1";
     const plan = await getPlaybackPlan("tv", 1399, 1, 1);
-    const slot = plan.providers.find((p) => p.id === "provider-1");
-    expect(slot?.available).toBe(false);
-    expect(slot?.unavailableReason).toBe("No TV player URL set");
-    // Never selectable, and playback still falls to the built-in surface.
+    expect(plan.providers.some((p) => p.id === "provider-1")).toBe(false);
     expect(plan.candidates.some((c) => c.provider.id === "provider-1")).toBe(false);
+    // Playback still falls to the built-in surface.
     expect(selectInitialCandidate(plan.candidates, "tv")?.provider.id).toBe(
       BUILT_IN_PLAYER_ID
     );
@@ -586,10 +596,9 @@ describe("getPlaybackPlan", () => {
     const priorities = plan.candidates.map((c) => c.provider.priority);
     expect([...priorities].sort((a, b) => a - b)).toEqual(priorities);
 
-    // The movie surface of those TV-only slots stays unavailable.
+    // Those TV-only slots are omitted from a movie plan entirely.
     const moviePlan = await getPlaybackPlan("movie", 603);
-    expect(
-      moviePlan.providers.find((p) => p.id === "provider-4")?.unavailableReason
-    ).toBe("No movie player URL set");
+    expect(moviePlan.providers.some((p) => p.id === "provider-4")).toBe(false);
+    expect(moviePlan.candidates.some((c) => c.provider.id === "provider-4")).toBe(false);
   });
 });

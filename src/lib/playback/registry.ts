@@ -44,7 +44,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const SLOTS = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 ] as const satisfies readonly ProviderSlotNumber[];
 
 /** Compile-time cross-check that the slot list matches the declared count. */
@@ -73,7 +73,7 @@ function parseMediaTypes(value: string | undefined): MediaType[] | null {
   const types = value
     .split(",")
     .map((t) => t.trim().toLowerCase())
-    .filter((t): t is MediaType => t === "movie" || t === "tv");
+    .filter((t): t is MediaType => t === "movie" || t === "tv" || t === "anime");
   return types.length ? [...new Set(types)] : null;
 }
 
@@ -118,13 +118,15 @@ export function isSafePlayerUrlTemplate(
 function readCapabilities(
   slot: ProviderSlotNumber,
   movieUrlTemplate: string | null,
-  tvUrlTemplate: string | null
+  tvUrlTemplate: string | null,
+  animeUrlTemplate: string | null
 ): ProviderCapabilities {
   // Default the supported types to whatever templates the operator actually
   // provided, so a movie-only provider needs no extra variable.
   const derived: MediaType[] = [];
   if (movieUrlTemplate) derived.push("movie");
   if (tvUrlTemplate) derived.push("tv");
+  if (animeUrlTemplate) derived.push("anime");
 
   return {
     canReportProgress: parseBool(readVar(slot, "REPORTS_PROGRESS")),
@@ -136,6 +138,7 @@ function readCapabilities(
 function readSlot(slot: ProviderSlotNumber): ProviderSlotConfig {
   const rawMovie = readVar(slot, "MOVIE_URL") ?? null;
   const rawTv = readVar(slot, "TV_URL") ?? null;
+  const rawAnime = readVar(slot, "ANIME_URL") ?? null;
 
   // Drop (and report) any template we would refuse to put in a frame src,
   // rather than silently rendering something unsafe.
@@ -148,6 +151,10 @@ function readSlot(slot: ProviderSlotNumber): ProviderSlotConfig {
     rawTv && !isSafePlayerUrlTemplate(rawTv)
       ? (rejected.push("TV_URL"), null)
       : rawTv;
+  const animeUrlTemplate =
+    rawAnime && !isSafePlayerUrlTemplate(rawAnime)
+      ? (rejected.push("ANIME_URL"), null)
+      : rawAnime;
 
   return {
     slot,
@@ -157,7 +164,13 @@ function readSlot(slot: ProviderSlotNumber): ProviderSlotConfig {
     priority: parsePriority(readVar(slot, "PRIORITY"), slot * 10),
     movieUrlTemplate,
     tvUrlTemplate,
-    capabilities: readCapabilities(slot, movieUrlTemplate, tvUrlTemplate),
+    animeUrlTemplate,
+    capabilities: readCapabilities(
+      slot,
+      movieUrlTemplate,
+      tvUrlTemplate,
+      animeUrlTemplate
+    ),
     ...(rejected.length
       ? {
           configError: `${rejected.join(" and ")} must be an https:// URL or a same-origin /path`,
@@ -174,7 +187,10 @@ export function readProviderSlots(): ProviderSlotConfig[] {
 /** True when the slot has any operator configuration at all. */
 export function isSlotConfigured(config: ProviderSlotConfig): boolean {
   return Boolean(
-    config.enabled || config.movieUrlTemplate || config.tvUrlTemplate
+    config.enabled ||
+      config.movieUrlTemplate ||
+      config.tvUrlTemplate ||
+      config.animeUrlTemplate
   );
 }
 
@@ -183,7 +199,9 @@ export function templateFor(
   config: ProviderSlotConfig,
   mediaType: MediaType
 ): string | null {
-  return mediaType === "tv" ? config.tvUrlTemplate : config.movieUrlTemplate;
+  if (mediaType === "tv") return config.tvUrlTemplate;
+  if (mediaType === "anime") return config.animeUrlTemplate;
+  return config.movieUrlTemplate;
 }
 
 /**
@@ -194,12 +212,15 @@ export function slotUnavailableReason(
   config: ProviderSlotConfig,
   mediaType: MediaType
 ): string | null {
-  const label = mediaType === "tv" ? "TV" : "movies";
+  const label =
+    mediaType === "tv" ? "TV" : mediaType === "anime" ? "anime" : "movies";
   if (config.configError) return config.configError;
   if (!isSlotConfigured(config)) return "Not configured";
   if (!config.enabled) return "Disabled";
   if (!templateFor(config, mediaType)) {
-    return `No ${mediaType === "tv" ? "TV" : "movie"} player URL set`;
+    const urlLabel =
+      mediaType === "tv" ? "TV" : mediaType === "anime" ? "anime" : "movie";
+    return `No ${urlLabel} player URL set`;
   }
   if (!config.capabilities.supportedMediaTypes.includes(mediaType)) {
     return `Not configured for ${label}`;

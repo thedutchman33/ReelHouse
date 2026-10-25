@@ -11,7 +11,10 @@
 export const WORDMARKS: [RegExp, string][] = [
   [/netflix/i, "/provider-logos/netflix.svg"],
   [/prime\s?video/i, "/provider-logos/prime-video.svg"],
-  [/disney/i, "/provider-logos/disney-plus.svg"],
+  // Before the disney pattern: "Disney+ Hotstar" (JioHotstar's former name)
+  // must match the Hotstar mark, not the Disney one.
+  [/hotstar/i, "/provider-logos/jio-hotstar.png"],
+  [/disney\+|disney plus/i, "/provider-logos/disney-plus.svg"],
   [/apple\s?tv\s?\+|apple\s?tv\s?plus/i, "/provider-logos/apple-tv-plus.svg"],
   [/apple\s?tv/i, "/provider-logos/apple-tv.svg"],
   [/hulu/i, "/provider-logos/hulu.svg"],
@@ -47,6 +50,10 @@ export const FAMILY_KEYS: string[] = [
   "max",
   "apple tv",
   "prime video",
+  // Operator-pinned position: JioHotstar sits between Prime Video and Disney+.
+  // "hotstar" (not "jiohotstar") so legacy "Disney+ Hotstar" naming also
+  // collapses into this family instead of the Disney one.
+  "hotstar",
   "disney",
   "crunchyroll",
   "hulu",
@@ -98,9 +105,14 @@ export function dedupeByFamily<T extends { name: string }>(providers: T[]): T[] 
 
   const out: T[] = [];
   for (const { family, items } of groups.values()) {
-    const flagship =
-      items.find((p) => p.name.toLowerCase() === family) ??
-      items.reduce((best, p) => (p.name.length < best.name.length ? p : best), items[0]);
+    // Flagship ranking: a name carrying the brand's wordmark beats a bare
+    // variant regardless of length ("Disney Plus" over the shorter
+    // "DisneyNOW"), then an exact family-key match, then the shortest name.
+    const score = (p: T): number =>
+      (wordmarkFor(p.name) ? 0 : 100) +
+      (p.name.toLowerCase() === family ? 0 : 10) +
+      p.name.length;
+    const flagship = items.reduce((best, p) => (score(p) < score(best) ? p : best), items[0]);
     out.push(flagship);
   }
   return out;

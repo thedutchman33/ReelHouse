@@ -40,13 +40,14 @@ function findNext(seasons: Season[], s: number, e: number) {
   const si = seasons.findIndex((x) => x.seasonNumber === s);
   if (si < 0) return null;
   const season = seasons[si];
-  const ei = season.episodes.findIndex((x) => x.episodeNumber === e);
-  if (ei >= 0 && ei < season.episodes.length - 1) {
-    const n = season.episodes[ei + 1];
+  const eps = season.episodes ?? [];
+  const ei = eps.findIndex((x) => x.episodeNumber === e);
+  if (ei >= 0 && ei < eps.length - 1) {
+    const n = eps[ei + 1];
     return { seasonNumber: n.seasonNumber, episodeNumber: n.episodeNumber, title: n.title };
   }
   const ns = seasons[si + 1];
-  if (ns && ns.episodes[0]) {
+  if (ns && ns.episodes?.[0]) {
     const n = ns.episodes[0];
     return { seasonNumber: n.seasonNumber, episodeNumber: n.episodeNumber, title: n.title };
   }
@@ -151,7 +152,7 @@ export default function VideoPlayer({
   const currentEpisodeObj = useMemo(() => {
     if (!hasEpisodes) return null;
     const s = seasons.find((x) => x.seasonNumber === season);
-    return s?.episodes.find((x) => x.episodeNumber === episode) ?? null;
+    return s?.episodes?.find((x) => x.episodeNumber === episode) ?? null;
   }, [hasEpisodes, seasons, season, episode]);
 
   const episodeRef = useMemo<EpisodeRef | null>(() => {
@@ -433,7 +434,7 @@ export default function VideoPlayer({
     (s: number, e: number) => {
       if (!hasEpisodes) return;
       const seasonObj = seasons.find((x) => x.seasonNumber === s);
-      const epObj = seasonObj?.episodes.find((x) => x.episodeNumber === e);
+      const epObj = seasonObj?.episodes?.find((x) => x.episodeNumber === e);
       if (!epObj) return;
       setSeason(s);
       setEpisode(e);

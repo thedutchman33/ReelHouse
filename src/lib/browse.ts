@@ -15,7 +15,9 @@ import type { MediaType } from "@/types";
 // Nothing is offered that cannot actually be applied.
 // ---------------------------------------------------------------------------
 
-export type BrowseType = "all" | MediaType;
+export type BrowseType = "all" | MediaType | "anime";
+// "anime" is a cross-type curation (Animation + Japanese originals across
+// movies AND series), not a TMDB media type — the discover layer expands it.
 
 export type BrowseSort = "popularity" | "latest" | "rating" | "oldest";
 
@@ -51,6 +53,7 @@ export const TYPE_OPTIONS: { value: BrowseType; label: string; href: string }[] 
   { value: "all", label: "All", href: "/browse" },
   { value: "movie", label: "Movies", href: "/movies" },
   { value: "tv", label: "TV Shows", href: "/tv-shows" },
+  { value: "anime", label: "Anime", href: "/anime" },
 ];
 
 export const SORT_OPTIONS: { value: BrowseSort; label: string }[] = [
@@ -88,7 +91,7 @@ export function parseBrowseFilters(
   const rawType = firstValue(searchParams.type);
   const type: BrowseType =
     forcedType ??
-    (rawType === "movie" || rawType === "tv" || rawType === "all" ? rawType : "all");
+    (rawType === "movie" || rawType === "tv" || rawType === "all" || rawType === "anime" ? rawType : "all");
 
   const genreRaw = firstValue(searchParams.genre)?.trim();
   const providerRaw = Number(firstValue(searchParams.provider));

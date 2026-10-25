@@ -20,6 +20,7 @@ const ROW_EYEBROWS: Record<string, string> = {
   topIndia: "India Rankings",
   bollywood: "From India",
   doomsday: "Marvel Watch Order",
+  anime: "Japanese Animation",
   new: "Just Arrived",
   acclaimed: "Highest Rated",
   scifi: "Genre Spotlight",
@@ -34,7 +35,7 @@ export default async function HomePage() {
   const [hero, rows, providers] = await Promise.all([
     getHeroItems(),
     getHomeRows(),
-    getWatchProviders("US", 100),
+    getWatchProviders("US"),
   ]);
   const live = isLiveMetadata();
 

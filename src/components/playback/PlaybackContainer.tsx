@@ -26,7 +26,7 @@ import {
   type ProgressRecorder,
 } from "@/lib/playback/progress";
 import type { PlaybackFailure, PlaybackPlan } from "@/lib/playback/types";
-import type { Media, MediaSummary, MediaType, Season } from "@/types";
+import type { Episode, Media, MediaSummary, MediaType, Season } from "@/types";
 import EmbedSurface from "./EmbedSurface";
 import {
   FallbackNotice,
@@ -59,7 +59,7 @@ import ProviderSelector from "./ProviderSelector";
 function episodeTitle(seasons: Season[], s: number, e: number): string {
   const season = seasons.find((x) => x.seasonNumber === s);
   return (
-    season?.episodes.find((x) => x.episodeNumber === e)?.title ?? `Episode ${e}`
+    season?.episodes?.find((x) => x.episodeNumber === e)?.title ?? `Episode ${e}`
   );
 }
 
@@ -71,13 +71,15 @@ function nextEpisodeOf(
 ): { season: number; episode: number } | null {
   const si = seasons.findIndex((x) => x.seasonNumber === s);
   if (si < 0) return null;
-  const episodes = seasons[si].episodes;
+  const episodes = seasons[si].episodes ?? [];
   const ei = episodes.findIndex((x) => x.episodeNumber === e);
   if (ei >= 0 && ei < episodes.length - 1) {
     const n = episodes[ei + 1];
     return { season: n.seasonNumber, episode: n.episodeNumber };
   }
-  const next = seasons[si + 1]?.episodes[0];
+  // Rolling into the next season needs that season's episodes loaded; when
+  // they aren't (lazy seasons), autoplay simply stops at the finale.
+  const next = seasons[si + 1]?.episodes?.[0];
   return next ? { season: next.seasonNumber, episode: next.episodeNumber } : null;
 }
 
@@ -130,13 +132,58 @@ export default function PlaybackContainer({
   initialSeconds?: number;
   backHref: string;
 }) {
-  const hasEpisodes = type === "tv" && seasons.length > 0;
+  // Anime carries a single synthesized "Episodes" season — episode-aware too.
+  const hasEpisodes = type !== "movie" && seasons.length > 0;
+
+  // Seasons arrive as metadata; episodes load per season (cached here) so a
+  // 22-season show doesn't ship every episode in the page payload. Inline
+  // episodes from the bundled catalog seed the cache directly.
+  const [episodesBySeason, setEpisodesBySeason] = useState<
+    Record<number, Episode[]>
+  >(() =>
+    Object.fromEntries(
+      seasons.filter((sn) => sn.episodes).map((sn) => [sn.seasonNumber, sn.episodes!])
+    )
+  );
+  const loadSeasonEpisodes = useCallback(
+    async (sn: number): Promise<Episode[]> => {
+      const cached = episodesBySeason[sn];
+      if (cached) return cached;
+      try {
+        const res = await fetch(`/api/seasons/${media.tmdbId}/${sn}`);
+        const data = (await res.json()) as { episodes?: Episode[] };
+        const eps = data.episodes ?? [];
+        setEpisodesBySeason((prev) => ({ ...prev, [sn]: eps }));
+        return eps;
+      } catch {
+        return [];
+      }
+    },
+    [episodesBySeason, media.tmdbId]
+  );
+  const seasonsWithEpisodes: Season[] = useMemo(
+    () =>
+      seasons.map((sn) => ({
+        ...sn,
+        episodes: episodesBySeason[sn.seasonNumber] ?? sn.episodes ?? [],
+      })),
+    [seasons, episodesBySeason]
+  );
 
   const [selectedId, setSelectedId] = useState(
     () => selectInitialCandidate(plan.candidates, type)?.provider.id ?? ""
   );
   const [season, setSeason] = useState(initialSeasonNumber ?? 1);
   const [episode, setEpisode] = useState(initialEpisodeNumber ?? 1);
+
+  // The season currently playing must always be loaded (episode titles,
+  // autoplay-next, the episodes rail).
+  useEffect(() => {
+    if (!hasEpisodes) return;
+    if (!seasons.some((sn) => sn.seasonNumber === season)) return;
+    if (!episodesBySeason[season]) void loadSeasonEpisodes(season);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [season, hasEpisodes]);
   const [failure, setFailure] = useState<PlaybackFailure | null>(null);
   // Providers that already failed in this chain — never retried automatically,
   // which is what stops fallback from looping.
@@ -185,7 +232,7 @@ export default function PlaybackContainer({
   // surface keeps persisting progress inside the existing player (unchanged), so
   // it is intentionally NOT recorded twice here.
   const episodeRef: EpisodeRef | null = hasEpisodes
-    ? { seasonNumber: season, episodeNumber: episode, title: episodeTitle(seasons, season, episode) }
+    ? { seasonNumber: season, episodeNumber: episode, title: episodeTitle(seasonsWithEpisodes, season, episode) }
     : null;
 
   const recorderRef = useRef<ProgressRecorder | null>(null);
@@ -293,7 +340,7 @@ export default function PlaybackContainer({
         episode: {
           seasonNumber: nextSeason,
           episodeNumber: nextEpisode,
-          title: episodeTitle(seasons, nextSeason, nextEpisode),
+          title: episodeTitle(seasonsWithEpisodes, nextSeason, nextEpisode),
         },
       });
       // Mirror what the custom player does, so the URL stays the shared source of
@@ -311,7 +358,7 @@ export default function PlaybackContainer({
   const handleEnded = useCallback(() => {
     recorderRef.current?.ended();
     if (!autoplay || !hasEpisodes) return;
-    const next = nextEpisodeOf(seasons, season, episode);
+    const next = nextEpisodeOf(seasonsWithEpisodes, season, episode);
     if (next) selectEpisode(next.season, next.episode);
   }, [autoplay, hasEpisodes, seasons, season, episode, selectEpisode]);
 
@@ -364,7 +411,14 @@ export default function PlaybackContainer({
     if (c.surface.kind === "embed") {
       embedUrls[c.provider.id] = expandTemplate(c.surface.urlTemplate, {
         id: media.tmdbId,
-        ...(hasEpisodes ? { season, episode } : {}),
+        tmdbId: detail?.resolvedTmdbId ?? media.tmdbId,
+        ...(hasEpisodes
+          ? { season, episode }
+          : type === "anime"
+            ? // Anime movie: the player path is episode-numbered — the movie
+              // is its own episode 1.
+              { episode: 1 }
+            : {}),
       });
     }
   }
@@ -460,7 +514,12 @@ export default function PlaybackContainer({
                         (embedSurface as { urlTemplate: string }).urlTemplate,
                         {
                           id: media.tmdbId,
-                          ...(hasEpisodes ? { season, episode } : {}),
+                          tmdbId: detail?.resolvedTmdbId ?? media.tmdbId,
+                          ...(hasEpisodes
+                            ? { season, episode }
+                            : type === "anime"
+                              ? { episode: 1 }
+                              : {}),
                         }
                       )}
                       title={`${provider.displayName} player — ${contextLabel}`}
@@ -531,11 +590,12 @@ export default function PlaybackContainer({
               servers panel) */}
           {hasEpisodes && (
             <WatchEpisodes
-              seasons={seasons}
+              seasons={seasonsWithEpisodes}
               season={season}
               episode={episode}
               onSelectEpisode={selectEpisode}
               media={media}
+              loadSeasonEpisodes={loadSeasonEpisodes}
             />
           )}
 

@@ -184,7 +184,8 @@ export async function getPlaybackSource(
 /** Descriptor + optional candidate for one configurable slot. */
 function describeSlot(
   config: ReturnType<typeof readProviderSlots>[number],
-  type: MediaType
+  type: MediaType,
+  opts?: PlaybackPlanOptions
 ): { provider: ProviderDescriptor; candidate: PlaybackCandidate | null } {
   const reason = slotUnavailableReason(config, type);
   const provider: ProviderDescriptor = {
@@ -198,9 +199,32 @@ function describeSlot(
     ...(reason === null ? {} : { unavailableReason: reason }),
     isBuiltIn: false,
   };
-  const urlTemplate = templateFor(config, type);
+  // Anime id-space gating: TMDB-based anime templates ({tmdbId}) are
+  // unavailable when the title has no TMDB match; movie-format anime ride
+  // the provider's MOVIE endpoint with the resolved TMDB movie id.
+  let urlTemplate = templateFor(config, type);
+  if (type === "anime" && opts) {
+    if (opts.animeMovie) {
+      if (config.movieUrlTemplate && opts.animeTmdbId) {
+        urlTemplate = config.movieUrlTemplate.replace(/\{id\}/g, "{tmdbId}");
+      } else {
+        urlTemplate = null;
+      }
+    } else if (urlTemplate && /\{tmdbId\}/.test(urlTemplate) && !opts.animeTmdbId) {
+      urlTemplate = null;
+    }
+  }
+  const unavailable =
+    reason !== null
+      ? reason
+      : urlTemplate === null
+        ? "No TMDB match for this anime"
+        : null;
   return {
-    provider,
+    provider:
+      unavailable && unavailable !== reason
+        ? { ...provider, available: false, unavailableReason: unavailable }
+        : provider,
     candidate:
       reason === null && urlTemplate
         ? { provider, surface: { kind: "embed", urlTemplate } }
@@ -213,24 +237,39 @@ function describeSlot(
  * by priority, including unavailable ones so the selector can explain them) and
  * every playable candidate, the built-in surface last.
  */
+export interface PlaybackPlanOptions {
+  /** Anime films ride the provider's MOVIE endpoint with the TMDB movie id. */
+  animeMovie?: boolean;
+  /** The anime's resolved TMDB id (null when no match) — gates {tmdbId}
+      templates so a provider never embeds the wrong catalog. */
+  animeTmdbId?: number | null;
+}
+
 export async function getPlaybackPlan(
   type: MediaType,
   tmdbId: number,
   season?: number,
-  episode?: number
+  episode?: number,
+  opts?: PlaybackPlanOptions
 ): Promise<PlaybackPlan> {
   const servers = await getPlaybackServers(type, tmdbId, season, episode);
 
   const providers: ProviderDescriptor[] = [];
-  // The built-in surface is a candidate but never a listed provider.
-  const candidates: PlaybackCandidate[] = [buildBuiltInCandidate({ servers })];
+  // The built-in surface is a candidate but never a listed provider. Anime has
+  // no bundled sources (its catalog is AniList, not the offline sampler), so
+  // anime plans carry configured providers only.
+  const candidates: PlaybackCandidate[] =
+    type === "anime" ? [] : [buildBuiltInCandidate({ servers })];
 
   for (const config of readProviderSlots()) {
     // An entirely untouched slot stays out of the UI; a slot the owner has
     // started configuring shows up (disabled, with the reason) so a mistake is
     // visible rather than silent.
     if (!isSlotConfigured(config) && !config.configError) continue;
-    const { provider, candidate } = describeSlot(config, type);
+    const { provider, candidate } = describeSlot(config, type, opts);
+    // The selector lists only servers that actually serve this media type —
+    // a TV-only slot must not appear on a movie watch page.
+    if (!config.capabilities.supportedMediaTypes.includes(type)) continue;
     providers.push(provider);
     if (candidate) candidates.push(candidate);
   }

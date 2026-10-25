@@ -8,7 +8,7 @@ import type { MediaSummary, MediaType } from "@/types";
 type SearchParams = { [key: string]: string | string[] | undefined };
 
 function isMediaType(t: string): t is MediaType {
-  return t === "movie" || t === "tv";
+  return t === "movie" || t === "tv" || t === "anime";
 }
 
 function num(v: string | string[] | undefined): number {
@@ -56,32 +56,33 @@ export default async function WatchPage({
     overview: media.overview,
   };
 
-  const seasons = type === "tv" ? media.seasons ?? [] : [];
+  const seasons = type !== "movie" ? media.seasons ?? [] : [];
 
   // Resolve the starting season/episode from ?s/?e (TV only), falling back to
   // the first available episode. The player takes over navigation from here.
   let seasonNum: number | undefined;
   let epNum: number | undefined;
-  if (type === "tv") {
+  if (type !== "movie") {
     seasonNum = num(sp.s);
     epNum = num(sp.e);
     if (!Number.isFinite(seasonNum) || !Number.isFinite(epNum)) {
-      const first = seasons[0];
-      seasonNum = first?.seasonNumber ?? 1;
-      epNum = first?.episodes[0]?.episodeNumber ?? 1;
-    }
-    const seasonObj = seasons.find((s) => s.seasonNumber === seasonNum);
-    const ep = seasonObj?.episodes.find((x) => x.episodeNumber === epNum) ?? seasonObj?.episodes[0];
-    if (ep) {
-      seasonNum = ep.seasonNumber;
-      epNum = ep.episodeNumber;
+      // Seasons are metadata here (episodes load per season in the client) —
+      // the default is simply the first season, episode 1.
+      seasonNum = seasons[0]?.seasonNumber ?? 1;
+      epNum = 1;
     }
   }
 
   // Every provider that could serve this title, priority-ordered. The container
   // renders whichever one is selected; with no provider configured that is
   // Reelhouse's own built-in player surface, exactly as before.
-  const plan = await getPlaybackPlan(type, tmdbId, seasonNum, epNum);
+  // Anime: providers split by id space — AniList-based ({anilistId}) always
+  // play; TMDB-based ones ({tmdbId}) need the resolved TMDB match, and anime
+  // FILMS ride the provider movie endpoints with the TMDB movie id.
+  const plan = await getPlaybackPlan(type, tmdbId, seasonNum, epNum, {
+    animeMovie: type === "anime" && seasons.length === 0,
+    animeTmdbId: media.resolvedTmdbId ?? null,
+  });
 
   const t = num(sp.t);
   const initialSeconds = Number.isFinite(t) && t > 0 ? t : undefined;

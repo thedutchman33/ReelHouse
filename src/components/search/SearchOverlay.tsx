@@ -47,7 +47,8 @@ function rememberSearch(query: string): string[] {
 }
 
 function resultHref(item: MediaSummary): string {
-  return item.type === "tv" ? `/tv/${item.tmdbId}` : `/movie/${item.tmdbId}`;
+  // Anime results carry AniList ids and route into the anime section.
+  return `/${item.type}/${item.tmdbId}`;
 }
 
 type Status = "idle" | "loading" | "done" | "error";
@@ -309,7 +310,7 @@ export default function SearchOverlay({
                       {item.rating.toFixed(1)}
                     </span>
                   )}
-                  <span className="uppercase tracking-wide">{item.type === "tv" ? "TV" : "Movie"}</span>
+                  <span className="uppercase tracking-wide">{item.type === "tv" ? "TV" : item.type === "anime" ? "Anime" : "Movie"}</span>
                 </span>
               </span>
             </button>

@@ -179,7 +179,7 @@ export default function EpisodeDrawer({
               {season?.name || `Season ${season?.seasonNumber ?? ""}`}
             </h3>
             <span className="text-xs font-semibold uppercase tracking-wider text-accent">
-              • {season?.episodeCount ?? season?.episodes.length ?? 0} Episodes
+              • {season?.episodeCount ?? season?.episodes?.length ?? 0} Episodes
             </span>
           </div>
           {mediaOverview && (

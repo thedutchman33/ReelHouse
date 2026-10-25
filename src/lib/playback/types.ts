@@ -20,11 +20,11 @@ import type { MediaType, PlaybackServer } from "@/types";
 // ---------------------------------------------------------------------------
 
 /** Reelhouse prepares exactly five future provider slots. */
-export const PROVIDER_SLOT_COUNT = 11;
+export const PROVIDER_SLOT_COUNT = 15;
 
 export type ProviderSlotNumber =
   | 1 | 2 | 3 | 4 | 5
-  | 6 | 7 | 8 | 9 | 10 | 11;
+  | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
 /**
  * How a provider's player is rendered inside the playback container.
@@ -79,6 +79,8 @@ export interface ProviderSlotConfig {
   movieUrlTemplate: string | null;
   /** Owner-supplied TV player URL template, or null when unset. */
   tvUrlTemplate: string | null;
+  /** Owner-supplied anime player URL template (AniList ids), or null. */
+  animeUrlTemplate: string | null;
   capabilities: ProviderCapabilities;
   /** Set when the slot has configuration that could not be used (e.g. bad URL). */
   configError?: string;
@@ -142,6 +144,12 @@ export interface PlaybackPlan {
 export interface TemplateValues {
   /** Media identifier passed to the provider (the TMDB id by default). */
   id: number | string;
+  /**
+   * Resolved TMDB id — anime media carry AniList ids in `id`, so providers
+   * whose anime embeds are TMDB-based (Cineverse, GD Mirror, VidOut) expand
+   * this token instead. Defaults to `id` for movie/tv.
+   */
+  tmdbId?: number;
   season?: number;
   episode?: number;
 }

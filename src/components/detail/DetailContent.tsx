@@ -4,7 +4,14 @@ import EpisodeList from "@/components/detail/EpisodeList";
 import MediaRow from "@/components/media/MediaRow";
 import type { Media, MediaSummary } from "@/types";
 
-export default function DetailContent({ media }: { media: Media }) {
+export default function DetailContent({
+  media,
+  linkRoot,
+}: {
+  media: Media;
+  /** Section-scoped link prefix for recommendations, e.g. "/anime". */
+  linkRoot?: string;
+}) {
   const summary: MediaSummary = {
     id: media.id,
     tmdbId: media.tmdbId,
@@ -23,7 +30,7 @@ export default function DetailContent({ media }: { media: Media }) {
     <article className="pb-8">
       <DetailHero media={media} />
 
-      {media.type === "tv" && media.seasons && media.seasons.length > 0 && (
+      {media.type !== "movie" && media.seasons && media.seasons.length > 0 && (
         <EpisodeList media={summary} seasons={media.seasons} />
       )}
 
@@ -33,6 +40,7 @@ export default function DetailContent({ media }: { media: Media }) {
         <MediaRow
           row={{ key: "recs", title: "More Like This", items: recs }}
           eyebrow="Recommended"
+          linkRoot={linkRoot}
         />
       )}
     </article>

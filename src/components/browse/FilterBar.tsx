@@ -177,6 +177,8 @@ export default function FilterBar({
   genres,
   years,
   providers = [],
+  searchSlot,
+  dimmed = false,
 }: {
   filters: BrowseFilters;
   /** Merge a patch into the browse filter state (resets paging itself). */
@@ -184,8 +186,15 @@ export default function FilterBar({
   genres: string[];
   years: number[];
   providers?: WatchProvider[];
+  /** Page-level search field, rendered at the head of the toolbar row so the
+      search and the refine controls read as one bar. */
+  searchSlot?: React.ReactNode;
+  /** Search mode: filters don't apply to search results, so they de-emphasize
+      instead of offering controls that would do nothing. */
+  dimmed?: boolean;
 }) {
   const sheet = usePopover();
+  const inert = dimmed ? "pointer-events-none select-none opacity-40 transition-opacity" : "";
 
   const genreOptions = optionsFrom(
     genres,
@@ -254,43 +263,11 @@ export default function FilterBar({
 
   return (
     <div className="space-y-3">
-      {/* Sort pills — the reference's Popular/Recent/Top IMDb toggle row. */}
-      <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5">
-        {sortOptions.map((option) => (
-          <button
-            key={option.label}
-            type="button"
-            onClick={option.onSelect}
-            aria-current={option.active ? "true" : undefined}
-            className={`pill cursor-pointer ${option.active ? "pill-active" : ""}`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {/* Content type doubles as navigation between the three browse pages
-            (each a prerendered shell — these stay links on purpose). */}
-        <div className="no-scrollbar -mx-1 flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-0.5">
-          {TYPE_OPTIONS.map((option) => (
-            <Link
-              key={option.value}
-              // browseHref carries the current filters across the switch.
-              href={
-                option.value === filters.type
-                  ? browseHref(filters)
-                  : browseHref(filters, { type: option.value, page: 1 })
-              }
-              aria-current={option.value === filters.type ? "true" : undefined}
-              className={`pill h-9 ${option.value === filters.type ? "pill-active" : ""}`}
-            >
-              {option.label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex">
+      {/* Toolbar row: the page search (if any) leads, the refine dropdowns
+          close the line on desktop; the phone keeps its single Filters sheet. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {searchSlot}
+        <div className={`ml-auto hidden shrink-0 items-center gap-2 md:flex ${inert}`}>
           {dropdowns}
           {active && (
             <button type="button" onClick={clear} className="pill h-9 cursor-pointer gap-1.5">
@@ -301,7 +278,7 @@ export default function FilterBar({
         </div>
 
         {/* Phone: one trigger for all four dropdowns. */}
-        <div ref={sheet.rootRef} className="relative ml-auto shrink-0 md:hidden">
+        <div ref={sheet.rootRef} className={`relative ml-auto shrink-0 md:hidden ${inert}`}>
           <button
             ref={sheet.triggerRef}
             type="button"
@@ -353,6 +330,42 @@ export default function FilterBar({
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Chip row: what to browse (type) on the left, how to order it (sort)
+          on the right — one balanced line instead of two stacked rows. */}
+      <div className={`flex flex-wrap items-center gap-2 ${inert}`}>
+        <div className="no-scrollbar -mx-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-1 py-0.5">
+          {TYPE_OPTIONS.map((option) => (
+            <Link
+              key={option.value}
+              // browseHref carries the current filters across the switch.
+              href={
+                option.value === filters.type
+                  ? browseHref(filters)
+                  : browseHref(filters, { type: option.value, page: 1 })
+              }
+              aria-current={option.value === filters.type ? "true" : undefined}
+              className={`pill h-9 ${option.value === filters.type ? "pill-active" : ""}`}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="no-scrollbar -mx-1 flex shrink-0 items-center gap-1.5 overflow-x-auto px-1 py-0.5">
+          {sortOptions.map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              onClick={option.onSelect}
+              aria-current={option.active ? "true" : undefined}
+              className={`pill cursor-pointer ${option.active ? "pill-active" : ""}`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

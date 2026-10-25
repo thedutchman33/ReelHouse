@@ -52,6 +52,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ results: [] });
   }
 
+  // The feed is a pure function of (pools, seed) over public metadata — the
+  // edge can cache per query string, so the same visitor's day-stable feed is
+  // one fast hit instead of a pool fetch fan-out per instance.
+  const cacheHeaders = { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" };
+
   try {
     const perPool = await Promise.all(pools.map((p) => fetchFeedPool(p)));
     const seen = new Set<string>();
@@ -68,11 +73,11 @@ export async function GET(request: Request) {
         seen.add(dedupeKey);
         results.push(item);
         if (results.length >= MAX_ITEMS) {
-          return NextResponse.json({ results });
+          return NextResponse.json({ results }, { headers: cacheHeaders });
         }
       }
     }
-    return NextResponse.json({ results });
+    return NextResponse.json({ results }, { headers: cacheHeaders });
   } catch {
     return NextResponse.json({ error: "feed_failed", results: [] }, { status: 502 });
   }

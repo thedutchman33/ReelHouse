@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import FilterBar from "@/components/browse/FilterBar";
 import IndustryToggle from "@/components/browse/IndustryToggle";
 import MediaGrid from "@/components/media/MediaGrid";
-import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from "@/components/player/icons";
 import {
   browseHref,
   parseBrowseFilters,
@@ -23,11 +23,23 @@ import type { MediaSummary } from "@/types";
 // history.replaceState so filter views stay shareable without a server
 // round-trip. A filter pick is one small JSON fetch; the previous grid stays
 // on screen (dimmed) until the new one lands, which reads as instant.
+//
+// Page-level search: a debounced field scoped to THIS page's catalog. While a
+// query is active the grid comes from /api/search?type=… instead (anime pages
+// search AniList), the filter bar steps aside, and clearing it returns to the
+// filtered browse grid.
 // ---------------------------------------------------------------------------
 
 type Paged = { items: MediaSummary[]; page: number; totalPages: number };
 
 const EMPTY_PAGE: Paged = { items: [], page: 1, totalPages: 0 };
+
+const SEARCH_PLACEHOLDER: Record<BrowseType, string> = {
+  all: "Search movies & series…",
+  movie: "Search movies…",
+  tv: "Search series…",
+  anime: "Search anime…",
+};
 
 export default function BrowseClient({
   type: pinnedType,
@@ -54,6 +66,10 @@ export default function BrowseClient({
     return parseBrowseFilters(fromUrl, pinnedType === "all" ? undefined : pinnedType);
   });
 
+  // Page-level search state. The debounced copy drives the fetch; the raw
+  // value drives the input so typing never feels gated.
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState<Paged>(EMPTY_PAGE);
   const [loading, setLoading] = useState(true);
   const reqId = useRef(0);
@@ -62,40 +78,64 @@ export default function BrowseClient({
     setFilters((f) => ({ ...f, ...patch }));
   }, []);
 
-  // Fetch whenever the filter state changes.
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search), 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  const query = debouncedSearch.trim();
+  const searching = query.length > 0;
+
+  // Fetch whenever the filter state or the search query changes.
   useEffect(() => {
     const id = ++reqId.current;
     const controller = new AbortController();
     setLoading(true);
 
-    const qs = new URLSearchParams({ type: filters.type });
-    if (filters.genre) qs.set("genre", filters.genre);
-    if (filters.provider) qs.set("provider", String(filters.provider));
-    if (filters.year) qs.set("year", String(filters.year));
-    if (filters.sort !== "popularity") qs.set("sort", filters.sort);
-    if (filters.industry !== "hollywood") qs.set("industry", filters.industry);
-    if (filters.page > 1) qs.set("page", String(filters.page));
+    const settle = (data: Paged) => {
+      if (id !== reqId.current) return; // a newer change superseded us
+      setPage(data);
+      setLoading(false);
+    };
+    const fail = (err: unknown) => {
+      if ((err as Error)?.name === "AbortError") return;
+      if (id !== reqId.current) return;
+      setPage(EMPTY_PAGE);
+      setLoading(false);
+    };
 
-    fetch(`/api/browse?${qs.toString()}`, { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data: Paged) => {
-        if (id !== reqId.current) return; // a newer filter change superseded us
-        setPage({
-          items: data.items ?? [],
-          page: data.page ?? filters.page,
-          totalPages: data.totalPages ?? 0,
-        });
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        if (id !== reqId.current) return;
-        setPage(EMPTY_PAGE);
-        setLoading(false);
-      });
+    if (searching) {
+      const sqs = new URLSearchParams({ q: query });
+      if (filters.type !== "all") sqs.set("type", filters.type);
+      fetch(`/api/search?${sqs.toString()}`, { signal: controller.signal })
+        .then((res) => res.json())
+        .then((data: { results?: MediaSummary[] }) =>
+          settle({ items: data.results ?? [], page: 1, totalPages: 0 })
+        )
+        .catch(fail);
+    } else {
+      const qs = new URLSearchParams({ type: filters.type });
+      if (filters.genre) qs.set("genre", filters.genre);
+      if (filters.provider) qs.set("provider", String(filters.provider));
+      if (filters.year) qs.set("year", String(filters.year));
+      if (filters.sort !== "popularity") qs.set("sort", filters.sort);
+      if (filters.industry !== "hollywood") qs.set("industry", filters.industry);
+      if (filters.page > 1) qs.set("page", String(filters.page));
+
+      fetch(`/api/browse?${qs.toString()}`, { signal: controller.signal })
+        .then((res) => res.json())
+        .then((data: Paged) =>
+          settle({
+            items: data.items ?? [],
+            page: data.page ?? filters.page,
+            totalPages: data.totalPages ?? 0,
+          })
+        )
+        .catch(fail);
+    }
 
     return () => controller.abort();
-  }, [filters]);
+  }, [filters, searching, query]);
 
   // Keep the URL shareable without triggering a navigation.
   useEffect(() => {
@@ -116,8 +156,8 @@ export default function BrowseClient({
     [change]
   );
 
-  const hasPrev = page.page > 1;
-  const hasNext = page.totalPages > page.page;
+  const hasPrev = !searching && page.page > 1;
+  const hasNext = !searching && page.totalPages > page.page;
 
   return (
     <div className="container-rh py-8">
@@ -129,21 +169,75 @@ export default function BrowseClient({
           </h1>
           <p className="mt-2 text-sm text-muted">{subtitle}</p>
         </div>
-        <IndustryToggle
-          industry={filters.industry}
-          onChange={(industry) => change({ industry, page: 1 })}
-        />
+        {/* The industry slide is a Movies/Series control; the anime page is
+            already language-scoped (Japanese) by its query. */}
+        {!searching && filters.type !== "anime" && (
+          <IndustryToggle
+            industry={filters.industry}
+            onChange={(industry) => change({ industry, page: 1 })}
+          />
+        )}
       </header>
 
+      {/* Page-level search lives inside the filter bar's toolbar row (scoped
+          to this page's catalog — the anime page searches AniList). While it's
+          active the filters de-emphasize and a results line takes over. */}
       <FilterBar
         filters={filters}
         onChange={change}
         genres={genres}
         years={years}
         providers={providers}
+        searchSlot={
+          <div className="relative min-w-0 flex-1 sm:w-80 sm:flex-none">
+            <SearchIcon
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearch("");
+              }}
+              placeholder={SEARCH_PLACEHOLDER[filters.type]}
+              aria-label={SEARCH_PLACEHOLDER[filters.type].replace(/…$/, "")}
+              className="field h-9 w-full pl-9 pr-9 text-sm placeholder:text-muted/60"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted transition hover:text-text"
+              >
+                <CloseIcon size={14} />
+              </button>
+            )}
+          </div>
+        }
+        dimmed={searching}
       />
 
-      <div className="mt-6">
+      {searching && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted">
+            {loading && page.items.length === 0
+              ? "Searching…"
+              : `${page.items.length} result${page.items.length === 1 ? "" : "s"} for “${query}”`}
+          </p>
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="btn-ghost h-8 cursor-pointer px-3 text-xs"
+          >
+            Back to browsing
+          </button>
+        </div>
+      )}
+
+      <div className={searching ? "mt-4" : "mt-6"}>
         {loading && page.items.length === 0 ? (
           // First paint of this filter combination — placeholder cards.
           <div
@@ -156,19 +250,33 @@ export default function BrowseClient({
           </div>
         ) : page.items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface/40 px-6 py-16 text-center">
-            <p className="text-lg font-semibold text-text">No titles match these filters</p>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-              Try a different genre or year — or clear the filters to see everything.
+            <p className="text-lg font-semibold text-text">
+              {searching ? "Nothing found" : "No titles match these filters"}
             </p>
-            <button
-              type="button"
-              onClick={() =>
-                change({ genre: null, provider: null, year: null, sort: "popularity", industry: "hollywood", page: 1 })
-              }
-              className="btn-ghost mt-6 cursor-pointer"
-            >
-              Clear Filters
-            </button>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+              {searching
+                ? `No ${filters.type === "all" ? "titles" : filters.type === "movie" ? "movies" : filters.type === "tv" ? "series" : "anime"} match “${query}” — try a different spelling.`
+                : "Try a different genre or year — or clear the filters to see everything."}
+            </p>
+            {searching ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="btn-ghost mt-6 cursor-pointer"
+              >
+                Clear Search
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  change({ genre: null, provider: null, year: null, sort: "popularity", industry: "hollywood", page: 1 })
+                }
+                className="btn-ghost mt-6 cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         ) : (
           // Refetch in flight: keep the previous grid on screen, dimmed, so

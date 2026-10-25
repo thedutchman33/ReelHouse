@@ -10,7 +10,16 @@ import type { MediaRow as Row } from "@/types";
 // Full-bleed rail with 24px/64px gutters, reference card widths, and arrows
 // that occupy the right edge of the row on hover (inert while hidden so touch
 // devices never have invisible buttons over the posters).
-export default function MediaRow({ row, eyebrow }: { row: Row; eyebrow?: string }) {
+export default function MediaRow({
+  row,
+  eyebrow,
+  linkRoot,
+}: {
+  row: Row;
+  eyebrow?: string;
+  /** Section-scoped link prefix, e.g. "/anime" — keeps the section context. */
+  linkRoot?: string;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
 
   const nudge = (dir: number) => {
@@ -43,12 +52,12 @@ export default function MediaRow({ row, eyebrow }: { row: Row; eyebrow?: string 
                 {i + 1}
               </span>
               <div className="-ml-3 w-[120px] sm:w-[150px]">
-                <MediaCard item={item} />
+                <MediaCard item={item} linkRoot={linkRoot} />
               </div>
             </div>
           ) : (
             <div key={item.id} className="rail-item">
-              <MediaCard item={item} />
+              <MediaCard item={item} linkRoot={linkRoot} />
             </div>
           )
         )}

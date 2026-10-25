@@ -160,11 +160,18 @@ export function selectFallbackCandidate(
 export function expandTemplate(template: string, values: TemplateValues): string {
   const map: Record<string, string> = {
     id: String(values.id),
+    // Anime templates address AniList ids explicitly ({anilistId}) — the
+    // same number the caller passes as `id`.
+    anilistId: String(values.id),
+    // TMDB-based anime providers (Cineverse, GD Mirror, VidOut) address the
+    // title's resolved TMDB id ({tmdbId}) — same as id for movie/tv.
+    tmdbId: String(values.tmdbId ?? values.id),
     season: values.season == null ? "" : String(values.season),
     episode: values.episode == null ? "" : String(values.episode),
   };
-  return template.replace(/\{(id|season|episode)\}/g, (_full, token: string) =>
-    encodeURIComponent(map[token] ?? "")
+  return template.replace(
+    /\{(id|anilistId|tmdbId|season|episode)\}/g,
+    (_full, token: string) => encodeURIComponent(map[token] ?? "")
   );
 }
 

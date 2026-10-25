@@ -19,8 +19,19 @@ import type { MediaSummary } from "@/types";
 // appears centered, and the title fades in over a bottom gradient. On touch
 // devices the hover chrome is hidden and a small caption below the poster
 // keeps every card identifiable.
-export default function MediaCard({ item }: { item: MediaSummary }) {
-  const href = `/${item.type}/${item.tmdbId}`;
+export default function MediaCard({
+  item,
+  linkRoot,
+}: {
+  item: MediaSummary;
+  /** Section-scoped link prefix, e.g. "/anime" — keeps the section context. */
+  linkRoot?: string;
+}) {
+  // linkRoot lets a section keep its context: cards in the anime section
+  // link to /anime/{type}/{id} instead of leaving for /movie or /tv.
+  const href = linkRoot
+    ? `${linkRoot}/${item.type}/${item.tmdbId}`
+    : `/${item.type}/${item.tmdbId}`;
   const rating = formatRating(item.rating);
   const year = yearOf(item.releaseDate);
 

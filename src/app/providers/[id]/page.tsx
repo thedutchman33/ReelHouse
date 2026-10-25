@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import MediaGrid from "@/components/media/MediaGrid";
+import ProviderCatalogSearch from "@/components/browse/ProviderCatalogSearch";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
-import { getProviderName, getProviderTitles } from "@/lib/tmdb";
+import { dedupeByFamily, familyFor, sortProviders } from "@/lib/provider-logos";
+import { getProviderName, getProviderTitles, getWatchProviders, providerRegion } from "@/lib/tmdb";
 
 // ISR: TMDB data moves on TMDB's clock — revalidate in the background,
 // serve the cached page from the CDN edge (the reference's 25ms TTFB).
@@ -38,12 +41,36 @@ export default async function ProviderCatalogPage({
   const sp = await searchParams;
   const providerId = Number(id);
   const page = Math.max(1, Number.isFinite(num(sp.page)) ? num(sp.page) : 1);
+  // Page-level search within this provider's catalog (?q= commits via the
+  // search field below; a query resets to page 1).
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
 
-  const provider = Number.isFinite(providerId)
-    ? await getProviderName(providerId)
-    : null;
-  const items = provider ? await getProviderTitles(providerId, page) : [];
+  // Name lookup, catalog fetch and the provider list (used for the variant
+  // redirect below) are independent TMDB chains — run them concurrently so a
+  // cold ISR render doesn't serialize three round-trips. The provider list
+  // dedupes with the one inside getProviderName via the per-request fetch cache.
+  const [provider, items, allProviders] = await Promise.all([
+    Number.isFinite(providerId) ? getProviderName(providerId) : null,
+    Number.isFinite(providerId)
+      ? getProviderTitles(providerId, page, "US", q || undefined)
+      : Promise.resolve([]),
+    getWatchProviders("US"),
+  ]);
+  if (!provider) notFound();
+
+  // Variant deep links (old /providers/1825 "HBO Max Amazon Channel") resolve
+  // to their brand's flagship page, so a reseller catalog is never presented
+  // as the brand itself.
+  const family = familyFor(provider.name);
+  if (family) {
+    const familyMembers = allProviders.filter((p) => familyFor(p.name) === family);
+    const flagship = sortProviders(dedupeByFamily(familyMembers))[0];
+    if (flagship && flagship.id !== providerId) redirect(`/providers/${flagship.id}`);
+  }
+
   const hasNext = items.length >= 20;
+  const pageHref = (p: number) =>
+    q ? `/providers/${providerId}?page=${p}&q=${encodeURIComponent(q)}` : `/providers/${providerId}?page=${p}`;
 
   return (
     <div className="container-rh py-8">
@@ -67,17 +94,26 @@ export default async function ProviderCatalogPage({
               />
             </div>
             <div>
-              <p className="eyebrow">Where to watch · US</p>
+              <p className="eyebrow">Where to watch · {providerRegion(providerId)}</p>
               <h1 className="mt-1 font-display text-3xl uppercase tracking-wide sm:text-4xl">
                 {provider.name}
               </h1>
             </div>
           </div>
 
-          <div className="mt-8">
+          <ProviderCatalogSearch providerId={providerId} initialQuery={q} />
+
+          <div className="mt-6">
+            {q && items.length > 0 && (
+              <p className="mb-4 text-sm text-muted">
+                {items.length} result{items.length === 1 ? "" : "s"} matching “{q}” in {provider.name}
+              </p>
+            )}
             {items.length === 0 ? (
               <p className="rounded-xl border border-dashed border-white/15 bg-surface/40 px-6 py-14 text-center text-sm text-muted">
-                No titles returned for this provider right now.
+                {q
+                  ? `Nothing in ${provider.name}'s catalog matches “${q}”.`
+                  : "No titles returned for this provider right now."}
               </p>
             ) : (
               <MediaGrid items={items} />
@@ -87,7 +123,7 @@ export default async function ProviderCatalogPage({
           {(page > 1 || hasNext) && (
             <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Pagination">
               {page > 1 ? (
-                <Link href={`/providers/${providerId}?page=${page - 1}`} className="btn-ghost h-9 px-4">
+                <Link href={pageHref(page - 1)} className="btn-ghost h-9 px-4">
                   <ChevronLeftIcon size={16} />
                   Previous
                 </Link>
@@ -99,7 +135,7 @@ export default async function ProviderCatalogPage({
               )}
               <span className="text-sm text-muted">{page}</span>
               {hasNext ? (
-                <Link href={`/providers/${providerId}?page=${page + 1}`} className="btn-ghost h-9 px-4">
+                <Link href={pageHref(page + 1)} className="btn-ghost h-9 px-4">
                   Next
                   <ChevronRightIcon size={16} />
                 </Link>
