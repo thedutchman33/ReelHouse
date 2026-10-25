@@ -406,12 +406,19 @@ export default function PlaybackContainer({
   // ---- shared watch-page layout (reference replica, REA-verified) ----
   // Expanded embed URL per provider id — feeds the ServerPanel's live
   // reachability probe (each provider's origin gets a no-cors ping).
+  // Anime chains: the season being played aggregates its own AniList entry,
+  // so {anilistId} templates address that entry (vidy.st's path is per-entry
+  // and episode-numbered within it).
+  const playingSeason = detail?.seasons?.find((s) => s.seasonNumber === season);
+  const playAnilistId = playingSeason?.anilistId ?? media.tmdbId;
+  const playTmdbId =
+    playingSeason?.resolvedTmdbId ?? detail?.resolvedTmdbId ?? media.tmdbId;
   const embedUrls: Record<string, string> = {};
   for (const c of plan.candidates) {
     if (c.surface.kind === "embed") {
       embedUrls[c.provider.id] = expandTemplate(c.surface.urlTemplate, {
-        id: media.tmdbId,
-        tmdbId: detail?.resolvedTmdbId ?? media.tmdbId,
+        id: type === "anime" ? playAnilistId : media.tmdbId,
+        tmdbId: playTmdbId,
         ...(hasEpisodes
           ? { season, episode }
           : type === "anime"
@@ -513,8 +520,8 @@ export default function PlaybackContainer({
                       src={expandTemplate(
                         (embedSurface as { urlTemplate: string }).urlTemplate,
                         {
-                          id: media.tmdbId,
-                          tmdbId: detail?.resolvedTmdbId ?? media.tmdbId,
+                          id: type === "anime" ? playAnilistId : media.tmdbId,
+                          tmdbId: playTmdbId,
                           ...(hasEpisodes
                             ? { season, episode }
                             : type === "anime"

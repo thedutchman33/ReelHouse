@@ -26,12 +26,24 @@ export interface Episode {
   airDate?: string;
   /** Episode rating (watch-page episode card). */
   rating?: number;
+  /**
+   * Anime: the AniList entry this episode belongs to. Franchise chains
+   * aggregate each season's entry, and every provider template addressing
+   * anime ({anilistId}) must use the episode's own entry id.
+   */
+  anilistId?: number;
 }
 
 export interface Season {
   seasonNumber: number;
   name: string;
   episodeCount: number;
+  /**
+   * Anime chains: the AniList entry this season aggregates (and its resolved
+   * TMDB twin, when one exists) so playback addresses the right entry.
+   */
+  anilistId?: number;
+  resolvedTmdbId?: number;
   /**
    * Loaded lazily per season (via /api/seasons) on the detail and watch
    * pages — long-running shows carry dozens of seasons and eagerly shipping

@@ -71,6 +71,11 @@ interface AlFuzzyDate {
   month?: number | null;
   day?: number | null;
 }
+interface AlRelationNode {
+  id: number;
+  type?: string | null;
+  format?: string | null;
+}
 interface AlMedia {
   id: number;
   title: { romaji?: string | null; english?: string | null; native?: string | null };
@@ -88,6 +93,7 @@ interface AlMedia {
   nextAiringEpisode?: { episode: number } | null;
   studios?: { nodes: { name: string }[] } | null;
   streamingEpisodes?: { title?: string | null; thumbnail?: string | null }[] | null;
+  relations?: { edges: { relationType: string; node: AlRelationNode }[] } | null;
 }
 
 async function al<T>(
@@ -95,14 +101,34 @@ async function al<T>(
   variables: Record<string, unknown>,
   revalidate = 60 * 15
 ): Promise<T | null> {
-  try {
-    const res = await fetch(AL_ENDPOINT, {
+  const post = (opts: Record<string, unknown>) =>
+    fetch(AL_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ query, variables }),
-      next: { revalidate },
+      ...opts,
     });
-    if (!res.ok) return null;
+  try {
+    let res = await post({ next: { revalidate } });
+    // AniList rate-limits (30 req/min). One bounded retry covers cold passes
+    // where the chain walk fires several uncached queries back to back.
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await post({ next: { revalidate } });
+    }
+    if (!res.ok) {
+      // A transient failure must not sit in the data cache for `revalidate`
+      // seconds (a cached 429 would truncate a franchise chain for an hour) —
+      // one uncached attempt, then give up.
+      if (res.status === 429 || res.status >= 500) {
+        const retry = await post({ cache: "no-store" });
+        if (retry.ok) {
+          const json = (await retry.json()) as { data?: T; errors?: unknown[] };
+          return json.data && !json.errors ? json.data : null;
+        }
+      }
+      return null;
+    }
     const json = (await res.json()) as { data?: T; errors?: unknown[] };
     return json.data && !json.errors ? json.data : null;
   } catch {
@@ -174,7 +200,14 @@ function parseStreamingTitle(
   return { number: null, title: raw.trim() };
 }
 
-function alSeason(m: AlMedia): Season {
+/**
+ * One season of the franchise chain. Multi-season chains name the season
+ * after its AniList entry ("Jujutsu Kaisen 2nd Season"); a standalone entry
+ * keeps the established single "Episodes" heading. Episodes carry the entry's
+ * own anilistId — per-season playback (vidy.st's path is per-entry and
+ * episode-numbered) addresses the right show.
+ */
+function alSeason(m: AlMedia, seasonNumber: number, name: string): Season {
   const count = episodeCount(m);
   // Streaming episodes carry REAL per-episode thumbnails and names; they can
   // be partial (or absent), so they overlay the numbered stubs by episode
@@ -190,29 +223,108 @@ function alSeason(m: AlMedia): Season {
     });
   });
   return {
-    seasonNumber: 1,
-    name: "Episodes",
+    seasonNumber,
+    name,
     episodeCount: count,
+    anilistId: m.id,
     episodes: Array.from({ length: count }, (_, i) => {
       const n = i + 1;
       const hit = streamed.get(n);
       return {
-        id: `s1e${n}`,
-        seasonNumber: 1,
+        id: `s${seasonNumber}e${n}`,
+        seasonNumber,
         episodeNumber: n,
         title: hit?.title || `Episode ${n}`,
+        anilistId: m.id,
         ...(hit?.stillUrl ? { stillUrl: hit.stillUrl } : {}),
       };
     }),
   };
 }
 
+// ----------------------- franchise season chain ----------------------------
+//
+// AniList models each season of a franchise as its own Media entry (Jujutsu
+// Kaisen S1 = 24 episodes, its SEQUEL entry carries S2's 23, and so on — the
+// reason a title like JJK showed "only" S1's episodes). The chain of TV
+// entries connected by PREQUEL/SEQUEL edges IS the season list, so it is
+// walked (bounded breadth-first) and each entry becomes one Season. Movies,
+// ONAs, PVs and recaps are not seasons and stay out.
+
+const CHAIN_RELATIONS = new Set(["PREQUEL", "SEQUEL"]);
+const CHAIN_CAP = 10;
+
+interface ChainNode extends AlMedia {
+  relations?: { edges: { relationType: string; node: AlRelationNode }[] } | null;
+}
+
+function chainNeighbors(n: ChainNode): number[] {
+  return (n.relations?.edges ?? [])
+    .filter(
+      (e) =>
+        CHAIN_RELATIONS.has(e.relationType) &&
+        e.node.type === "ANIME" &&
+        e.node.format === "TV"
+    )
+    .map((e) => e.node.id);
+}
+
+function chainTimestamp(m: AlMedia): number {
+  const d = m.startDate;
+  if (!d?.year) return Number.MAX_SAFE_INTEGER;
+  return Date.UTC(d.year, (d.month ?? 1) - 1, d.day ?? 1);
+}
+
+async function buildSeasonChain(root: ChainNode): Promise<Season[]> {
+  const nodes = new Map<number, ChainNode>([[root.id, root]]);
+  // Round 1 walks the root's already-fetched relations; each later round
+  // batch-fetches the discovered entries' own fields + relations (one GraphQL
+  // query per round via media(id_in), capped so long chains stay bounded).
+  let frontier: number[] = chainNeighbors(root);
+  for (let round = 0; round < 3 && frontier.length && nodes.size < CHAIN_CAP; round++) {
+    const fresh = [...new Set(frontier)].filter((id) => !nodes.has(id));
+    if (fresh.length === 0) break;
+    const data = await al<{ Page: { media: ChainNode[] } }>(
+      `query ($ids: [Int]) {
+        Page(page: 1, perPage: ${CHAIN_CAP}) {
+          media(id_in: $ids, type: ANIME) { ${CHAIN_FIELDS} }
+        }
+      }`,
+      { ids: fresh.slice(0, CHAIN_CAP - nodes.size) },
+      60 * 60
+    );
+    const nextFrontier: number[] = [];
+    for (const n of data?.Page?.media ?? []) {
+      if (nodes.has(n.id)) continue;
+      nodes.set(n.id, n);
+      for (const id of chainNeighbors(n)) {
+        if (!nodes.has(id)) nextFrontier.push(id);
+      }
+    }
+    frontier = nextFrontier;
+  }
+
+  // Air-date order is season order. Unaired entries would only produce
+  // phantom episode counts, so they stay out.
+  const ordered = [...nodes.values()]
+    .filter((m) => m.status !== "NOT_YET_RELEASED")
+    .sort((a, b) => chainTimestamp(a) - chainTimestamp(b) || a.id - b.id);
+  if (ordered.length <= 1) return [alSeason(root, 1, "Episodes")];
+  return ordered.map((m, i) => alSeason(m, i + 1, titleOf(m)));
+}
+
 /** Detail-only fields — streaming episodes are heavy (per-episode
     thumbnails), so list queries don't fetch them. */
 const DETAIL_FIELDS = `${MEDIA_FIELDS}
-  streamingEpisodes { title thumbnail site }`;
+  streamingEpisodes { title thumbnail site }
+  relations { edges { relationType node { id type format } } }`;
 
-function alMedia(m: AlMedia, recs: AlMedia[]): Media {
+/** What a chain node needs: its own episode run + the next hop of the chain. */
+const CHAIN_FIELDS = `${MEDIA_FIELDS}
+  streamingEpisodes { title thumbnail }
+  relations { edges { relationType node { id type format } } }`;
+
+function alMedia(m: AlMedia, recs: AlMedia[], seasons?: Season[]): Media {
   const studio = m.studios?.nodes?.[0]?.name;
   return {
     ...alSummary(m),
@@ -220,8 +332,9 @@ function alMedia(m: AlMedia, recs: AlMedia[]): Media {
     runtime: m.duration || undefined,
     tagline: studio,
     // Movies are not episode-based — no episodes section, no episode rail.
-    // Every other format (TV, TV_SHORT, ONA, OVA, SPECIAL) is episode runs.
-    ...(m.format === "MOVIE" ? {} : { seasons: [alSeason(m)] }),
+    // Every other format (TV, TV_SHORT, ONA, OVA, SPECIAL) is an episode run;
+    // the seasons come from the franchise chain (see buildSeasonChain).
+    ...(m.format === "MOVIE" ? {} : { seasons: seasons ?? [alSeason(m, 1, "Episodes")] }),
     recommendations: recs.slice(0, 12).map(alSummary),
   };
 }
@@ -337,5 +450,8 @@ export async function anilistDetail(anilistId: number): Promise<Media | null> {
     recs.push(m);
     if (recs.length >= 12) break;
   }
-  return alMedia(data.Media, recs);
+  // The franchise chain: every PREQUEL/SEQUEL TV entry becomes a Season, so
+  // multi-season anime show their complete episode run.
+  const seasons = data.Media.format === "MOVIE" ? undefined : await buildSeasonChain(data.Media);
+  return alMedia(data.Media, recs, seasons);
 }

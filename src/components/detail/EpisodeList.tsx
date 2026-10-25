@@ -28,7 +28,11 @@ function EpisodeCard({
   });
   const pct =
     entry && entry.duration ? Math.min(100, Math.round((entry.position / entry.duration) * 100)) : 0;
-  const href = `/watch/${media.type}/${media.tmdbId}?s=${episode.seasonNumber}&e=${episode.episodeNumber}`;
+  // Anime chains: each season aggregates its own AniList entry, so playback
+  // deep-links into that entry's watch page; TV uses the show's id as before.
+  const playId =
+    media.type === "anime" ? (episode.anilistId ?? media.tmdbId) : media.tmdbId;
+  const href = `/watch/${media.type}/${playId}?s=${episode.seasonNumber}&e=${episode.episodeNumber}`;
 
   return (
     <div className="relative w-[260px] shrink-0 sm:w-[300px]">

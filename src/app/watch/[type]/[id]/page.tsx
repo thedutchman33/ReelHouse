@@ -78,10 +78,14 @@ export default async function WatchPage({
   // Reelhouse's own built-in player surface, exactly as before.
   // Anime: providers split by id space — AniList-based ({anilistId}) always
   // play; TMDB-based ones ({tmdbId}) need the resolved TMDB match, and anime
-  // FILMS ride the provider movie endpoints with the TMDB movie id.
+  // FILMS ride the provider movie endpoints with the TMDB movie id. Chain
+  // seasons carry their own resolved match, so gating follows the season.
+  const playingSeason = seasons.find((s) => s.seasonNumber === seasonNum);
   const plan = await getPlaybackPlan(type, tmdbId, seasonNum, epNum, {
     animeMovie: type === "anime" && seasons.length === 0,
-    animeTmdbId: media.resolvedTmdbId ?? null,
+    animeTmdbId:
+      (type === "anime" ? playingSeason?.resolvedTmdbId ?? media.resolvedTmdbId : media.resolvedTmdbId) ??
+      null,
   });
 
   const t = num(sp.t);

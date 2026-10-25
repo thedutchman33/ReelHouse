@@ -34,6 +34,7 @@ const LINKS: NavLink[] = [
   { href: "/movies", label: "Movies", match: (p) => p === "/movies" || p.startsWith("/movie/") },
   { href: "/tv-shows", label: "Series", match: (p) => p === "/tv-shows" || p.startsWith("/tv/") },
   { href: "/anime", label: "Anime", match: (p) => p === "/anime" || p.startsWith("/anime/") },
+  { href: "/f1", label: "Formula 1", match: (p) => p === "/f1" || p.startsWith("/f1/") },
   { href: "/my-list", label: "My List" },
 ];
 

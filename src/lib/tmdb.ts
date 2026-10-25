@@ -1021,26 +1021,37 @@ export async function getHeroItems(): Promise<MediaSummary[]> {
  * the best hit's logo. Best-effort by design; wrong or absent matches fall
  * back to the styled text title in the hero.
  */
+/** Title search core shared by the root match and per-season chain matches. */
+async function matchTmdbTitle(
+  title: string,
+  year: number | undefined,
+  kind: "tv" | "movie",
+  withLogo: boolean
+): Promise<{ tmdbId?: number; logoUrl?: string } | null> {
+  const yearKey = kind === "tv" ? "first_air_date_year" : "primary_release_year";
+  const attempts: Record<string, string>[] = [];
+  if (year) attempts.push({ query: title, [yearKey]: String(year), include_adult: "false" });
+  attempts.push({ query: title, include_adult: "false" });
+  for (const params of attempts) {
+    const data = await tmdb<{ results?: any[] }>(`/search/${kind}`, params, 60 * 60);
+    const hit = data?.results?.[0];
+    if (!hit) continue;
+    if (!withLogo) return { tmdbId: hit.id as number };
+    const logoUrl = await getTitleLogo(kind, hit.id);
+    return { tmdbId: hit.id as number, ...(logoUrl ? { logoUrl } : {}) };
+  }
+  return null;
+}
+
 async function anilistTmdbMatch(
   media: Media
 ): Promise<{ tmdbId?: number; logoUrl?: string } | null> {
   // Series anime matches TMDB's tv side; MOVIE-format anime the movie side —
   // mirroring how TMDB catalogs each. Year-scoped search first, then loose.
-  const type: "tv" | "movie" =
+  const kind: "tv" | "movie" =
     media.seasons && media.seasons.length > 0 ? "tv" : "movie";
   const year = media.releaseDate ? Number(media.releaseDate.slice(0, 4)) : undefined;
-  const yearKey = type === "tv" ? "first_air_date_year" : "primary_release_year";
-  const attempts: Record<string, string>[] = [];
-  if (year) attempts.push({ query: media.title, [yearKey]: String(year), include_adult: "false" });
-  attempts.push({ query: media.title, include_adult: "false" });
-  for (const params of attempts) {
-    const data = await tmdb<{ results?: any[] }>(`/search/${type}`, params, 60 * 60);
-    const hit = data?.results?.[0];
-    if (!hit) continue;
-    const logoUrl = await getTitleLogo(type, hit.id);
-    return { tmdbId: hit.id as number, ...(logoUrl ? { logoUrl } : {}) };
-  }
-  return null;
+  return matchTmdbTitle(media.title, year, kind, true);
 }
 
 export async function getMediaDetail(
@@ -1056,8 +1067,22 @@ export async function getMediaDetail(
     const anime = await anilistDetail(tmdbId);
     if (!anime) return null;
     const match = await anilistTmdbMatch(anime);
+    // Franchise chain seasons carry their own AniList ids; resolve each
+    // entry's TMDB twin so per-season playback can address {tmdbId} anime
+    // providers with the right show (logo art is a root-only concern).
+    const seasons = (anime.seasons ?? []).map((s) => ({ ...s }));
+    for (const s of seasons) {
+      if (s.anilistId == null) continue;
+      if (s.anilistId === tmdbId) {
+        if (match?.tmdbId) s.resolvedTmdbId = match.tmdbId;
+        continue;
+      }
+      const sMatch = await matchTmdbTitle(s.name, undefined, "tv", false);
+      if (sMatch?.tmdbId) s.resolvedTmdbId = sMatch.tmdbId;
+    }
     return {
       ...anime,
+      ...(seasons.length ? { seasons } : {}),
       ...(match?.logoUrl ? { logoUrl: match.logoUrl } : {}),
       ...(match?.tmdbId ? { resolvedTmdbId: match.tmdbId } : {}),
     };
