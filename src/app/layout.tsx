@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/navigation/Navbar";
 import Footer from "@/components/common/Footer";
 import LibrarySync from "@/components/auth/LibrarySync";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // Reference design system: Inter for UI text, Bebas Neue (single weight,
 // condensed caps) for hero titles and section headings.
@@ -69,6 +70,7 @@ export default async function RootLayout({
             watch page) cancel this offset with a matching negative margin. */}
         <main className="flex-1 pt-[var(--rh-nav-h)]">{children}</main>
         <Footer />
+        <SpeedInsights />
       </body>
     </html>
   );
