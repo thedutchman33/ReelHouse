@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>No live Formula 1 stream</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08080b;
+        --card: #121218;
+        --line: rgba(255, 255, 255, 0.09);
+        --text: #f4f4f5;
+        --muted: rgba(244, 244, 245, 0.55);
+        --red: #e10600;
+        --red-soft: #ff5a50;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(ellipse at 50% 0%, rgba(225, 6, 0, 0.16), transparent 60%),
+          var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      .card {
+        width: min(520px, 100%);
+        padding: 32px 28px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent), var(--card);
+        box-shadow: 0 30px 90px -30px rgba(0, 0, 0, 0.9);
+        text-align: center;
+      }
+      .flag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: rgba(225, 6, 0, 0.12);
+        color: var(--red-soft);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--red);
+      }
+      h1 {
+        margin: 18px 0 8px;
+        font-size: clamp(24px, 5vw, 32px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0 auto;
+        max-width: 38ch;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 24px;
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 40px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        transition: opacity 0.2s ease, background 0.2s ease;
+      }
+      .primary { background: var(--red); color: #fff; }
+      .primary:hover { opacity: 0.9; }
+      .secondary {
+        border: 1px solid var(--line);
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .secondary:hover { background: rgba(255, 255, 255, 0.08); }
+      .hint {
+        margin-top: 18px;
+        font-size: 12px;
+        color: rgba(244, 244, 245, 0.35);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <span class="flag"><span class="dot"></span> Formula 1 · Live</span>
+      <h1>No live stream found</h1>
+      <p>
+        FlyEmbed has no Formula 1 event in its feed right now. Pick another
+        server from the Servers panel, or try this one again shortly.
+      </p>
+      <div class="actions">
+        <a class="primary" href="" target="_self">Try again</a>
+        <a class="secondary" href="/f1" target="_top">Back to Formula 1</a>
+      </div>
+      <p class="hint">This page is a local fallback — no third-party content is loaded.</p>
+    </main>
+  </body>
+</html>

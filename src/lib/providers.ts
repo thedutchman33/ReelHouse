@@ -142,6 +142,10 @@ export async function getPlaybackServers(
   season?: number,
   episode?: number
 ): Promise<PlaybackServer[]> {
+  // F1 is live/embed-only: it has its own checked-in server list
+  // (src/lib/f1-playback.ts) and must never fall back to the bundled sample
+  // clips.
+  if (type === "f1") return [];
   const provider = getProvider();
   if (type === "tv" && season != null && episode != null) {
     return provider.getEpisodeServers(tmdbId, season, episode);
@@ -160,6 +164,9 @@ export async function getPlaybackSource(
   episode?: number
 ): Promise<VideoSource> {
   const servers = await getPlaybackServers(type, tmdbId, season, episode);
+  if (servers.length === 0) {
+    throw new Error(`No playback source available for ${type}`);
+  }
   return servers[0].source;
 }
 
@@ -256,10 +263,12 @@ export async function getPlaybackPlan(
 
   const providers: ProviderDescriptor[] = [];
   // The built-in surface is a candidate but never a listed provider. Anime has
-  // no bundled sources (its catalog is AniList, not the offline sampler), so
-  // anime plans carry configured providers only.
+  // no bundled sources (its catalog is AniList, not the offline sampler), and
+  // F1 is embed-only, so those plans carry configured providers only.
   const candidates: PlaybackCandidate[] =
-    type === "anime" ? [] : [buildBuiltInCandidate({ servers })];
+    type === "anime" || type === "f1"
+      ? []
+      : [buildBuiltInCandidate({ servers })];
 
   for (const config of readProviderSlots()) {
     // An entirely untouched slot stays out of the UI; a slot the owner has

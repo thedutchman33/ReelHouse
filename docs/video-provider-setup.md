@@ -401,12 +401,12 @@ Work down this list; it is ordered by how often each one is the cause.
 
 **It works locally but not in production**
 - The Content-Security-Policy in `next.config.mjs` is currently shipped
-  **report-only**, so it does not block anything — but when it is switched to
-  enforcing, `default-src 'self'` will not allow a cross-origin frame. An
-  enforced policy needs the provider's origin added, e.g.
-  `frame-src 'self' https://player.example.com`. That is a deliberate deployment
-  change to `next.config.mjs`; make it as its own reviewed step (see
-  `docs/deployment.md`).
+  **report-only**, so it does not block anything — but it now carries a
+  `frame-src` allowlist covering the configured catalog hosts and the F1 servers.
+  When the policy is switched to enforcing, a newly added provider's origin must
+  be added there too (e.g. `frame-src 'self' https://player.example.com`). That
+  is a deliberate deployment change to `next.config.mjs`; make it as its own
+  reviewed step (see `docs/deployment.md`).
 - Check that the provider's variables actually exist in the production
   environment — they are server-side and are not bundled into the client.
 - `http://localhost` templates are accepted in development only. Production
@@ -443,3 +443,53 @@ particular you should not need to touch:
 
 The one legitimate code change is an **adapter** (§9) when a provider documents
 its events, and a **CSP `frame-src` entry** when the policy is enforced (§15).
+
+---
+
+## 17. Formula 1 servers (config file, not environment)
+
+Formula 1 does **not** use the `VIDEO_PROVIDER_N_*` environment slots. Its
+servers live in a checked-in TypeScript file, because the list is long and
+mostly public embed URLs:
+
+```
+src/config/f1-servers.ts
+```
+
+Each entry is `{ id, name, url, priority, enabled?, note? }`. The first enabled
+entry in priority order is the default server on `/watch/f1`; every entry is
+listed in the Servers panel, and `enabled: false` keeps a dead server visible
+but not selectable (the `note` becomes its tooltip).
+
+To add a server:
+
+```ts
+{
+  id: "my-f1-server",          // unique, stable
+  name: "My F1 Server",        // what the Servers panel shows
+  url: "https://example.com/f1", // https:// or a same-origin /path
+  priority: 400,               // lower = earlier
+},
+```
+
+Then restart `npm run dev` (or rebuild for production). No `.env.local` change
+is needed, and the browser makes **no extra request** to fetch the list — the
+plan is serialized into the watch page on the server.
+
+The "FlyEmbed Auto" entry points at the same-origin resolver
+`/api/f1/flyembed`, which reads `https://ovogoal.pages.dev/api/v2/flyembed2.json`,
+picks the current F1 event and redirects to its `flyembed.cfd` embed. When the
+feed has no F1 event, it redirects to `/f1/live-placeholder.html` instead of
+showing JSON. Only `https://flyembed.cfd` / `https://www.flyembed.cfd` URLs are
+accepted.
+
+To test:
+
+1. `npm run dev`
+2. Open `/f1` within 15 minutes of a session's scheduled start (or while it is
+   live). The countdown ends 15 minutes early, so **Watch Live** becomes
+   clickable then; before that it is deliberately not clickable.
+3. Expected: the site's own `/watch/f1` opens, the Servers panel lists every F1
+   entry, and switching servers re-points the iframe without a page reload.
+4. Movie/TV/anime watch pages are unaffected: F1 entries are only read by
+   `src/lib/f1-playback.ts` and never enter the environment-backed slot plan.

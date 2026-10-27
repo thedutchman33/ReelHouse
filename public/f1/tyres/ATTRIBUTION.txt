@@ -1,0 +1,15 @@
+Tyre compound icons used by the Formula 1 analytics views.
+
+These are the standard Pirelli-style compound idents — a black casing, the
+compound-coloured ring and the white S / M / H (I / W for the wet tyres)
+letter — saved as SVG so the UI never hotlinks a third party at runtime:
+
+  soft.svg          red ring,     "S"
+  medium.svg        yellow ring,  "M"
+  hard.svg          white ring,   "H"
+  intermediate.svg  green ring,   "I"
+  wet.svg           blue ring,    "W"
+
+The drawing style follows the icons published by formula-timing.com; they are
+generic compound markers rather than team or series trademarks. Replace them
+if you ship the app commercially and want artwork of your own.

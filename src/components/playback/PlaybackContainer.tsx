@@ -249,8 +249,10 @@ export default function PlaybackContainer({
     // a position (recordEnabled). Recording the start here is what keeps watch
     // history provider-independent — no provider event is assumed or invented.
     // The built-in player marks its own start on `play`, where a real play event
-    // exists, so it is deliberately not marked here.
-    if (surfaceKind === "embed") {
+    // exists, so it is deliberately not marked here. F1 is a live embed with no
+    // title/episode history to record — writing it would pollute Continue
+    // Watching with a channel that can never be resumed.
+    if (surfaceKind === "embed" && type !== "f1") {
       markPlaybackStarted({ media, episode: episodeRef });
     }
     const recorder = createProgressRecorder({
@@ -590,6 +592,12 @@ export default function PlaybackContainer({
               selectedId={selectedId}
               onSelect={selectProvider}
               embedUrls={embedUrls}
+              // F1 carries many servers — wrap them onto multiple rows instead
+              // of hiding most behind a horizontal rail. Its speed test is
+              // deferred so the 100 KB measurement never competes with the
+              // stream at startup; the Test button still works.
+              wrap={type === "f1"}
+              autoTestSpeed={type !== "f1"}
             />
           )}
 

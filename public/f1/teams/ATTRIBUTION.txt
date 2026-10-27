@@ -1,0 +1,42 @@
+Team logos used by the Formula 1 analytics views.
+
+Source: Wikipedia (English) article lead images, downloaded once and stored
+locally so the dashboard does not hotlink third-party assets at runtime.
+
+  mclaren.png      https://en.wikipedia.org/wiki/McLaren
+  ferrari.png      https://en.wikipedia.org/wiki/Scuderia_Ferrari
+  redbull.png      https://en.wikipedia.org/wiki/Red_Bull_Racing
+  mercedes.png     https://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One
+  astonmartin.png  https://en.wikipedia.org/wiki/Aston_Martin_in_Formula_One
+  alpine.png       https://en.wikipedia.org/wiki/Alpine_F1_Team
+  williams.png     https://en.wikipedia.org/wiki/Williams_Racing
+  racingbulls.png  https://en.wikipedia.org/wiki/Racing_Bulls
+  haas.png         https://en.wikipedia.org/wiki/Haas_F1_Team
+  audi.png         https://en.wikipedia.org/wiki/Audi_in_Formula_One
+  cadillac.png     https://en.wikipedia.org/wiki/Cadillac_F1_Team
+
+Each file was cropped to the bounds of the mark itself (2px of margin left
+around it) so the marks scale to the same visual weight in the UI; nothing
+else about the artwork was altered.
+
+Monochrome marks used by the standings logo column live in `mono/*.svg`. They
+are the same white SVG assets formula-timing.com serves from `/teams/<slug>.svg`
+for its standings table (the table renders them at 30x20), captured once and
+stored locally so the dashboard never hotlinks them:
+
+  mono/mercedes.svg    <- /teams/mercedes.svg
+  mono/ferrari.svg     <- /teams/ferrari.svg
+  mono/redbull.svg     <- /teams/red-bull-racing.svg
+  mono/mclaren.svg     <- /teams/mclaren.svg
+  mono/racingbulls.svg <- /teams/rb.svg (the reference serves the same bulls
+                          mark as Red Bull for the RB F1 Team row)
+  mono/alpine.svg      <- /teams/alpine.svg
+  mono/haas.svg        <- /teams/haas-f1-team.svg
+  mono/audi.svg        <- /teams/audi.svg
+  mono/williams.svg    <- /teams/williams.svg
+  mono/astonmartin.svg <- /teams/aston-martin.svg
+  mono/cadillac.svg    <- /teams/cadillac.svg
+
+These are the teams' own trademarks, used here for identification only. They
+are not covered by this project's licence; replace them if you ship the app
+commercially.

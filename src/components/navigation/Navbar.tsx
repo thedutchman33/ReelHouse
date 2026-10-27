@@ -7,6 +7,7 @@ import Logo from "@/components/brand/Logo";
 import AuthStatus from "@/components/auth/AuthStatus";
 import { SearchIcon } from "@/components/player/icons";
 import SearchOverlay from "@/components/search/SearchOverlay";
+import F1SectionNav from "@/components/f1/F1SectionNav";
 
 // ---------------------------------------------------------------------------
 // Primary navigation — reference navbar replica.
@@ -105,6 +106,8 @@ export default function Navbar({
     return <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />;
   }
 
+  const onF1 = pathname === "/f1" || pathname.startsWith("/f1/");
+
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-8 lg:px-11">
@@ -139,6 +142,13 @@ export default function Navbar({
             className="no-scrollbar flex items-center gap-1 overflow-x-auto px-3 pb-2.5 sm:hidden"
           />
         </div>
+
+        {/* F1-only section jump bar, docked under the main bar's right edge. */}
+        {onF1 && (
+          <div className="mx-auto mt-1.5 flex max-w-[1920px] justify-end">
+            <F1SectionNav />
+          </div>
+        )}
       </header>
 
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />

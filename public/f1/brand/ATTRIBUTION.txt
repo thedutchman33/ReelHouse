@@ -1,0 +1,11 @@
+Formula 1 logo mark used by the /f1 header lockup and page watermark.
+
+Source: Wikimedia Commons, "F1.svg"
+  https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg
+
+Downloaded once and stored locally so the page does not hotlink a third-party
+CDN at runtime. The artwork is unmodified; the header renders its native red
+and the watermark is recoloured white in CSS.
+
+The Formula 1 logo is a trademark of Formula One Licensing B.V. It is used
+here for identification only and is not covered by this project's licence.

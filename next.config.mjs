@@ -57,9 +57,55 @@ const nextConfig = {
     // header key below to "Content-Security-Policy" (a one-line change) after
     // confirming a clean console on every page. 'unsafe-eval' is dev-only (React
     // uses eval for its dev error overlay; it is not needed in production). No
-    // external scripts, fonts, or iframes are used; the browser only reaches
-    // TMDB/YouTube images (img-src) and Supabase (connect-src). A stricter
-    // nonce-based alternative is documented in docs/deployment.md.
+    // external scripts or fonts are used; the browser only reaches TMDB/YouTube
+    // images (img-src), Supabase (connect-src), and the catalog/F1 player hosts
+    // listed in frame-src. A stricter nonce-based alternative is documented in
+    // docs/deployment.md.
+    // Every host the app is allowed to frame. Catalog providers are the ones
+    // configured in the environment today; the F1 list mirrors
+    // src/config/f1-servers.ts (live and known-unavailable entries alike, so
+    // enabling one later needs no second CSP edit). Keep this list in sync when
+    // a provider is added.
+    const frameSources = [
+      "'self'",
+      // Catalog providers.
+      "https://embed.vidrift.net",
+      "https://rozgarlelo.modiplay.xyz",
+      "https://streams.iqsmartgames.com",
+      "https://vidbolt.xyz",
+      "https://vidcore.org",
+      "https://vidfast.vc",
+      "https://vidlink.pro",
+      "https://vidly.pro",
+      "https://vidnest.fun",
+      "https://vidout.pages.dev",
+      "https://vidreal.cc",
+      "https://vidrock.net",
+      "https://vidsrc.sh",
+      "https://vidy.st",
+      // Formula 1 servers.
+      "https://westreamf1.st",
+      "https://westreamf1.com",
+      "https://flyembed.cfd",
+      "https://www.flyembed.cfd",
+      "https://embdlol.st",
+      "https://embexex.cfd",
+      "https://taifood-blog.asia",
+      "https://ch.nexa.st",
+      "https://streamfree.top",
+      "https://embed.st",
+      "https://videocdn-4726.website",
+      "https://hakunamatata5.org",
+      "https://junkieembeds.pages.dev",
+      "https://pushembdz.store",
+      "https://strmfree.st",
+      "https://cdnlivetv.tv",
+      "https://xemzi.s.gy",
+      "https://alpha.flive.dpdns.org",
+      "https://beta.flive.dpdns.org",
+      "https://dlstreams.top",
+      "https://embedsports.top",
+    ].join(" ");
     const csp = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -68,6 +114,7 @@ const nextConfig = {
       "font-src 'self'",
       "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co",
       "media-src 'self' blob:",
+      `frame-src ${frameSources}`,
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

@@ -98,15 +98,18 @@ export function PlaybackUnavailable({
   mediaType: MediaType;
   reason?: string;
 }) {
+  const label =
+    mediaType === "f1"
+      ? "Formula 1 live"
+      : mediaType === "tv"
+        ? "TV episodes"
+        : "movies";
   return (
     <Shell>
       <div role="alert" className="flex flex-col items-center gap-2">
         <h2 className="text-lg font-semibold text-text">Playback unavailable</h2>
         <p className="text-sm text-muted">
-          {reason ??
-            `No playback provider is currently configured for ${
-              mediaType === "tv" ? "TV episodes" : "movies"
-            }.`}
+          {reason ?? `No playback provider is currently configured for ${label}.`}
         </p>
       </div>
     </Shell>

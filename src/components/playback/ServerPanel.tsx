@@ -38,7 +38,9 @@ async function measureMbps(): Promise<number | null> {
     network path to the provider's origin is open. */
 async function probeOrigin(url: string, timeoutMs = 5000): Promise<boolean> {
   try {
-    const origin = new URL(url).origin;
+    // Relative provider URLs (e.g. the same-origin FlyEmbed resolver) have no
+    // origin of their own; resolve them against this page first.
+    const origin = new URL(url, window.location.origin).origin;
     const ctrl = new AbortController();
     const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
     await fetch(origin, { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
@@ -54,12 +56,18 @@ export default function ServerPanel({
   selectedId,
   onSelect,
   embedUrls,
+  wrap = false,
+  autoTestSpeed = true,
 }: {
   providers: ProviderDescriptor[];
   selectedId: string;
   onSelect: (providerId: string) => void;
   /** Expanded embed URL per provider id — the probe targets its origin. */
   embedUrls: Record<string, string>;
+  /** Render chips on multiple rows instead of a horizontal rail. */
+  wrap?: boolean;
+  /** Measure Mbps on mount. F1 defers this to the Test button. */
+  autoTestSpeed?: boolean;
 }) {
   const router = useRouter();
   // Providers only — the built-in surface is never offered as a choice.
@@ -81,7 +89,7 @@ export default function ServerPanel({
 
   // Measure once on mount, like the reference panel.
   useEffect(() => {
-    void runTest();
+    if (autoTestSpeed) void runTest();
     return () => {
       if (measureTimer.current) window.clearTimeout(measureTimer.current);
     };
@@ -166,9 +174,13 @@ export default function ServerPanel({
         </div>
       </div>
 
-      {/* Chip rail */}
+      {/* Chip rail — F1 wraps so every server name is visible at once. */}
       <div className="group/servers relative">
-        <div className="no-scrollbar -mx-0 flex gap-1.5 overflow-x-auto px-3 py-2">
+        <div
+          className={`-mx-0 flex gap-1.5 px-3 py-2 ${
+            wrap ? "flex-wrap" : "no-scrollbar overflow-x-auto"
+          }`}
+        >
           {listed.map((p) => {
             const active = p.id === selectedId;
             const online = isOnline(p);

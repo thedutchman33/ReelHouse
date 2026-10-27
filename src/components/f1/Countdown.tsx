@@ -46,14 +46,25 @@ export function CountdownCells({ target, now }: { target: string | null; now: nu
     [pad(cd.mins), "Mins"],
     [pad(cd.secs), "Secs"],
   ];
+  // A timer that re-announces every second is hostile to screen readers: the
+  // digits stay silent (aria-live off) and the container carries a coarse,
+  // readable label instead.
+  const spoken = cd.past
+    ? "Session started"
+    : `Starts in ${cd.days} ${cd.days === 1 ? "day" : "days"}, ${cd.hours} hours and ${cd.mins} minutes`;
   return (
-    <div className="grid grid-cols-4 gap-2 sm:gap-3" aria-label="Countdown">
+    <div
+      role="timer"
+      aria-live="off"
+      aria-label={spoken}
+      className="grid grid-cols-4 gap-2 sm:gap-3"
+    >
       {cells.map(([value, label], i) => (
         <div key={label} className="nm-inset rounded-xl px-2 py-3 text-center sm:py-4">
-          {/* Seconds cell ticks in emerald — the one living digit on the card. */}
+          {/* Seconds cell ticks in F1 red — the one living digit on the card. */}
           <div
-            className={`font-display text-3xl leading-none tabular-nums sm:text-5xl ${
-              i === 3 ? "text-accent" : "text-foreground"
+            className={`font-f1 font-bold text-3xl leading-none tabular-nums sm:text-[44px] ${
+              i === 3 ? "text-[#e10600]" : "text-white"
             }`}
           >
             {value}
@@ -67,15 +78,21 @@ export function CountdownCells({ target, now }: { target: string | null; now: nu
   );
 }
 
-/** Compact HH:MM:SS line for per-session rows. */
+/** Compact Dd:HHh:MMm:SSs line for per-session rows — live to the second. */
 export function MiniCountdown({ target, now }: { target: string; now: number }) {
   const cd = countdownTo(target, now);
   if (cd.past) return <span className="text-muted-foreground/60">—</span>;
-  const parts = cd.days > 0 ? [`${cd.days}d`, `${pad(cd.hours)}h`] : [pad(cd.hours), pad(cd.mins)];
+  const parts =
+    cd.days > 0
+      ? [`${cd.days}d`, `${pad(cd.hours)}h`, `${pad(cd.mins)}m`]
+      : [`${pad(cd.hours)}h`, `${pad(cd.mins)}m`];
   return (
-    <span className="tabular-nums text-muted-foreground">
-      {parts.join(":")}
-      {cd.days === 0 ? `:${pad(cd.secs)}` : ""}
+    <span
+      role="timer"
+      aria-live="off"
+      className="whitespace-nowrap tabular-nums text-muted-foreground"
+    >
+      {parts.join(":")}:{pad(cd.secs)}s
     </span>
   );
 }

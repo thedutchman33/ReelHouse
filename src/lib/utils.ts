@@ -65,7 +65,11 @@ export function placeholderArt(opts: {
   const id = `g${hashString(title + variant)}`;
 
   const label = escapeXml(title);
-  const kind = type ? escapeXml(type === "tv" ? "SERIES" : "FILM") : "";
+  const kind = type
+    ? escapeXml(
+        type === "f1" ? "LIVE" : type === "tv" ? "SERIES" : "FILM"
+      )
+    : "";
   const fontSize = variant === "poster" ? 30 : 56;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}">

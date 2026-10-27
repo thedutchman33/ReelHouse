@@ -41,6 +41,14 @@ const config: Config = {
           "system-ui",
           "sans-serif",
         ],
+        // Official Formula 1 text family (self-hosted on the /f1 page).
+        f1: [
+          "var(--font-f1)",
+          "var(--font-inter)",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       borderRadius: {
         xl: "0.9rem",

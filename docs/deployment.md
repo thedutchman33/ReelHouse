@@ -200,14 +200,19 @@ img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com;
 font-src 'self';
 connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co;
 media-src 'self' blob:;
+frame-src 'self' <catalog + F1 player hosts — see next.config.mjs>;
 object-src 'none'; base-uri 'self'; form-action 'self';
 frame-ancestors 'none'; upgrade-insecure-requests;
 ```
 
+The `frame-src` list is maintained in `next.config.mjs`. It covers the catalog
+providers configured in `.env.local` and every entry in
+`src/config/f1-servers.ts`; add a new provider origin there before enforcing.
+
 **To enforce:**
 
 1. Deploy, then open each page type (home, search, movie/TV detail, watch
-   player, login, my-list) with DevTools open.
+   player, `/watch/f1`, login, my-list) with DevTools open.
 2. Exercise the app: play a clip, load a subtitle, sign in, add to My List.
    Confirm **no CSP violations** appear in the console.
 3. If a violation appears for a host you trust, add it to the matching directive.

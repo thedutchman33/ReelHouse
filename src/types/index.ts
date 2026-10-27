@@ -5,8 +5,11 @@
 /**
  * "anime" is AniList-backed end to end: ids are ANILIST ids and the detail /
  * watch routes live under /anime. Movies and series remain TMDB-backed.
+ *
+ * "f1" is the live channel surface (/watch/f1). It has no TMDB catalog entry,
+ * no episodes and no watch history; catalog/search code must keep excluding it.
  */
-export type MediaType = "movie" | "tv" | "anime";
+export type MediaType = "movie" | "tv" | "anime" | "f1";
 
 export interface CastMember {
   id: number;

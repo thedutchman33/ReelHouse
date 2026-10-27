@@ -15,9 +15,10 @@ import type { MediaType } from "@/types";
 // Nothing is offered that cannot actually be applied.
 // ---------------------------------------------------------------------------
 
-export type BrowseType = "all" | MediaType | "anime";
+export type BrowseType = "all" | Exclude<MediaType, "f1">;
 // "anime" is a cross-type curation (Animation + Japanese originals across
 // movies AND series), not a TMDB media type — the discover layer expands it.
+// "f1" is live-only, so the catalog never offers it as a browse filter.
 
 export type BrowseSort = "popularity" | "latest" | "rating" | "oldest";
 

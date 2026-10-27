@@ -44,6 +44,9 @@ export default function WatchDock({
   const [reaction, setReaction] = useState<1 | -1 | 0>(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  // F1 is a live channel: there is no watchlist entry or downloadable title
+  // behind it, so those two controls are omitted rather than pointed at a 404.
+  const isF1 = media.type === "f1";
 
   useEffect(() => {
     setReaction(loadLikes()[media.id] ?? 0);
@@ -138,27 +141,29 @@ export default function WatchDock({
           </svg>
         </button>
 
-        <WatchlistButton item={media} variant="dock" />
+        {!isF1 && <WatchlistButton item={media} variant="dock" />}
 
         {/* Download (reference behavior: opens vidvault.to for this title). */}
-        <a
-          href={
-            media.type === "tv"
-              ? `https://vidvault.to/tv/${media.tmdbId}/${season ?? 1}/${episode ?? 1}`
-              : `https://vidvault.to/movie/${media.tmdbId}`
-          }
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Download"
-          title="Download"
-          className={btnBase}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 13v8l-4-4" />
-            <path d="m12 21 4-4" />
-            <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284" />
-          </svg>
-        </a>
+        {!isF1 && (
+          <a
+            href={
+              media.type === "tv"
+                ? `https://vidvault.to/tv/${media.tmdbId}/${season ?? 1}/${episode ?? 1}`
+                : `https://vidvault.to/movie/${media.tmdbId}`
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Download"
+            title="Download"
+            className={btnBase}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 13v8l-4-4" />
+              <path d="m12 21 4-4" />
+              <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284" />
+            </svg>
+          </a>
+        )}
 
         {/* More (reference: ellipsis-vertical) — quick actions menu. */}
         <div ref={moreRef} className="relative">
@@ -195,7 +200,7 @@ export default function WatchDock({
               </button>
               <a
                 role="menuitem"
-                href={`/${media.type}/${media.tmdbId}`}
+                href={isF1 ? "/f1" : `/${media.type}/${media.tmdbId}`}
                 className="menu-item"
                 onClick={() => setMoreOpen(false)}
               >
