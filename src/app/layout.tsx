@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Inter, Bebas_Neue } from "next/font/google";
 import "./globals.css";
@@ -70,6 +71,7 @@ export default async function RootLayout({
             watch page) cancel this offset with a matching negative margin. */}
         <main className="flex-1 pt-[var(--rh-nav-h)]">{children}</main>
         <Footer />
+         <Analytics />
       </body>
     </html>
   );
