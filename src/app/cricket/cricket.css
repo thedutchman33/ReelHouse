@@ -1,13 +1,11 @@
 /* ==========================================================================
    CRICKET PAGE — page-scoped theme.
-
    Every token below is declared on `.cricket-page`, so none of it can reach
    the rest of Reelhouse. The global theme (emerald accent, dark surfaces) is
    untouched; Formula 1, My List and every other route keep their own colours.
    The blue and gold are sampled from the BCCI emblem asset in
    public/cricket/brand/bcci-logo.svg (#1D509E / #D9AF6B).
    ========================================================================== */
-
 .cricket-page {
   /* Display face: the supplied India 2023 Bold TTF for titles and numerals.
      Body copy stays on Inter so the page has a real regular weight; the India
@@ -15,7 +13,6 @@
   --font-f1: var(--font-cricket);
   --font-bebas: var(--font-cricket);
   font-synthesis: style;
-
   --ck-blue: #1d509e;
   --ck-blue-deep: #123a78;
   --ck-blue-bright: #3f78d8;
@@ -34,21 +31,18 @@
   --ck-green: #34d399;
   --ck-amber: #f5c26b;
   --ck-red: #f87171;
-
   color: var(--ck-text);
   background:
     radial-gradient(900px 520px at 82% -8%, rgb(29 80 158 / 0.28), transparent 62%),
     radial-gradient(700px 440px at 4% 12%, rgb(185 229 248 / 0.07), transparent 60%),
     linear-gradient(180deg, #060d1a 0%, #050a14 55%, #060b16 100%);
 }
-
 /* Scoped focus ring: same geometry as Reelhouse, cricket blue instead of the
    global emerald. Nothing outside .cricket-page is affected. */
 .cricket-page.f1-root {
   font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 }
-
 /* The player dialog is portaled to <body> so the footer cannot paint over it.
    That leaves `.cricket-page`, so this carries the page's display-face mapping
    onto the dialog and its content. */
@@ -56,12 +50,9 @@
   --font-f1: var(--font-cricket);
   --font-bebas: var(--font-cricket);
 }
-
-.cricket-page .font-display,
-.cricket-page .ck-title {
+.cricket-page .font-display{
   font-family: var(--font-cricket), ui-sans-serif, system-ui, sans-serif;
 }
-
 .cricket-page :focus-visible {
   outline: 2px solid var(--ck-blue-soft);
   outline-offset: 2px;
@@ -75,163 +66,11 @@
   background: rgb(29 80 158 / 0.8);
   color: #fff;
 }
-
-/* ------------------------------- surfaces -------------------------------- */
-
-.ck-card {
-  position: relative;
-  border: 1px solid var(--ck-border);
-  background:
-    linear-gradient(180deg, rgb(16 33 65 / 0.82), rgb(7 15 31 / 0.94));
-  box-shadow:
-    0 2px 26px rgb(0 0 0 / 0.45),
-    inset 0 1px 0 rgb(185 229 248 / 0.05);
-}
-
-.ck-card-glow {
-  box-shadow:
-    0 0 0 1px rgb(63 120 216 / 0.2),
-    0 24px 70px -28px rgb(29 80 158 / 0.65),
-    inset 0 1px 0 rgb(185 229 248 / 0.08);
-}
-
-.ck-subcard {
-  border: 1px solid rgb(143 180 236 / 0.12);
-  background: linear-gradient(180deg, rgb(11 23 48 / 0.7), rgb(5 11 23 / 0.75));
-}
-
-.ck-well {
-  border: 1px solid rgb(143 180 236 / 0.1);
-  background: rgb(4 9 19 / 0.55);
-  box-shadow: inset 2px 2px 10px rgb(0 0 0 / 0.45);
-}
-
-.ck-rule {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--ck-border-strong), transparent);
-}
-
-/* ------------------------------- typography ------------------------------ */
-
-.ck-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ck-blue-soft);
-}
-
-.ck-title {
-  font-family: var(--font-bebas), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  line-height: 0.92;
-  /* Inherit so a scoped Tailwind text colour (the BCCI-blue CRICKET heading)
-     can win. Hard-coding #fff here would override every colour utility. */
-  color: inherit;
-}
-
-.ck-text-blue {
-  color: var(--ck-blue-soft);
-}
-.ck-text-gold {
-  color: var(--ck-gold);
-}
-.ck-text-muted {
-  color: var(--ck-muted);
-}
-.ck-text-dim {
-  color: var(--ck-dim);
-}
-
-.ck-link {
-  color: var(--ck-blue-soft);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  transition: color 160ms ease;
-}
-.ck-link:hover {
-  color: var(--ck-cyan);
-}
-
 /* -------------------------------- controls ------------------------------- */
-
-.ck-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 6px;
-  border: 1px solid var(--ck-border);
-  background: rgb(185 229 248 / 0.04);
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ck-blue-soft);
-  white-space: nowrap;
-}
-
-.ck-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--ck-border);
-  background: rgb(16 33 65 / 0.65);
-  padding: 8px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ck-text);
-  transition:
-    background 180ms ease,
-    border-color 180ms ease,
-    transform 180ms ease;
-}
-.ck-btn:hover {
-  border-color: var(--ck-border-strong);
-  background: rgb(29 80 158 / 0.28);
-}
-.ck-btn:active {
-  transform: scale(0.98);
-}
-.ck-btn-primary {
-  border-color: rgb(63 120 216 / 0.7);
-  background: linear-gradient(120deg, #3f78d8, #1d509e 65%, #123a78);
-  color: #fff;
-  box-shadow: 0 8px 26px -10px rgb(29 80 158 / 0.85);
-}
-.ck-btn-primary:hover {
-  background: linear-gradient(120deg, #5b8def, #2a63c4 65%, #17458f);
-}
-
-.ck-select {
-  appearance: none;
-  border-radius: 8px;
-  border: 1px solid var(--ck-border);
-  background-color: rgb(7 15 31 / 0.9);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238fb4ec' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 10px 6px;
-  padding: 8px 34px 8px 12px;
-  color: var(--ck-text);
-  font-size: 12px;
-  font-weight: 600;
-  color-scheme: dark;
-  transition: border-color 160ms ease, background-color 160ms ease;
-}
-.ck-select:hover {
-  border-color: var(--ck-border-strong);
-  background-color: rgb(16 33 65 / 0.9);
-}
-.ck-select option,
 .cricket-page select option {
   background: #0b1730;
   color: #eef4ff;
 }
-
 /* Player-directory portrait cards: grade groups use the BCCI page's large
    cut-out frames, with a quiet lift/zoom on hover and a staggered entrance. */
 .ck-player-card {
@@ -262,83 +101,10 @@
     transform: translateY(0) scale(1);
   }
 }
-
-.ck-tab {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: rgb(238 244 255 / 0.55);
-  transition: color 150ms ease, background 150ms ease;
-}
-.ck-tab:hover {
-  color: #fff;
-  background: rgb(185 229 248 / 0.05);
-}
-.ck-tab-active,
-.ck-tab-active:hover {
-  color: #fff;
-  background: linear-gradient(100deg, #1d509e, #2a63c4);
-  box-shadow: 0 2px 12px rgb(29 80 158 / 0.4);
-}
-
-.ck-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--ck-border);
-  background: rgb(4 9 19 / 0.6);
-  padding: 7px 11px;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-.ck-field:focus-within {
-  border-color: rgb(143 180 236 / 0.55);
-  background: rgb(11 23 48 / 0.9);
-  box-shadow: 0 0 0 3px rgb(63 120 216 / 0.15);
-}
-.ck-field input {
-  width: 100%;
-  min-width: 0;
-  background: transparent;
-  border: 0;
-  outline: none;
-  font-size: 13px;
-  color: var(--ck-text);
-}
-.ck-field input::placeholder {
-  color: var(--ck-dim);
-}
-
-/* ---------------------------------- tones -------------------------------- */
-
-.ck-tone-live {
-  border-color: rgb(248 113 113 / 0.55) !important;
-  background: linear-gradient(180deg, rgb(248 113 113 / 0.15), rgb(7 15 31 / 0.9)) !important;
-  box-shadow: 0 0 24px -6px rgb(248 113 113 / 0.35);
-}
-.ck-tone-done {
-  border-color: rgb(143 180 236 / 0.12) !important;
-  background: rgb(4 9 19 / 0.55) !important;
-}
-.ck-tone-warn {
-  border-color: rgb(245 194 107 / 0.35) !important;
-  background: linear-gradient(180deg, rgb(245 194 107 / 0.08), rgb(7 15 31 / 0.9)) !important;
-}
-.ck-tone-idle {
-  border-color: rgb(143 180 236 / 0.2) !important;
-  background: linear-gradient(180deg, rgb(16 33 65 / 0.6), rgb(7 15 31 / 0.9)) !important;
-}
-
 .ck-bar {
   transform-origin: left center;
   animation: ck-bar-grow 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-
 .ck-live-dot {
   width: 6px;
   height: 6px;
@@ -347,9 +113,7 @@
   box-shadow: 0 0 8px rgb(248 113 113 / 0.9);
   animation: ck-pulse 1.4s ease-in-out infinite;
 }
-
 /* ------------------------------- stadium 3D ------------------------------ */
-
 .ck-stadium-scene {
   position: relative;
   width: 100%;
@@ -363,7 +127,6 @@
 .ck-stadium-hero {
   width: 86%;
 }
-
 .ck-stadium-tilt {
   position: relative;
   z-index: 1;
@@ -411,39 +174,10 @@
     stroke-width: 1.15;
   }
 }
-
 /* --------------------------------- motion -------------------------------- */
-
 .ck-in {
   animation: ck-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.ck-in-1 {
-  animation-delay: 60ms;
-}
-.ck-in-2 {
-  animation-delay: 130ms;
-}
-.ck-in-3 {
-  animation-delay: 200ms;
-}
-
-.ck-sweep {
-  position: relative;
-  overflow: hidden;
-}
-.ck-sweep::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -45%;
-  width: 35%;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.22), transparent);
-  transform: skewX(-18deg);
-  animation: ck-sweep 3.4s ease-in-out infinite;
-  pointer-events: none;
-}
-
 @keyframes ck-rise {
   from {
     opacity: 0;
@@ -489,20 +223,6 @@
     opacity: 0.95;
   }
 }
-@keyframes ck-sweep {
-  0% {
-    transform: translateX(0) skewX(-18deg);
-    opacity: 0;
-  }
-  18% {
-    opacity: 0.8;
-  }
-  60%,
-  100% {
-    transform: translateX(430%) skewX(-18deg);
-    opacity: 0;
-  }
-}
 @keyframes ck-stand-in {
   from {
     opacity: 0;
@@ -513,21 +233,7 @@
     transform: scale(1);
   }
 }
-@keyframes ck-watch-glow {
-  0%,
-  100% {
-    box-shadow: 0 12px 44px -10px rgb(29 80 158 / 0.85);
-  }
-  50% {
-    box-shadow: 0 12px 58px -4px rgb(63 120 216 / 1);
-  }
-}
-.ck-watch-live {
-  animation: ck-watch-glow 2.6s ease-in-out infinite;
-}
-
 /* ------------------------------- scrollbars ------------------------------ */
-
 .ck-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgb(63 120 216 / 0.6) rgb(185 229 248 / 0.05);
@@ -549,54 +255,7 @@
 .ck-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgb(143 180 236 / 0.9);
 }
-.ck-no-scrollbar {
-  scrollbar-width: none;
-}
-.ck-no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
 /* --------------------------------- tables -------------------------------- */
-
-.ck-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-.ck-table thead th {
-  padding: 9px 10px;
-  text-align: left;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ck-dim);
-  border-bottom: 1px solid var(--ck-border);
-  white-space: nowrap;
-}
-.ck-table tbody td {
-  padding: 9px 10px;
-  border-bottom: 1px solid rgb(143 180 236 / 0.07);
-  color: rgb(238 244 255 / 0.86);
-  white-space: nowrap;
-}
-.ck-table tbody tr {
-  transition: background 140ms ease;
-}
-.ck-table tbody tr:hover {
-  background: rgb(29 80 158 / 0.16);
-}
-.ck-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.ck-table .ck-num {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.ck-table th.ck-num {
-  text-align: right;
-}
-
 /* Ranking rows: a quiet lift, a blue wash and a bar that brightens under the
    pointer. The table keeps its flat geometry so it stays scan-friendly. */
 .ck-rank-row {
@@ -641,7 +300,6 @@
     transform: translateX(320%);
   }
 }
-
 /* Animated SVG charts. */
 .ck-donut-arc {
   animation: ck-donut-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -690,7 +348,6 @@
 .ck-score-row .ck-score-wicket {
   transition: color 180ms ease, text-shadow 180ms ease;
 }
-
 .ck-radar {
   transform-box: fill-box;
   transform-origin: center;
@@ -706,14 +363,6 @@
     transform: scale(1) rotate(0);
   }
 }
-
-/* Modal: mobile scrolls its own body, desktop is a centered sheet. */
-.ck-modal {
-  max-height: min(86vh, 900px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ck-in,
   .ck-bar,
@@ -727,18 +376,11 @@
   .ck-boundary-line,
   .ck-stadium-scene,
   .ck-live-dot,
-  .ck-watch-live,
-  .ck-rank-row:hover .ck-rank-track > div::after,
-  .ck-sweep::after {
+  .ck-rank-row:hover .ck-rank-track > div::after {
     animation: none !important;
   }
   .ck-stadium-tilt,
   .ck-stadium-scene:hover .ck-stadium-tilt {
-    transform: none;
-    transition: none;
-  }
-  .ck-btn,
-  .ck-btn:active {
     transform: none;
     transition: none;
   }

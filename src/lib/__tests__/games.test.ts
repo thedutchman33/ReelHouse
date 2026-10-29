@@ -112,7 +112,6 @@ describe("parseBitrunlogGames", () => {
 
   it("maps the decomp entry, its art and its tags", () => {
     const quake = games[0];
-    expect(quake.origin).toBe("decomp");
     expect(quake.platform).toBe("PC");
     expect(quake.url).toBe("https://q3js.com/");
     expect(quake.assets).toBe("instant");
@@ -124,7 +123,6 @@ describe("parseBitrunlogGames", () => {
 
   it("keeps the site's own extra picks and absolute art", () => {
     const gta = games[1];
-    expect(gta.origin).toBe("catalog");
     expect(gta.title).toBe("GTA Paris Online – Beta");
     expect(gta.url).toBe(
       "https://play.gtaonx.com/?mode=sandbox&low=1&fps=30&res=800x450&cores=2"

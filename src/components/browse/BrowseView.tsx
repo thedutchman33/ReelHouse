@@ -17,8 +17,6 @@ import { getBrowseOptions, getWatchProviders } from "@/lib/tmdb";
 // type pinned.
 // ---------------------------------------------------------------------------
 
-export type BrowseSearchParams = Record<string, string | string[] | undefined>;
-
 export default async function BrowseView({
   type,
   title,

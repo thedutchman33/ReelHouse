@@ -1,11 +1,4 @@
-import type {
-  CricketMatch,
-  CricketPlayer,
-  CricketTeam,
-  Gender,
-  MatchFormat,
-  RankingSet,
-} from "./types";
+import type { CricketMatch, CricketPlayer, CricketTeam } from "./types";
 
 // Client-safe selectors and formatters. Nothing here touches a provider, so
 // dashboard components can import this file without pulling server-only code
@@ -41,16 +34,6 @@ const timeFmt = new Intl.DateTimeFormat("en-GB", {
   hour12: true,
 });
 
-const dateTimeFmt = new Intl.DateTimeFormat("en-GB", {
-  timeZone: IST,
-  weekday: "short",
-  day: "2-digit",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
-
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "Date TBC";
   const date = new Date(iso);
@@ -73,12 +56,6 @@ export function formatTime(iso: string | null | undefined): string {
   if (!iso) return "Time TBC";
   const date = new Date(iso);
   return Number.isFinite(date.getTime()) ? `${timeFmt.format(date)} IST` : "Time TBC";
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "Date TBC";
-  const date = new Date(iso);
-  return Number.isFinite(date.getTime()) ? `${dateTimeFmt.format(date)} IST` : "Date TBC";
 }
 
 export function formatDateRange(startISO: string, endISO: string | null): string {
@@ -245,51 +222,6 @@ export function indiaTeam(match: CricketMatch): CricketTeam {
 export function opponentTeam(match: CricketMatch): CricketTeam {
   const india = indiaTeam(match);
   return match.teams.find((team) => team.id !== india.id) ?? match.teams[1] ?? match.teams[0];
-}
-
-export function matchTitle(match: CricketMatch): string {
-  return `${indiaTeam(match).name} vs ${opponentTeam(match).name}`;
-}
-
-export function isLive(match: CricketMatch): boolean {
-  return match.status === "live";
-}
-
-/** Live first, then the next scheduled match, then the latest result. */
-export function featuredMatch(
-  fixtures: CricketMatch[],
-  results: CricketMatch[],
-  now: number
-): CricketMatch | null {
-  const live = fixtures
-    .filter(isLive)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-  if (live) return live;
-
-  const next = fixtures
-    .filter((match) => match.status === "upcoming" && new Date(match.date).getTime() >= now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-  if (next) return next;
-
-  return results
-    .slice()
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] ?? null;
-}
-
-/** Matches in the same competition, in date order. */
-export function seriesMatches(fixtures: CricketMatch[], featured: CricketMatch | null): CricketMatch[] {
-  if (!featured) return [];
-  return fixtures
-    .filter((match) => match.series === featured.series)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-}
-
-export function rankingFor(
-  rankings: RankingSet[],
-  gender: Gender,
-  format: MatchFormat
-): RankingSet | null {
-  return rankings.find((set) => set.gender === gender && set.format === format) ?? null;
 }
 
 export function playerNameKey(name: string): string {

@@ -46,13 +46,6 @@ export function openF1SessionView(): void {
   }
 }
 
-/** Public helper: bring the Telemetry tab forward (used by the F1 section bar). */
-export function openF1TelemetryView(): void {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("f1:open-telemetry"));
-  }
-}
-
 const VIEW_MODE_KEY = "reelhouse-f1-viewmode";
 
 export default function SessionTabs({

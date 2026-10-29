@@ -301,14 +301,6 @@ export function getStatsPlayer(index: number): StatsPlayer | null {
   }
 }
 
-export function getStatsPlayersByIndex(indices: number[]): StatsPlayerSummary[] {
-  const index = db();
-  return indices
-    .map((value) => index.players[value])
-    .map((player, position) => (player ? summary(player, indices[position]) : null))
-    .filter((player): player is StatsPlayerSummary => player != null);
-}
-
 function pairFor(batter: number, bowler: number): StatsPair | null {
   const row = db().pairs[`${batter}|${bowler}`];
   if (!row) return null;

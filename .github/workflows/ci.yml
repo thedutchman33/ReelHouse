@@ -27,4 +27,9 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run test
+      # Report-only dead-code gate: surfaces unused files/exports without
+      # failing the build while the baseline in docs/knip-baseline.txt is worked
+      # down. Remove continue-on-error once it is clean.
+      - run: npx knip
+        continue-on-error: true
       - run: npm run build

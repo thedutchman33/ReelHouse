@@ -15,11 +15,6 @@ export function axisSecF(s: number): string {
   return `${m}:${rest}`;
 }
 
-/** v1 — clock tick `h:MM AM/PM` (uppercase, browser locale). */
-export function clockF(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toUpperCase();
-}
-
 /** w1 — playback clock `m:ss.s` (padded to 4 chars). */
 export function playClockF(s: number): string {
   const m = Math.floor(s / 60);

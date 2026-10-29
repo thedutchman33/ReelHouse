@@ -28,6 +28,10 @@ yarn-error.log*
 # stop tracking .env.local.example.
 .env.production
 
+# python build artefacts (scripts/build-cricket-stats.py)
+__pycache__/
+*.pyc
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

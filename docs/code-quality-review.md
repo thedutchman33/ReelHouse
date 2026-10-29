@@ -3,7 +3,7 @@
 **Date:** 2026-10-29  
 **Scope:** entire `src/` tree, configuration, `public/`, `scripts/`, dependency manifest, and the current working tree (including uncommitted work).  
 **Method:** automated import-graph reachability from every App Router entry point, export/symbol reference counting, CSS selector usage scan, public-asset reference scan, targeted greps for dynamic class/route construction, plus a manual read of the hot paths.  
-**Baseline:** `tsc --noEmit` passes; `vitest run` passes (29 files, 320 tests). `src/` contains 268 TS/TSX/CSS files, 59,390 lines; cricket alone is 61 files / 16,248 lines (27%).
+**Baseline:** `tsc --noEmit` passes; `vitest run` passes (29 files, 321 tests). `src/` contains 268 TS/TSX/CSS files, 59,390 lines; cricket alone is 61 files / 16,248 lines (27%).
 
 This is a review, not a patch. Everything below is ordered by value-to-risk, with the evidence needed to act on it.
 
@@ -389,3 +389,40 @@ The audit was produced with throwaway scripts under `.tmp/` (gitignored):
 - `audit-assets.mjs` — public asset references.
 
 Re-run them after Phase 1; several “unused” symbols will change state once the orphan screens are gone.
+
+---
+
+## Execution log — Phase 0 & Phase 1 (2026-10-29)
+
+### Phase 0 — reviewability
+
+1. **Generated data:** `src/lib/cricket/generated/cricket-stats.json` (19 MB) and
+   `player-names.json` (156 KB) are tracked in history already, so the decision is
+   effectively made: they stay committed as the build input. No history rewrite; a
+   future move to Git LFS/release artefacts is optional, and regeneration is an
+   explicit commit, not a build side effect.
+2. **`.gitignore`:** added `__pycache__/` and `*.pyc` for the untracked Python cache
+   under `scripts/`.
+3. **Dead-code gate:** added `knip@6.43.0`, an `npm run knip` script, and a
+   report-only CI step (`continue-on-error`). Baseline recorded in
+   `docs/knip-baseline.txt`: 12 unused files, 1 unlisted dependency, 44 unused
+   exports, 45 unused exported types. Remaining entries are mostly intentional dev
+   tooling (`tools/`, `scripts/`) and exports used only inside their own module.
+4. **Commit slicing:** the large unreviewed work was already committed before this
+   pass; this execution is one changeset on top of it.
+
+### Phase 1 — safe deletions (done)
+
+| Change | Result |
+|---|---|
+| Orphan screens | deleted `IccStatistics.tsx` (861) and `PlayerCompare.tsx` (692) |
+| Weekend endpoint | deleted `api/f1/weekend` (24) and `getF1WeekendRecords` + its two types (121 from `f1.ts`) |
+| Dead exports | removed the 12 in §1.3 plus `isLive` (no callers) and the now-unused `dateTimeFmt`/type imports |
+| Games model | removed always-null `note`/`score`/`sourceUrl`, the unused `origin` field + `GameOrigin`, both unreachable UI branches, and two test assertions |
+| Cricket CSS | 746 → 387 lines; 27 live `.ck-*` classes, audit reports 0 unreferenced; `.ck-table`/`.ck-num` cascade removed |
+
+**Net source change:** 16 files, 12 insertions, 2,215 deletions (excluding the lockfile).
+
+**Verification:** `tsc --noEmit` clean; `vitest run` 321/321; `next build` succeeds and
+`/api/f1/weekend` is absent from the route manifest; greps for every deleted symbol
+return nothing.

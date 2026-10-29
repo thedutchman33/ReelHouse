@@ -95,17 +95,3 @@ export function TeamFlag({
     />
   );
 }
-
-export function FlagByCode({
-  code,
-  name,
-  size = "sm",
-  className = "",
-}: {
-  code: string;
-  name?: string;
-  size?: keyof typeof SIZES;
-  className?: string;
-}) {
-  return <TeamFlag team={{ name: name ?? code, abbreviation: code }} size={size} className={className} />;
-}

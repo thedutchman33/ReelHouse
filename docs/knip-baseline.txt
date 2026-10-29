@@ -1,0 +1,113 @@
+# knip baseline — 2026-10-29 (knip 6.43.0)
+# Command: npx knip --no-exit-code
+# CI runs: npx knip (report-only, continue-on-error)
+# Totals: 12 unused files, 1 unlisted dependency, 44 unused exports, 45 unused exported types.
+# Most entries are intentional dev tooling (tools/, scripts/) or exports used only inside
+# their own module. The curated, actionable list lives in docs/code-quality-review.md §1.3.
+
+Unused files (12)
+scripts/build-cricket-names.mjs       
+tools/mobile-audit/audit.mjs          
+tools/mobile-audit/cdp.mjs            
+tools/mobile-audit/detail.mjs         
+tools/mobile-audit/drawer-probe.mjs   
+tools/mobile-audit/explain.mjs        
+tools/mobile-audit/hero-probe.mjs     
+tools/mobile-audit/hover-probe.mjs    
+tools/mobile-audit/hydration-probe.mjs
+tools/mobile-audit/matrix.mjs         
+tools/mobile-audit/native-probe.mjs   
+tools/mobile-audit/navbar-probe.mjs   
+Unlisted dependencies (1)
+postcss-load-config  postcss.config.mjs:1:10
+Unused exports (44)
+CardSkeleton               function  src/components/common/Skeleton.tsx:9:17            
+flagCodeFor                function  src/components/cricket/TeamFlag.tsx:45:17          
+median                     function  src/components/f1/analytics.tsx:92:17              
+countdownTo                function  src/components/f1/Countdown.tsx:24:17              
+ordinal                    function  src/components/f1/standings/charts.tsx:116:17      
+TooltipHeader              function  src/components/f1/standings/charts.tsx:179:17      
+Change                     function  src/components/f1/standings/parts.tsx:68:17        
+formatSessionDateTime      function  src/components/f1/timezone.tsx:33:17               
+formatSessionClock         function  src/components/f1/timezone.tsx:47:17               
+formatSessionDayMonth      function  src/components/f1/timezone.tsx:54:17               
+formatSessionDayRange      function  src/components/f1/timezone.tsx:61:17               
+COMPOUND_DOT                         src/components/f1/tyre.tsx:5:14                    
+DEFAULT_APPEARANCE                   src/components/player/SubtitleAppearance.tsx:207:10
+CRICKET_SERVER_SLOTS                 src/lib/cricket-playback.ts:37:14                  
+isSafeCricketSourceUrl     function  src/lib/cricket-playback.ts:120:17                 
+INTERNATIONAL_FORMATS                src/lib/cricket/player-stats-summary.ts:49:14      
+seasonSeries               function  src/lib/cricket/player-stats-summary.ts:162:17     
+competitionSeries          function  src/lib/cricket/player-stats-summary.ts:180:17     
+careerSpan                 function  src/lib/cricket/player-stats-summary.ts:208:17     
+hasBatting                 function  src/lib/cricket/player-stats-summary.ts:222:17     
+hasBowling                 function  src/lib/cricket/player-stats-summary.ts:226:17     
+isBatterRole               function  src/lib/cricket/player-stats-summary.ts:235:17     
+isBowlerRole               function  src/lib/cricket/player-stats-summary.ts:239:17     
+BCCI_WEB                             src/lib/cricket/providers/bcci.ts:26:14            
+ICC_RANKINGS_URL                     src/lib/cricket/providers/icc-rankings.ts:26:14    
+IST                                  src/lib/cricket/shared.ts:7:14                     
+FORMATS                              src/lib/cricket/types.ts:9:14                      
+FORMAT_LABELS                        src/lib/cricket/types.ts:11:14                     
+pruneEndedAt               function  src/lib/cricket/watch-window.ts:15:17              
+bucketBySector             function  src/lib/f1-telemetry-math.ts:20:17                 
+sampleAt                   function  src/lib/f1-telemetry-math.ts:42:17                 
+FLYEMBED_FEED_URL                    src/lib/flyembed.ts:15:14                          
+GAMES_REVALIDATE_SECONDS             src/lib/games.ts:136:14                            
+FIRST_LAPS_SEASON                    src/lib/laps-led.ts:26:14                          
+nextF1Session              function  src/lib/live-windows.ts:49:17                      
+languageLabel              function  src/lib/opensubtitles.ts:112:17                    
+EMBED_TEST_PATH                      src/lib/playback/adapters.ts:48:14                 
+MOCK_EMBED_MESSAGE_SOURCE            src/lib/playback/adapters.ts:62:14                 
+mockEmbedAdapter                     src/lib/playback/adapters.ts:76:14                 
+BUILT_IN_PLAYER_PRIORITY             src/lib/playback/builtin.ts:27:14                  
+supportsMediaType          function  src/lib/playback/manager.ts:41:17                  
+WORDMARKS                            src/lib/provider-logos.ts:11:14                    
+FAMILY_KEYS                          src/lib/provider-logos.ts:48:14                    
+FEED_POOLS                           src/lib/tmdb.ts:888:10                             
+Unused exported types (45)
+TipRow                 interface  src/components/f1/chart-interaction.tsx:11:18      
+CricketServerSlot      type       src/lib/cricket-playback.ts:38:13                  
+SeasonPoint            interface  src/lib/cricket/player-stats-summary.ts:44:18      
+BffTeam                interface  src/lib/cricket/providers/bcci.ts:42:18            
+BffLive                interface  src/lib/cricket/providers/bcci.ts:114:18           
+TourSquadPlayer        interface  src/lib/cricket/providers/wikipedia-squads.ts:20:18
+StatsBattingFormat     interface  src/lib/cricket/stats-types.ts:5:18                
+StatsBowlingFormat     interface  src/lib/cricket/stats-types.ts:23:18               
+StatsCareerResponse    interface  src/lib/cricket/stats-types.ts:187:18              
+PlayerCareerCard       interface  src/lib/cricket/types.ts:84:18                     
+PlayerProfileResponse  interface  src/lib/cricket/types.ts:89:18                     
+MatchSquadPlayer       interface  src/lib/cricket/types.ts:143:18                    
+ScorecardHeader        interface  src/lib/cricket/types.ts:226:18                    
+ScorecardBowlingRow    interface  src/lib/cricket/types.ts:253:18                    
+ScorecardPartnership   interface  src/lib/cricket/types.ts:265:18                    
+ScorecardFallOfWicket  interface  src/lib/cricket/types.ts:272:18                    
+ScorecardMatch         interface  src/lib/cricket/types.ts:314:18                    
+F1TestWeekend          interface  src/lib/f1.ts:65:18                                
+F1Driver               interface  src/lib/f1.ts:179:18                               
+F1CarSample            interface  src/lib/f1.ts:190:18                               
+F1Lap                  interface  src/lib/f1.ts:200:18                               
+F1ResultRow            interface  src/lib/f1.ts:216:18                               
+F1TelemetryDriver      interface  src/lib/f1.ts:222:18                               
+F1Stint                interface  src/lib/f1.ts:411:18                               
+F1PositionPoint        interface  src/lib/f1.ts:452:18                               
+F1GapPoint             interface  src/lib/f1.ts:458:18                               
+F1PitStop              interface  src/lib/f1.ts:466:18                               
+F1SafetyCarPeriod      interface  src/lib/f1.ts:476:18                               
+F1RaceExtras           interface  src/lib/f1.ts:484:18                               
+F1LapSample            interface  src/lib/f1.ts:925:18                               
+F1TrackPath            interface  src/lib/f1.ts:966:18                               
+LapsLedRound           interface  src/lib/laps-led.ts:31:18                          
+MediaType              type       src/lib/library.ts:488:29                          
+ProgressReport         interface  src/lib/playback/progress.ts:34:18                 
+SurfaceKind            type       src/lib/playback/types.ts:39:13                    
+ResolvedSurface        type       src/lib/playback/types.ts:120:13                   
+VideoProvider          interface  src/lib/providers.ts:43:18                         
+RateLimitResult        type       src/lib/rate-limit.ts:41:13                        
+TeamRef                interface  src/lib/standings.ts:102:18                        
+RoundInfo              interface  src/lib/standings.ts:128:18                        
+DriverSeasonStats      interface  src/lib/standings.ts:140:18                        
+TeamSeasonStats        interface  src/lib/standings.ts:158:18                        
+RoundSummary           interface  src/lib/standings.ts:168:18                        
+FastestEntry           interface  src/lib/standings.ts:178:18                        
+SeasonCards            interface  src/lib/standings.ts:186:18                        

@@ -64,15 +64,6 @@ export function teamCode(name: string): string {
 
 export { TeamMark };
 
-export function PosBadge({ position, colour }: { position: number; colour: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 tabular-nums">
-      <span aria-hidden="true" className="h-4 w-[3px] rounded-full" style={{ backgroundColor: `#${colour}` }} />
-      <span className="w-5 text-right font-f1 text-[13px] font-bold text-white">{position || "—"}</span>
-    </span>
-  );
-}
-
 /** ▲2 / ▼1 / — movement since the previous round. */
 export function Change({ value }: { value: number | null }) {
   if (value == null) {
@@ -247,14 +238,6 @@ export function Selector({
         </svg>
       </span>
     </label>
-  );
-}
-
-export function CountBadge({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-[4px] border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/45 tabular-nums">
-      {children}
-    </span>
   );
 }
 

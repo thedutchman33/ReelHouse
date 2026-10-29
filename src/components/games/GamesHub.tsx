@@ -79,8 +79,7 @@ function acronym(title: string): string {
 
 /** Everything the search box looks at, including the acronym. */
 function searchText(game: BrowserGame): string {
-  return `${game.title} ${game.platform ?? ""} ${game.note ?? ""} ${acronym(game.title)}`
-    .toLowerCase();
+  return `${game.title} ${game.platform ?? ""} ${acronym(game.title)}`.toLowerCase();
 }
 
 /** Deterministic fallback art for entries whose directory has no screenshot. */
@@ -175,12 +174,6 @@ function GameCard({ game }: { game: BrowserGame }) {
         <p className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-accent/85">
           {GAME_ASSETS_LABEL[game.assets]}
         </p>
-        {game.note && (
-          <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-muted">
-            {game.note}
-          </p>
-        )}
-
         <div className="mt-auto pt-3">
           <a
             href={game.url}
@@ -192,16 +185,6 @@ function GameCard({ game }: { game: BrowserGame }) {
             <PlayIcon size={14} />
             Play in browser
           </a>
-          {game.sourceUrl && (
-            <a
-              href={game.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 block truncate text-center text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted transition hover:text-text"
-            >
-              Source
-            </a>
-          )}
         </div>
       </div>
     </article>

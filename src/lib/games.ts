@@ -30,9 +30,6 @@ interface RawGame {
 /** How a game treats the visitor's own copy of the game. */
 export type GameAssets = "instant" | "byo" | "demo" | "unknown";
 
-/** Which half of the directory the entry belongs to. */
-export type GameOrigin = "decomp" | "catalog";
-
 export interface BrowserGame {
   id: string;
   title: string;
@@ -46,12 +43,6 @@ export interface BrowserGame {
   multiplayer: boolean;
   /** Marquee franchise — what the page's default Popular view shows. */
   popular: boolean;
-  /** One-line description, when the source has one. */
-  note: string | null;
-  score: number | null;
-  origin: GameOrigin;
-  /** The port's source repository, when listed. */
-  sourceUrl: string | null;
 }
 
 export interface BrowserGamesFeed {
@@ -225,11 +216,6 @@ export function parseBitrunlogGames(html: string): BrowserGame[] {
       assets: assetsOf(facts),
       multiplayer: facts.includes("multiplayer"),
       popular: isPopularTitle(title),
-      note: null,
-      score: null,
-      // The decomp directory's own entries are the ones the page marks as such.
-      origin: entry.sourceId === "submitgame-decomp" ? "decomp" : "catalog",
-      sourceUrl: null,
     });
   }
 
