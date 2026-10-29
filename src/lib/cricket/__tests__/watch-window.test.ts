@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CricketMatch } from "../types";
 import {
   MATCH_WATCH_GRACE_MS,
@@ -76,6 +76,9 @@ describe("cricket watch window", () => {
   });
 
   it("persists and reloads only recent end times", () => {
+    // Storage pruning runs against the wall clock, so pin it to NOW; otherwise
+    // this fixture ages out of the 24-hour window and the test rots.
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     const store = new Map<string, string>();
     const storage = {
       getItem: (key: string) => store.get(key) ?? null,
@@ -83,5 +86,9 @@ describe("cricket watch window", () => {
     };
     persistEndedAt({ ended: NOW - 1_000, stale: NOW - 2 * 24 * 60 * 60_000 }, storage);
     expect(readEndedAt(storage)).toEqual({ ended: NOW - 1_000 });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 });
