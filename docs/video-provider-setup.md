@@ -493,3 +493,47 @@ To test:
    entry, and switching servers re-points the iframe without a page reload.
 4. Movie/TV/anime watch pages are unaffected: F1 entries are only read by
    `src/lib/f1-playback.ts` and never enter the environment-backed slot plan.
+
+## 18. Cricket servers (environment, sanitized embed)
+
+Cricket uses its own `CRICKET_SERVER_N_*` slots (1–5), not
+`VIDEO_PROVIDER_N_*`. Only two values are required per slot:
+
+```sh
+CRICKET_SERVER_1_NAME=Server 1
+CRICKET_SERVER_1_URL=https://example.com/live
+CRICKET_SERVER_1_MEDIA_TYPES=cricket
+```
+
+`ENABLED` defaults to on (a supplied URL is the intent) and lower `PRIORITY`
+comes first. Without explicit priorities, Server 2 is preferred because it is
+the currently healthy source. See `.env.local.example` for the full list.
+
+`/watch/cricket` frames the same-origin `/api/cricket/embed?url=…`, never the
+source page directly. The route fetches only configured origins (plus the known
+nested newball/dekhobhai players) and serves either the first-party player (the
+stream URL, ClearKey pair and token endpoint extracted from the source's
+`CONFIG` object), a first-party frame around a nested player page, or the
+sanitized third-party page under `sandbox allow-scripts` (channel indexes).
+
+The first-party player exists because the streams are ClearKey-encrypted and
+browsers refuse EME on a unique origin — a sandboxed proxy can never play them.
+It contains only our markup, so no source script runs; the browser-side iframe
+uses `sandbox="allow-scripts allow-same-origin"` (no popups, modals, forms,
+downloads or top navigation, but a real origin). The sanitized fallback keeps
+its own unique-origin policy, which the iframe attribute cannot lift.
+
+To test:
+
+1. `npm run dev`
+2. Open `/cricket` and click **Watch Live** while the match is inside its live
+   window (or open `/watch/cricket` directly).
+3. Expected: no Telegram dialog, no "DISABLE SANDBOX" screen, and the selected
+   server's player loads. Switching servers re-points the iframe without a page
+   reload.
+4. If a server shows the player's error line, the source's token endpoint has
+   probably rotated. `curl` the source page and check that its `cookieUrl` still
+   returns a cookie; a 403 from the stream CDN is upstream, not the proxy.
+
+Movie/TV/anime plans never read these variables, and cricket never falls back to
+the bundled sample clips.

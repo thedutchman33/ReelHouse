@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import WatchlistButton from "@/components/media/WatchlistButton";
+import { isLiveMediaType } from "@/lib/utils";
 import type { MediaSummary } from "@/types";
 
 // Control dock joined under the player stage (reference anatomy, REA-verified):
@@ -44,9 +45,16 @@ export default function WatchDock({
   const [reaction, setReaction] = useState<1 | -1 | 0>(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
-  // F1 is a live channel: there is no watchlist entry or downloadable title
-  // behind it, so those two controls are omitted rather than pointed at a 404.
-  const isF1 = media.type === "f1";
+  // Live channels have no watchlist entry or downloadable title behind them,
+  // so those two controls are omitted rather than pointed at a 404.
+  const isLive = isLiveMediaType(media.type);
+  // A live channel's "details" page is its own dashboard, not a TMDB title.
+  const detailsHref =
+    media.type === "f1"
+      ? "/f1"
+      : media.type === "cricket"
+        ? "/cricket"
+        : `/${media.type}/${media.tmdbId}`;
 
   useEffect(() => {
     setReaction(loadLikes()[media.id] ?? 0);
@@ -141,10 +149,10 @@ export default function WatchDock({
           </svg>
         </button>
 
-        {!isF1 && <WatchlistButton item={media} variant="dock" />}
+        {!isLive && <WatchlistButton item={media} variant="dock" />}
 
         {/* Download (reference behavior: opens vidvault.to for this title). */}
-        {!isF1 && (
+        {!isLive && (
           <a
             href={
               media.type === "tv"
@@ -200,7 +208,7 @@ export default function WatchDock({
               </button>
               <a
                 role="menuitem"
-                href={isF1 ? "/f1" : `/${media.type}/${media.tmdbId}`}
+                href={detailsHref}
                 className="menu-item"
                 onClick={() => setMoreOpen(false)}
               >

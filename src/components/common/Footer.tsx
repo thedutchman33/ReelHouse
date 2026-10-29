@@ -8,7 +8,11 @@ import { isLiveMetadata } from "@/lib/tmdb";
 const LINKS: { href: string; label: string }[] = [
   { href: "/movies", label: "Movies" },
   { href: "/tv-shows", label: "TV Shows" },
+  { href: "/anime", label: "Anime" },
   { href: "/browse", label: "All Titles" },
+  { href: "/f1", label: "Formula 1" },
+  { href: "/cricket", label: "Cricket" },
+  { href: "/games", label: "Games" },
   { href: "/my-list", label: "My List" },
   { href: "/my-list#history", label: "Watch History" },
   { href: "/search", label: "Search" },
@@ -51,10 +55,16 @@ export default function Footer() {
           </span>
           <span>
             {isLiveMetadata()
-              ? "Metadata from TMDB — this product uses the TMDB API but is not endorsed or certified by TMDB."
+              ? "Movie & TV metadata from TMDB — this product uses the TMDB API but is not endorsed or certified by TMDB."
               : "Built with Next.js · Original branding"}
           </span>
         </div>
+
+        <p className="text-[11px] leading-relaxed text-muted/60">
+          Formula 1 data from OpenF1 · Cricket data from BCCI and ICC · Game
+          links open each project&apos;s own site. Reelhouse is unofficial and
+          not affiliated with those rights holders.
+        </p>
       </div>
     </footer>
   );

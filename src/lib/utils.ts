@@ -28,6 +28,16 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+/**
+ * Live channel surfaces (`/watch/f1`, `/watch/cricket`) are not catalog titles:
+ * there is no TMDB entry, no episode model and nothing resumable to put in
+ * Continue Watching. Catalog, browse, search and history code use this
+ * predicate so adding another live channel does not require another `||`.
+ */
+export function isLiveMediaType(type: MediaType): boolean {
+  return type === "f1" || type === "cricket";
+}
+
 /** Small stable hash → non-negative int. */
 function hashString(input: string): number {
   let h = 2166136261;
@@ -67,7 +77,7 @@ export function placeholderArt(opts: {
   const label = escapeXml(title);
   const kind = type
     ? escapeXml(
-        type === "f1" ? "LIVE" : type === "tv" ? "SERIES" : "FILM"
+        isLiveMediaType(type) ? "LIVE" : type === "tv" ? "SERIES" : "FILM"
       )
     : "";
   const fontSize = variant === "poster" ? 30 : 56;

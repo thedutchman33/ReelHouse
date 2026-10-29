@@ -22,9 +22,32 @@
   --rh-danger: 229 100 90;
 }
 
-@media (max-width: 639px) {
+/* Arcade section accent — /games reads yellow instead of the site's emerald.
+   Scoped to the page wrapper, so every `accent` utility inside it (buttons,
+   chips, labels, focus rings) picks up the gold palette and nothing outside
+   the page changes. */
+.games-accent {
+  --rh-accent: 250 204 21;        /* #facc15 */
+  --rh-accent-strong: 253 224 71; /* #fde047 */
+  --rh-accent-ink: 26 20 2;       /* warm near-black for text on gold */
+}
+
+/* Broadcast LIVE stamp used by the navbar and the hero's live posters. A hard
+   on/off blink, like a TV tally light — not a soft pulse. */
+@keyframes rh-live-blink {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0.2; }
+}
+.live-blink {
+  animation: rh-live-blink 1.2s steps(1, end) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-blink { animation: none; }
+}
+
+@media (max-width: 1279px) {
   :root {
-    --rh-nav-h: 104px; /* two-tier mobile bar: top row + scrollable link row */
+    --rh-nav-h: 104px; /* two-tier bar: top row + scrollable link row */
   }
 }
 

@@ -101,9 +101,11 @@ export function PlaybackUnavailable({
   const label =
     mediaType === "f1"
       ? "Formula 1 live"
-      : mediaType === "tv"
-        ? "TV episodes"
-        : "movies";
+      : mediaType === "cricket"
+        ? "cricket live"
+        : mediaType === "tv"
+          ? "TV episodes"
+          : "movies";
   return (
     <Shell>
       <div role="alert" className="flex flex-col items-center gap-2">

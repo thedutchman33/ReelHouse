@@ -10,7 +10,7 @@ import ServerPanel from "@/components/playback/ServerPanel";
 import WatchDetails from "@/components/playback/WatchDetails";
 import WatchEpisodes from "@/components/playback/WatchEpisodes";
 import { RecommendationsSection, TrailerSection } from "@/components/playback/WatchExtras";
-import { formatRuntime } from "@/lib/utils";
+import { formatRuntime, isLiveMediaType } from "@/lib/utils";
 import type { EpisodeRef } from "@/lib/library";
 import { markPlaybackStarted } from "@/lib/library";
 import {
@@ -134,6 +134,9 @@ export default function PlaybackContainer({
 }) {
   // Anime carries a single synthesized "Episodes" season — episode-aware too.
   const hasEpisodes = type !== "movie" && seasons.length > 0;
+  // F1 and cricket are live channels: no resumable history, and many servers
+  // that should wrap rather than hide behind a horizontal rail.
+  const isLiveChannel = isLiveMediaType(type);
 
   // Seasons arrive as metadata; episodes load per season (cached here) so a
   // 22-season show doesn't ship every episode in the page payload. Inline
@@ -249,10 +252,10 @@ export default function PlaybackContainer({
     // a position (recordEnabled). Recording the start here is what keeps watch
     // history provider-independent — no provider event is assumed or invented.
     // The built-in player marks its own start on `play`, where a real play event
-    // exists, so it is deliberately not marked here. F1 is a live embed with no
-    // title/episode history to record — writing it would pollute Continue
-    // Watching with a channel that can never be resumed.
-    if (surfaceKind === "embed" && type !== "f1") {
+    // exists, so it is deliberately not marked here. Live channels are embeds
+    // with no title/episode history to record — writing one would pollute
+    // Continue Watching with a channel that can never be resumed.
+    if (surfaceKind === "embed" && !isLiveMediaType(type)) {
       markPlaybackStarted({ media, episode: episodeRef });
     }
     const recorder = createProgressRecorder({
@@ -390,6 +393,10 @@ export default function PlaybackContainer({
     candidate.surface.kind === "native" ? candidate.surface : null;
   const embedSurface =
     candidate.surface.kind === "embed" ? candidate.surface : null;
+  // Only a server-built plan sets this (the sanitized cricket proxy); ordinary
+  // providers keep the unsandboxed frame they have always had.
+  const embedSandbox =
+    candidate.surface.kind === "embed" ? candidate.surface.sandbox : undefined;
   const isNative = nativeSurface !== null;
   const contextLabel = hasEpisodes
     ? `${media.title} · S${season}:E${episode}`
@@ -533,6 +540,7 @@ export default function PlaybackContainer({
                       )}
                       title={`${provider.displayName} player — ${contextLabel}`}
                       reloadKey={reloadKey}
+                      sandbox={embedSandbox}
                       onProgress={(seconds, duration) =>
                         recorderRef.current?.report({ seconds, duration })
                       }
@@ -592,12 +600,12 @@ export default function PlaybackContainer({
               selectedId={selectedId}
               onSelect={selectProvider}
               embedUrls={embedUrls}
-              // F1 carries many servers — wrap them onto multiple rows instead
-              // of hiding most behind a horizontal rail. Its speed test is
-              // deferred so the 100 KB measurement never competes with the
-              // stream at startup; the Test button still works.
-              wrap={type === "f1"}
-              autoTestSpeed={type !== "f1"}
+              // Live channels carry many servers — wrap them onto multiple
+              // rows instead of hiding most behind a horizontal rail. Their
+              // speed test is deferred so the 100 KB measurement never competes
+              // with the stream at startup; the Test button still works.
+              wrap={isLiveChannel}
+              autoTestSpeed={!isLiveChannel}
             />
           )}
 

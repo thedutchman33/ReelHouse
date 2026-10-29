@@ -24,21 +24,22 @@ const bebasNeue = Bebas_Neue({
 export const metadata: Metadata = {
   metadataBase: new URL("https://reelhouse.d14f2cs6k7jhfn.amplifyapp.com/"),
   title: {
-    // Reference tab-title format: "{Page} | 7REELS" with the brand uppercase;
-    // the home page carries the tagline instead of the bare brand.
-    default: "Watch Free Movies & TV Shows Online | REELHOUSE",
+    // "{Page} | REELHOUSE" everywhere below the home page; the home page names
+    // every section the site now carries.
+    default: "REELHOUSE — Movies, TV, Formula 1, Cricket & Games",
     template: "%s | REELHOUSE",
   },
   description:
-    "Reelhouse is a cinematic streaming discovery experience — browse trending films and series, search, dive into rich detail pages, and build your watchlist.",
+    "Reelhouse is a cinematic streaming discovery experience — trending films and series, live Formula 1 and cricket, and a browser games directory. Search, dive into rich detail pages, and build your watchlist.",
   applicationName: "Reelhouse",
   // Tab logo: the operator's favicon, served from public/ exactly as provided.
   icons: {
     icon: "/favicon.png",
   },
   openGraph: {
-    title: "Reelhouse — Stream films & series",
-    description: "Discover, search, and track films and series in one cinematic experience.",
+    title: "Reelhouse — Movies, TV, Formula 1, Cricket & Games",
+    description:
+      "Discover, search and track films and series, follow live Formula 1 and cricket, and play browser games — all in one place.",
     siteName: "Reelhouse",
     type: "website",
   },

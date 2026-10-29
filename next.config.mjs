@@ -44,6 +44,14 @@ const nextConfig = {
       { protocol: "https", hostname: "img.youtube.com" },
     ],
   },
+  // The generated ball-by-ball index is read with fs rather than imported, so
+  // the serverless trace has to be told to include it with the stats routes.
+  outputFileTracingIncludes: {
+    "/api/cricket/stats/*": [
+      "./src/lib/cricket/generated/cricket-stats.json",
+      "./src/lib/cricket/generated/player-names.json",
+    ],
+  },
   // Security response headers, applied to every route (Phase 4 / M5–M6). All
   // are additive and app-safe. HSTS omits `preload` on purpose — `preload` is a
   // standing commitment to the browser preload list that should be an explicit
@@ -105,12 +113,17 @@ const nextConfig = {
       "https://beta.flive.dpdns.org",
       "https://dlstreams.top",
       "https://embedsports.top",
+      // Cricket servers. The watch page frames the same-origin sanitizer
+      // (/api/cricket/embed), which is covered by 'self'; these entries keep a
+      // direct frame working if the proxy is ever bypassed.
+      "https://newball.pages.dev",
+      "https://dekhobhai.pages.dev",
     ].join(" ");
     const csp = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com",
+      "img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://images.icc-cricket.com https://www.bcci.tv https://raw.githubusercontent.com",
       "font-src 'self'",
       "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co",
       "media-src 'self' blob:",
@@ -136,7 +149,27 @@ const nextConfig = {
       },
       { key: "Content-Security-Policy-Report-Only", value: csp },
     ];
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        // /api/cricket/embed returns a third-party player document inside a
+        // sandbox. The app's policy would flag its CDN scripts and stream
+        // hosts on every frame in report-only mode, for violations that can
+        // never be fixed app-side, so this path gets a permissive report-only
+        // policy of its own (last matching key wins). The route itself also
+        // sends the ENFORCED `sandbox allow-scripts` policy.
+        source: "/api/cricket/embed",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value:
+              "default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self'",
+          },
+        ],
+      },
+    ];
   },
 };
 

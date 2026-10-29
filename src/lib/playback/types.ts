@@ -119,7 +119,18 @@ export interface ProviderDescriptor {
  */
 export type ResolvedSurface =
   | { kind: "native"; servers: PlaybackServer[] }
-  | { kind: "embed"; urlTemplate: string };
+  | {
+      kind: "embed";
+      urlTemplate: string;
+      /**
+       * Optional iframe `sandbox` value. Unset for ordinary providers, whose own
+       * player is framed as-is. The cricket plan sets
+       * `allow-scripts allow-same-origin` so the proxy cannot open popups,
+       * navigate this tab or submit forms while still giving encrypted streams
+       * the real origin EME requires. Only a server-built plan should set this.
+       */
+      sandbox?: string;
+    };
 
 /** One playable provider plus its payload. */
 export interface PlaybackCandidate {

@@ -2,6 +2,7 @@
 /node_modules
 /.pnp
 .pnp.js
+.tmp/
 
 # next.js
 /.next/
@@ -44,3 +45,7 @@ docs/cineby-player-reference/
 .rea-evidence/
 
 CLAUDE.md
+.agents
+.claude
+AGENTS.md
+PROGRESS.md

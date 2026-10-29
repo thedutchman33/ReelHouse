@@ -1,0 +1,6 @@
+Country flag SVGs in this directory are from flagcdn.com (ISO 3166 country flags).
+
+Flag images on flagcdn are public domain. They are used here only as small
+identity markers next to cricket team names.
+
+Retrieved: 2026-10-28

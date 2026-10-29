@@ -29,6 +29,7 @@ export default function EmbedSurface({
   src,
   title,
   reloadKey = 0,
+  sandbox,
   onReady,
   onProgress,
   onEnded,
@@ -41,6 +42,13 @@ export default function EmbedSurface({
   title: string;
   /** Bump to force the frame to reload (retry). */
   reloadKey?: number;
+  /**
+   * Optional sandbox policy from the plan. Unset for ordinary providers so
+   * their players keep working exactly as before; the cricket proxy sets
+   * `allow-scripts allow-same-origin` — no popups, modals, forms, downloads or
+   * top navigation, but a real origin so encrypted streams can use EME.
+   */
+  sandbox?: string;
   onReady?: () => void;
   onProgress?: (seconds: number, duration: number) => void;
   onEnded?: () => void;
@@ -150,6 +158,7 @@ export default function EmbedSurface({
         // own fullscreen button silently does nothing.
         allow="encrypted-media; fullscreen *; autoplay *; picture-in-picture *"
         allowFullScreen
+        sandbox={sandbox}
         referrerPolicy="strict-origin-when-cross-origin"
         onLoad={markLoaded}
         onError={() =>

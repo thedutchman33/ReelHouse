@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import F1Dashboard from "@/components/f1/F1Dashboard";
+import SectionLiveStamp from "@/components/live/SectionLiveStamp";
 
 // The OFFICIAL Formula 1 typefaces — sourced from formula1.com's own public
 // fonts stylesheet (www.formula1.com/s/fonts.css) and self-hosted here.
@@ -52,9 +53,12 @@ export default function Formula1Page() {
             draggable={false}
             className="h-9 w-auto shrink-0 sm:h-11"
           />
-          <h1 className="font-f1 text-4xl font-bold uppercase leading-none tracking-wide text-[#e10600] sm:text-5xl">
-            Formula 1
-          </h1>
+          <div className="min-w-0">
+            <SectionLiveStamp kind="f1" />
+            <h1 className="font-f1 text-4xl font-bold uppercase leading-none tracking-wide text-[#e10600] sm:text-5xl">
+              Formula 1
+            </h1>
+          </div>
         </div>
         <p className="mt-2 text-sm text-muted">
           Race weekends, session countdowns and live driver telemetry — real OpenF1 data.

@@ -3,6 +3,7 @@ import MediaRow from "@/components/media/MediaRow";
 import ContinueWatching from "@/components/media/ContinueWatching";
 import MyFeedRow from "@/components/media/MyFeedRow";
 import ProvidersRow from "@/components/providers/ProvidersRow";
+import MoreOnReelhouse from "@/components/home/MoreOnReelhouse";
 import SafetyNotice from "@/components/common/SafetyNotice";
 import { getHeroItems, getHomeRows, getWatchProviders, isLiveMetadata } from "@/lib/tmdb";
 import type { MediaRow as RowType } from "@/types";
@@ -59,6 +60,8 @@ export default async function HomePage() {
         <ProvidersRow providers={providers} />
 
         <SafetyNotice />
+
+        <MoreOnReelhouse />
 
         <MyFeedRow />
 

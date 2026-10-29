@@ -12,14 +12,15 @@ import {
 // switch from the countdown to the live CTA never shifts the hero card.
 //
 //   locked → padlock, D/H/M/S chips counting down to 15 minutes before the start
-//   live   → red plate, LIVE NOW · <session>, WATCH LIVE, opens /watch/f1
+//   live   → red plate, LIVE NOW · <session>, WATCH LIVE, opens `watchHref`
 //   ended  → muted "session ended" plate (only when nothing else is scheduled)
 //
 // The countdown ends 15 minutes before the scheduled session so the watch page
 // opens early; the button is live from then through the session's end.
 //
-// Playback stays on ReelHouse: /watch/f1 lists the configured F1 servers in the
-// same watch-page layout used for movies and TV.
+// Playback stays on ReelHouse: the watch page lists that channel's configured
+// servers in the same layout used for movies and TV. F1 is the default href;
+// cricket passes /watch/cricket.
 
 /** A burst only plays for a transition we watched, never on first paint. */
 const BURST_GRACE_MS = 2000;
@@ -114,6 +115,8 @@ export default function WatchLiveButton({
   endISO = null,
   sessionName = null,
   demoSeconds,
+  isLive = false,
+  watchHref = "/watch/f1",
 }: {
   /** Shared page clock, so every countdown ticks on the same instant. */
   now: number;
@@ -122,9 +125,13 @@ export default function WatchLiveButton({
   /** Session end; when absent the live window assumes three hours. */
   endISO?: string | null;
   sessionName?: string | null;
+  /** A genuinely live source overrides the scheduled three-hour window. */
+  isLive?: boolean;
   /** Debug helper: pretend the session starts this many seconds out. The live
       state still begins 15 minutes before that, so values under 900 start live. */
   demoSeconds?: number;
+  /** Watch page opened by the live face. Defaults to the F1 channel page. */
+  watchHref?: string;
 }) {
   const router = useRouter();
   const [burst, setBurst] = useState(false);
@@ -162,15 +169,15 @@ export default function WatchLiveButton({
   // The whole control runs 15 minutes ahead of the scheduled start: the
   // countdown ends there and the live CTA takes over.
   const liveFrom = target - WATCH_LEAD_MS;
-  const phase: Phase = known ? watchLivePhase(now, liveFrom, endMs) : "locked";
-  const live = phase === "live";
-  const ended = phase === "ended";
+  const phase: Phase = isLive ? "live" : known ? watchLivePhase(now, liveFrom, endMs) : "locked";
+  const live = isLive || phase === "live";
+  const ended = !isLive && phase === "ended";
 
-  // Warm /watch/f1 while the button is live, so the click is a client
-  // navigation rather than a cold server round trip.
+  // Warm the channel's watch page while the button is live, so the click is a
+  // client navigation rather than a cold server round trip.
   useEffect(() => {
-    if (live) router.prefetch("/watch/f1");
-  }, [live, router]);
+    if (live) router.prefetch(watchHref);
+  }, [live, router, watchHref]);
 
   // Burst only when this component saw the countdown hit zero — a page opened
   // after the unlock renders the live face straight away.
@@ -194,17 +201,19 @@ export default function WatchLiveButton({
   ].filter((chip) => chip.key !== "d" || chip.value > 0);
 
   const what = sessionName ? `${sessionName}: ` : "";
-  const label = !known
-    ? `${what}Watch live`
-    : live
-      ? `${what}Watch live now — opens the ReelHouse watch page`
-      : ended
-        ? `${what}Session ended`
-        : `${what}Watch live in ${coarse(parts)}`;
+  const label = isLive
+    ? `${what}Watch live now — opens the ReelHouse watch page`
+    : !known
+      ? `${what}Watch live`
+      : live
+        ? `${what}Watch live now — opens the ReelHouse watch page`
+        : ended
+          ? `${what}Session ended`
+          : `${what}Watch live in ${coarse(parts)}`;
 
   const open = () => {
     if (!live) return;
-    router.push("/watch/f1");
+    router.push(watchHref);
   };
 
   const faceBase = `[grid-area:1/1] flex items-center gap-3 sm:gap-4 ${

@@ -673,31 +673,35 @@ const EARLIEST_BROWSE_YEAR = 1950;
 
 // Anime never reaches TMDB discover (its browse goes to AniList), but the
 // record is total over MediaType so the anime entry is a documented stub.
-// "f1" is live-only and likewise never reaches discover.
+// "f1" and "cricket" are live-only and likewise never reach discover.
 const SORT_FIELD: Record<BrowseSort, Record<MediaType, string>> = {
   popularity: {
     movie: "popularity.desc",
     tv: "popularity.desc",
     anime: "",
     f1: "",
+    cricket: "",
   },
   latest: {
     movie: "primary_release_date.desc",
     tv: "first_air_date.desc",
     anime: "",
     f1: "",
+    cricket: "",
   },
   oldest: {
     movie: "primary_release_date.asc",
     tv: "first_air_date.asc",
     anime: "",
     f1: "",
+    cricket: "",
   },
   rating: {
     movie: "vote_average.desc",
     tv: "vote_average.desc",
     anime: "",
     f1: "",
+    cricket: "",
   },
 };
 

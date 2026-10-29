@@ -264,10 +264,6 @@ function DashboardBody() {
         lapCount={picks.length}
       />
       <StandingsCentre />
-      <p className="text-center text-[11px] leading-relaxed text-muted/70">
-        Unofficial product of ReelHouse. Not associated with Formula 1, FIA or any team —
-        schedule, results and telemetry data from OpenF1. Session view inspired by GP Tempo.
-      </p>
     </div>
   );
 }
