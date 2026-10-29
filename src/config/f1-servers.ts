@@ -52,7 +52,7 @@ export const F1_SERVERS: readonly F1ServerConfig[] = [
   },
   {
     id: "flyembed-45",
-    name: "FlyEmbed 45",
+    name: "Fox Sports HD",
     url: "https://flyembed.cfd/embed/45.php",
     priority: 130,
   },

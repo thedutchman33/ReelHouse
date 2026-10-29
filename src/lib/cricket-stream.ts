@@ -34,9 +34,17 @@ const SHAKA_STYLES = `https://cdn.jsdelivr.net/npm/shaka-player@${SHAKA_VERSION}
 export interface CricketStreamConfig {
   /** Absolute media manifest (`.mpd` / `.m3u8`). */
   streamUrl: string;
-  /** ClearKey pair, both 32 hex characters, or nulls when unencrypted. */
-  keyId: string | null;
-  key: string | null;
+  /**
+   * Every ClearKey pair the page publishes, as `keyId → key` (lowercase hex).
+   * Empty when the stream is unencrypted.
+   *
+   * The current sources list up to five pairs in `DRM_KEYS`, and a single
+   * manifest can use different KIDs for its video and audio tracks (Star
+   * Sports: video `a1ce…`, audio `1107…`). Configuring only the first pair
+   * leaves the other track undecryptable, and playback stalls on the poster
+   * frame while the element waits in `seeking`.
+   */
+  clearKeys: Record<string, string>;
   /** Endpoint that returns `{ "cookie": "__hdnea__=…" }` for the CDN. */
   cookieUrl: string | null;
   /** Channel id used when the token endpoint returns a channel list. */
@@ -99,31 +107,29 @@ export function extractCricketStreamConfig(
   );
   if (!streamUrl) return null;
 
-  const keyId = configString(html, "keyId");
-  const key = configString(html, "key");
-  let clearKeyId = keyId;
-  let clearKey = key;
+  // Two published shapes: a single `keyId`/`key` pair, or the current
+  // `DRM_KEYS="keyId:key,..."` list. Keep every valid pair from the list —
+  // the manifest's tracks do not share one KID.
+  const clearKeys: Record<string, string> = {};
+  const addPair = (keyId: string | null, key: string | null) => {
+    if (!keyId || !key) return;
+    const id = keyId.trim().toLowerCase();
+    const value = key.trim().toLowerCase();
+    if (HEX_32.test(id) && HEX_32.test(value)) clearKeys[id] = value;
+  };
 
-  // newball's current page publishes comma-separated ClearKey pairs as
-  // `DRM_KEYS="keyId:key,..."` instead of separate keyId/key properties.
-  if (!clearKeyId || !clearKey) {
-    const drmKeys = constantString(html, "DRM_KEYS");
-    const firstPair = drmKeys?.split(",")[0]?.trim();
-    const separator = firstPair?.indexOf(":") ?? -1;
-    if (separator > 0) {
-      clearKeyId = firstPair!.slice(0, separator).trim();
-      clearKey = firstPair!.slice(separator + 1).trim();
-    }
+  addPair(configString(html, "keyId"), configString(html, "key"));
+
+  const drmKeys = constantString(html, "DRM_KEYS");
+  for (const pair of drmKeys?.split(",") ?? []) {
+    const separator = pair.indexOf(":");
+    if (separator <= 0) continue;
+    addPair(pair.slice(0, separator), pair.slice(separator + 1));
   }
-
-  const hasClearKey = Boolean(
-    clearKeyId && clearKey && HEX_32.test(clearKeyId) && HEX_32.test(clearKey)
-  );
 
   return {
     streamUrl,
-    keyId: hasClearKey ? clearKeyId! : null,
-    key: hasClearKey ? clearKey! : null,
+    clearKeys,
     cookieUrl: httpsUrl(
       sourceString(html, "cookieUrl", "COOKIE_JSON_URL")
     ),
@@ -179,8 +185,7 @@ function scriptJson(value: unknown): string {
 export function renderCricketPlayerPage(config: CricketStreamConfig): string {
   const inline = scriptJson({
     streamUrl: config.streamUrl,
-    keyId: config.keyId,
-    key: config.key,
+    clearKeys: config.clearKeys,
     cookieUrl: config.cookieUrl,
     channelId: config.channelId,
     token: config.token ?? null,
@@ -221,7 +226,9 @@ export function renderCricketPlayerPage(config: CricketStreamConfig): string {
     if (shaka.ui) { new shaka.ui.Overlay(player, container, video); }
 
     var drm = {};
-    if (CONFIG.keyId && CONFIG.key) { drm.clearKeys = {}; drm.clearKeys[CONFIG.keyId] = CONFIG.key; }
+    if (CONFIG.clearKeys && Object.keys(CONFIG.clearKeys).length) {
+      drm.clearKeys = CONFIG.clearKeys;
+    }
 
     player.configure({
       drm: drm,

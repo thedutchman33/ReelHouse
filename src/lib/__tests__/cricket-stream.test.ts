@@ -53,8 +53,7 @@ describe("cricket stream config extraction", () => {
     expect(extractCricketStreamConfig(PLAYER_PAGE)).toEqual({
       streamUrl:
         "https://jiotvmblive.cdn.jio.com/bpk-tv/Ten_3_MOB/WDVLive/index.mpd",
-      keyId: KEY_ID,
-      key: KEY,
+      clearKeys: { [KEY_ID]: KEY },
       cookieUrl: "https://allrounder2-0.pages.dev/api/Sony-3.json",
       channelId: null,
     });
@@ -68,10 +67,26 @@ describe("cricket stream config extraction", () => {
     `);
     expect(config).toEqual({
       streamUrl: "https://cdn.test/live/index.mpd",
-      keyId: KEY_ID,
-      key: KEY,
+      clearKeys: { [KEY_ID]: KEY },
       cookieUrl: "https://token.test/sports.json",
       channelId: null,
+    });
+  });
+
+  it("keeps EVERY ClearKey pair, not just the first", () => {
+    // The Star Sports manifest encrypts video and audio with different KIDs;
+    // dropping the later pairs stalls playback on the poster frame.
+    const videoId = "a1ce6b9514f35174bda80ddd425bfd88";
+    const videoKey = "5c5e158724eced92f92ca8286fb28fd9";
+    const audioId = "11073b8f426e5092a2effada3bfaf721";
+    const audioKey = "5d1c59a8052956bd056810f260161e5f";
+    const config = extractCricketStreamConfig(`
+      const STREAM_URL = "https://cdn.test/live/index.mpd";
+      const DRM_KEYS = "${videoId.toUpperCase()}:${videoKey.toUpperCase()},${audioId}:${audioKey}";
+    `);
+    expect(config?.clearKeys).toEqual({
+      [videoId]: videoKey,
+      [audioId]: audioKey,
     });
   });
 
@@ -96,14 +111,12 @@ describe("cricket stream config extraction", () => {
     const halfKey = extractCricketStreamConfig(
       `CONFIG={streamUrl:"https://cdn.test/a.mpd",keyId:"${KEY_ID}"}`
     );
-    expect(halfKey?.keyId).toBeNull();
-    expect(halfKey?.key).toBeNull();
+    expect(halfKey?.clearKeys).toEqual({});
 
     const malformed = extractCricketStreamConfig(
       `CONFIG={streamUrl:"https://cdn.test/a.mpd",keyId:"${KEY_ID}",key:"not-a-key"}`
     );
-    expect(malformed?.keyId).toBeNull();
-    expect(malformed?.key).toBeNull();
+    expect(malformed?.clearKeys).toEqual({});
   });
 
   it("keeps a manifest with no DRM or token endpoint", () => {
@@ -111,8 +124,7 @@ describe("cricket stream config extraction", () => {
       extractCricketStreamConfig(`CONFIG={streamUrl:"https://cdn.test/a.m3u8"}`)
     ).toEqual({
       streamUrl: "https://cdn.test/a.m3u8",
-      keyId: null,
-      key: null,
+      clearKeys: {},
       cookieUrl: null,
       channelId: null,
     });
@@ -191,8 +203,7 @@ describe("embed document selection", () => {
 describe("first-party player document", () => {
   const html = renderCricketPlayerPage({
     streamUrl: "https://cdn.test/a.mpd",
-    keyId: KEY_ID,
-    key: KEY,
+    clearKeys: { [KEY_ID]: KEY },
       cookieUrl: "https://cdn.test/token.json",
       channelId: "H1HD",
       token: "__hdnea__=test",
@@ -215,8 +226,7 @@ describe("first-party player document", () => {
   it("escapes markup inside the injected config", () => {
     const hostile = renderCricketPlayerPage({
       streamUrl: "https://cdn.test/a.mpd</script><script>alert(1)</script>",
-      keyId: null,
-      key: null,
+      clearKeys: {},
       cookieUrl: null,
     });
     expect(hostile).not.toContain("</script><script>alert(1)");
