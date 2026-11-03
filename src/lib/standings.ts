@@ -14,6 +14,11 @@
  * `points` come straight from the provider's standings endpoint.
  */
 
+import championSeasons from "./f1-champions.json";
+
+/** Worlds Drivers' Championship seasons since 1950, by driver id. */
+const TITLE_YEARS = championSeasons as Record<string, number[]>;
+
 const BASE = process.env.JOLPICA_BASE ?? "https://api.jolpi.ca/ergast/f1";
 const PAGE = 100;
 const SEASON_TTL = 10 * 60_000;
@@ -97,6 +102,11 @@ export interface DriverRef {
   colour: string;
   /** F1 media portrait, resolved for every season (null when unavailable). */
   headshotUrl: string | null;
+  /** Full-height current-season cutout for the directory cards (null when
+   *  the official asset is unavailable). */
+  portraitUrl?: string | null;
+  /** Seasons the driver won the world championship (empty for none). */
+  championships: number[];
 }
 
 export interface TeamRef {
@@ -123,6 +133,24 @@ export interface StandingRow {
   gap: number;
   /** Places gained (+) or lost (−) since the previous round; null on round 1. */
   change: number | null;
+}
+
+/**
+ * A drivers' title that is already mathematically decided: no rival can reach
+ * the leader's total with the points still on offer.
+ */
+export interface ChampionRef {
+  driverId: string;
+  name: string;
+  code: string;
+  teamId: string;
+  teamName: string;
+  colour: string;
+  headshotUrl: string | null;
+  points: number;
+  wins: number;
+  /** The last round that has been scored. */
+  round: number;
 }
 
 export interface RoundInfo {
@@ -198,6 +226,8 @@ export interface SeasonCards {
 export interface SeasonPayload {
   season: number;
   rounds: RoundInfo[];
+  /** Drivers' champion once the title is clinched; null while it is open. */
+  champion: ChampionRef | null;
   drivers: DriverRef[];
   teams: TeamRef[];
   driverStandings: StandingRow[];
@@ -481,6 +511,7 @@ function assemble(season: number, raw: SeasonRaw): SeasonPayload {
       teamName: meta.name,
       colour: meta.colour,
       headshotUrl: null,
+      championships: TITLE_YEARS[d.driverId] ?? [],
     };
   });
   // Team-mates share a constructor colour in the provider data. Give the
@@ -954,9 +985,38 @@ function assemble(season: number, raw: SeasonRaw): SeasonPayload {
     }))
     .sort((a, b) => a.round - b.round);
 
+  // A title is decided when the leader's margin is larger than every point a
+  // rival could still take: 25 per Grand Prix and 8 per remaining sprint.
+  const remainingRounds = rounds.filter((r) => !r.complete);
+  const remainingSprints = remainingRounds.filter((r) => r.sprint).length;
+  const pointsAvailable = remainingRounds.length * 25 + remainingSprints * 8;
+  const leader = driverStandings[0];
+  const runnerUp = driverStandings[1];
+  // A fully scored season is decided by the official classification, even if
+  // the top two finished level on points and countback separated them.
+  const decided =
+    remainingRounds.length === 0 ||
+    (runnerUp != null && leader != null && leader.points - runnerUp.points > pointsAvailable);
+  const champion: ChampionRef | null =
+    leader && decided
+      ? {
+          driverId: leader.id,
+          name: leader.name,
+          code: leader.code,
+          teamId: leader.teamId,
+          teamName: leader.teamName,
+          colour: leader.colour,
+          headshotUrl: leader.headshotUrl,
+          points: leader.points,
+          wins: leader.wins,
+          round: raw.round || rounds.filter((r) => r.complete).length,
+        }
+      : null;
+
   return {
     season,
     rounds,
+    champion,
     drivers,
     teams,
     driverStandings,
@@ -1000,6 +1060,56 @@ let headshotCache: { at: number; byName: Map<string, string> } | null = null;
 /** Positive lookups are permanent; a miss is retried after half an hour so a
  *  transient CDN failure cannot hide a portrait for the process lifetime. */
 const portraitCache = new Map<string, { url: string | null; at: number }>();
+
+/**
+ * The current grid's portraits live in F1's own 2026 media library, keyed by
+ * team and driver code. OpenF1's roster only knows the session it was captured
+ * in, so its photos lag a transfer by a season (a driver still in last year's
+ * suit). These assets are this year's cutouts — and, cropped to the face, they
+ * also replace the soft 93px feed thumbnails with a sharp square portrait.
+ */
+const F1_MEDIA = "https://media.formula1.com/image/upload";
+const F1_ASSET_VERSION = "v1740000001";
+const F1_PORTRAIT_FALLBACK =
+  "d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp";
+
+/** Normalise a constructor name to its folder in the media library. */
+function teamSlug(teamName: string): string | null {
+  const key = teamName.toLowerCase().replace(/[^a-z]/g, "");
+  if (!key) return null;
+  if (key.includes("redbull")) return "redbullracing";
+  if (key.includes("racingbull") || key === "rb" || key.includes("visacash")) return "racingbulls";
+  if (key.includes("aston")) return "astonmartin";
+  if (key.includes("haas")) return "haasf1team";
+  if (key.includes("audi") || key.includes("sauber") || key.includes("kick")) return "audi";
+  if (key.includes("cadillac")) return "cadillac";
+  if (key.includes("mercedes")) return "mercedes";
+  if (key.includes("ferrari")) return "ferrari";
+  if (key.includes("mclaren")) return "mclaren";
+  if (key.includes("williams")) return "williams";
+  if (key.includes("alpine")) return "alpine";
+  return null;
+}
+
+/** Current-season portraits for a driver, when their team is known. */
+function officialPortraits(
+  season: number,
+  givenName: string,
+  familyName: string,
+  teamName: string
+): { headshot: string; portrait: string } | null {
+  if (season !== 2026) return null;
+  const slug = teamSlug(teamName);
+  const given = stripName(givenName).slice(0, 3).toLowerCase();
+  const family = stripName(familyName).slice(0, 3).toLowerCase();
+  if (!slug || given.length < 3 || family.length < 3) return null;
+  const file = `${given}${family}01`;
+  const path = `common/f1/${season}/${slug}/${file}/${season}${slug}${file}right.webp`;
+  return {
+    headshot: `${F1_MEDIA}/c_fill,w_360,h_360,g_auto:face/q_auto/${F1_PORTRAIT_FALLBACK}/${F1_ASSET_VERSION}/${path}`,
+    portrait: `${F1_MEDIA}/c_lfill,w_720/q_auto/${F1_PORTRAIT_FALLBACK}/${F1_ASSET_VERSION}/${path}`,
+  };
+}
 
 /** Strip accents and punctuation so "Pérez" becomes the CDN's "Perez". */
 function stripName(value: string): string {
@@ -1096,9 +1206,16 @@ async function attachHeadshots(data: SeasonPayload): Promise<void> {
     );
   }
 
-  for (const d of data.drivers) d.headshotUrl = lookup(d) ?? found.get(d.id) ?? null;
+  for (const d of data.drivers) {
+    // The official cutout wins: it is this season's suit, and the face crop is
+    // sharper than the feed's thumbnail.
+    const official = officialPortraits(data.season, d.givenName, d.familyName, d.teamName);
+    d.headshotUrl = official?.headshot ?? lookup(d) ?? found.get(d.id) ?? null;
+    d.portraitUrl = official?.portrait ?? null;
+  }
   const byDriver = new Map(data.drivers.map((d) => [d.id, d.headshotUrl]));
   for (const row of data.driverStandings) row.headshotUrl = byDriver.get(row.id) ?? null;
+  if (data.champion) data.champion.headshotUrl = byDriver.get(data.champion.driverId) ?? null;
 }
 
 export async function getSeasonPayload(season: number): Promise<SeasonPayload> {

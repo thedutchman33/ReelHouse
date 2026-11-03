@@ -228,6 +228,8 @@ export default function CricketDashboard() {
     featuredEndedAt === undefined
       ? null
       : new Date(featuredEndedAt + MATCH_WATCH_GRACE_MS).toISOString();
+  // The match-centre picker lists the whole season, not just the recent page:
+  // every fixture and result the BCCI feed carries for the year stays selectable.
   const scorecardPool = applyEndedWindow(
     mergeMatches(
       {
@@ -238,9 +240,7 @@ export default function CricketDashboard() {
     ),
     endedAt,
     now
-  )
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 24);
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   // A calendar card can point at a result older than the recent-match window.
   // Keep that match in the list so the match centre can actually select it.
   const requestedMatch = requested

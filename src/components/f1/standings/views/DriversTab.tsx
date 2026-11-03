@@ -9,6 +9,7 @@ import {
   type LineSeries,
 } from "@/components/f1/standings/charts";
 import PointsMatrix, { MatrixLegend } from "@/components/f1/standings/matrix";
+import DriverDirectory from "@/components/f1/standings/DriverDirectory";
 import Editorial from "@/components/f1/standings/views/Editorial";
 import {
   EmptyState,
@@ -147,7 +148,12 @@ export default function DriversTab({
         <Panel title={`${season} F1 Driver Standings`} exportName={`f1-${season}-driver-standings`}>
           {payload.driverStandings.length ? (
             <>
-              <StandingsTable rows={payload.driverStandings} variant="driver" season={season} />
+              <StandingsTable
+                rows={payload.driverStandings}
+                variant="driver"
+                season={season}
+                championId={payload.champion?.driverId}
+              />
               <p className="mt-3 text-[10px] leading-relaxed text-white/30">
                 {completed} of {roundCount} rounds scored. Evo. is the points gap to the leader.
               </p>
@@ -247,6 +253,8 @@ export default function DriversTab({
         )}
       </Panel>
 
+      <DriverDirectory payload={payload} />
+
       {/* ----------------------------- editorial ----------------------------- */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="How to Read Championship Standings">
@@ -300,19 +308,39 @@ export default function DriversTab({
         <Panel title={`${season} World Championship`}>
           {leader ? (
             <div className="space-y-3 text-[12px] leading-relaxed text-white/55">
-              <p>
-                <span className="font-bold text-white">{leader.name}</span> leads the {season} drivers&apos;
-                championship on <span className="font-bold tabular-nums text-white">{pointsFmt(leader.points)}</span> points
-                with {winsLeader} {winsLeader === 1 ? "win" : "wins"} from {completed}{" "}
-                {completed === 1 ? "round" : "rounds"}.
-              </p>
-              {second && (
-                <p>
-                  {second.name} is second, <span className="tabular-nums text-white/80">{gapFmt(second.points - leader.points)}</span>{" "}
-                  behind. {remaining > 0
-                    ? `${remaining} rounds remain, with 25 points still available for each Grand Prix win and a further eight for a sprint win.`
-                    : "Every round has been scored, so the table is final."}
+              {payload.champion ? (
+                <p className="rounded-lg border border-[#d9af6b]/30 bg-[#d9af6b]/[0.08] px-3 py-2.5 text-white">
+                  <span className="font-bold text-[#f0cd92]">{payload.champion.name}</span> is the{" "}
+                  {season} Formula 1 world champion, clinched after round {payload.champion.round} with{" "}
+                  <span className="font-bold tabular-nums text-white">{pointsFmt(payload.champion.points)}</span>{" "}
+                  points and {payload.champion.wins} {payload.champion.wins === 1 ? "win" : "wins"}.
                 </p>
+              ) : (
+                <p>
+                  <span className="font-bold text-white">{leader.name}</span> leads the {season} drivers&apos;
+                  championship on <span className="font-bold tabular-nums text-white">{pointsFmt(leader.points)}</span> points
+                  with {winsLeader} {winsLeader === 1 ? "win" : "wins"} from {completed}{" "}
+                  {completed === 1 ? "round" : "rounds"}.
+                </p>
+              )}
+              {second && (
+                payload.champion ? (
+                  <p>
+                    {second.name} is the nearest rival,{" "}
+                    <span className="tabular-nums text-white/80">
+                      {pointsFmt(second.points - payload.champion.points)}
+                    </span>{" "}
+                    points back
+                    {remaining > 0 ? ` with ${remaining} rounds still to run.` : ", with every round scored."}
+                  </p>
+                ) : (
+                  <p>
+                    {second.name} is second, <span className="tabular-nums text-white/80">{gapFmt(second.points - leader.points)}</span>{" "}
+                    behind. {remaining > 0
+                      ? `${remaining} rounds remain, with 25 points still available for each Grand Prix win and a further eight for a sprint win.`
+                      : "Every round has been scored, so the table is final."}
+                  </p>
+                )
               )}
               <p className="text-white/40">
                 Sources: Jolpica F1 (Ergast successor) championship classification, race, sprint and qualifying

@@ -50,6 +50,8 @@ docs/cineby-player-reference/
 
 CLAUDE.md
 .agents
-.claude
+.claude/
 AGENTS.md
 PROGRESS.md
+.freebuff
+brag-output

@@ -1,6 +1,10 @@
 import type { CricketDashboardData, CricketMatch } from "@/lib/cricket/types";
 import { MATCH_WATCH_GRACE_MS } from "@/lib/cricket/watch-window";
-import { WATCH_LEAD_MS, watchLivePhase } from "@/components/f1/watch-live-phase";
+import {
+  SESSION_WATCH_GRACE_MS,
+  WATCH_LEAD_MS,
+  watchLivePhase,
+} from "@/components/f1/watch-live-phase";
 import type { F1Round, F1Schedule, F1Session } from "@/lib/f1";
 
 // ---------------------------------------------------------------------------
@@ -9,12 +13,20 @@ import type { F1Round, F1Schedule, F1Session } from "@/lib/f1";
 // One window is exactly the period in which the section's Watch Live button is
 // unlocked, so the navbar LIVE badge and the home hero poster can never drift
 // from the button itself: 15 minutes before the scheduled start through the
-// session/match end. The rules mirror WatchLiveButton / MatchHero.
+// session end plus the 30-minute post-session watch grace (cricket applies the
+// grace from the match's real end when the feed publishes it). The rules mirror
+// WatchLiveButton / MatchHero.
 //
 // The type-only imports above are erased at build time; this module is safe to
 // import from a client component even though the F1 and cricket data layers are
 // server-only.
 // ---------------------------------------------------------------------------
+
+export interface LiveWindowTeam {
+  name: string;
+  abbreviation: string;
+  primary: string;
+}
 
 export interface LiveWindow {
   kind: "f1" | "cricket";
@@ -29,8 +41,14 @@ export interface LiveWindow {
   title: string;
   subtitle: string;
   details: string[];
-  /** Circuit art for F1; cricket has no match photo. */
-  imageUrl: string | null;
+  /**
+   * Official event artwork for the hero poster. F1 is filled by /api/live from
+   * the official race card; cricket has no public per-match poster, so its
+   * slide composes the artwork from `teams` instead.
+   */
+  posterUrl: string | null;
+  /** The two sides of a cricket match, used to compose its hero poster. */
+  teams?: LiveWindowTeam[];
 }
 
 export interface LiveFeed {
@@ -53,7 +71,21 @@ export function nextF1Session(
   const entries = schedule.rounds
     .flatMap((round) => round.sessions.map((session) => ({ session, round })))
     .sort((a, b) => Date.parse(a.session.date_start) - Date.parse(b.session.date_start));
-  return entries.find(({ session }) => sessionEnd(session) >= now) ?? null;
+
+  // A session in progress always wins. Otherwise the most recently finished
+  // session stays featured through its 30-minute watch grace; only after that
+  // does the next scheduled session take over.
+  const live = entries.find(({ session }) => {
+    const start = Date.parse(session.date_start);
+    return start <= now && sessionEnd(session) >= now;
+  });
+  if (live) return live;
+
+  return (
+    entries.find(
+      ({ session }) => sessionEnd(session) + SESSION_WATCH_GRACE_MS >= now
+    ) ?? null
+  );
 }
 
 /** Reproduce the F1 hero's Watch Live window for the current clock. */
@@ -76,12 +108,14 @@ export function f1LiveWindow(schedule: F1Schedule, now: number): LiveWindow | nu
     kind: "f1",
     href: "/watch/f1",
     liveFrom: new Date(start - WATCH_LEAD_MS).toISOString(),
-    endsAt: new Date(sessionEnd(session)).toISOString(),
+    // The button stays unlocked for the same grace period, so the home poster
+    // and navbar badge hold the finished session too.
+    endsAt: new Date(sessionEnd(session) + SESSION_WATCH_GRACE_MS).toISOString(),
     isLive: false,
     title: round.meeting.meeting_name,
     subtitle: `${session.session_name} · Round ${roundIndex + 1} of ${schedule.rounds.length}`,
     details,
-    imageUrl: round.meeting.circuit_image ?? null,
+    posterUrl: null,
   };
 }
 
@@ -144,7 +178,14 @@ export function cricketLiveWindow(
       `${match.format} · ${match.venue}`,
       match.status === "upcoming" ? "" : (match.result ?? ""),
     ].filter(Boolean),
-    imageUrl: null,
+    posterUrl: null,
+    // BCCI publishes no per-match poster image in its public feeds. The two
+    // official team flags/colours are the match-specific art the hero can use.
+    teams: [opponent, india].map((team) => ({
+      name: team.name,
+      abbreviation: team.abbreviation,
+      primary: team.primary,
+    })),
   };
 }
 

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getF1Schedule } from "@/lib/f1";
 import { getCricketDashboard } from "@/lib/cricket";
-import { cricketLiveWindow, f1LiveWindow, type LiveFeed } from "@/lib/live-windows";
+import { f1RacePoster } from "@/lib/live-posters";
+import {
+  cricketLiveWindow,
+  f1LiveWindow,
+  windowIsLive,
+  type LiveFeed,
+} from "@/lib/live-windows";
 
 // The navbar's LIVE badge and the home hero's live posters both read this. It is
 // deliberately small: just the next F1 session and the featured cricket match,
@@ -25,6 +31,19 @@ export async function GET() {
     cricket:
       cricket.status === "fulfilled" ? cricketLiveWindow(cricket.value, now) : null,
   };
+
+  // The live hero's F1 slide carries the official race-weekend artwork for the
+  // round its Watch Live button is pointing at. Only resolved while that button
+  // is actually unlocked; the fetch itself is cached for six hours, and a miss
+  // leaves the branded fallback in place.
+  if (
+    feed.f1 &&
+    windowIsLive(feed.f1, now) &&
+    schedule.status === "fulfilled" &&
+    schedule.value
+  ) {
+    feed.f1.posterUrl = await f1RacePoster(schedule.value, now);
+  }
 
   return NextResponse.json(feed, {
     headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=90" },

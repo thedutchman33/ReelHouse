@@ -404,7 +404,11 @@ export default function ResultsCentre({ schedule, picks, onPicksChange, presetSe
           </span>
           <span className="relative block">
             <select
-              value={currentMeeting?.meeting_key ?? ""}
+              value={
+                currentMeeting?.meeting_key ??
+                (sessionKey != null ? meetingOfSession(sessionKey)?.meeting_key : undefined) ??
+                ""
+              }
               onChange={(e) => {
                 const mk = Number(e.target.value);
                 const first = sessionsOfMeeting(mk)[0];

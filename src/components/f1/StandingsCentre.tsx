@@ -76,6 +76,14 @@ export default function StandingsCentre() {
     return () => controller.abort();
   }, [season, attempt]);
 
+  // The section nav's Drivers stop points at the directory, which lives in the
+  // Drivers tab — bring it forward before the jump scrolls.
+  useEffect(() => {
+    const openDrivers = () => setTab("drivers");
+    window.addEventListener("f1:open-drivers", openDrivers);
+    return () => window.removeEventListener("f1:open-drivers", openDrivers);
+  }, []);
+
   const onTabKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     const i = TABS.findIndex((t) => t.key === tab);
     let next: Tab | null = null;
@@ -139,6 +147,31 @@ export default function StandingsCentre() {
           </Selector>
         </div>
       </header>
+
+      {payload?.champion && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9af6b]/30 bg-[linear-gradient(100deg,rgba(217,175,107,0.16),rgba(225,6,0,0.08)_55%,rgba(0,0,0,0.25))] px-3.5 py-2.5 shadow-[0_10px_32px_-22px_rgb(217_175_107/0.6)]">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#d9af6b]/40 bg-[#d9af6b]/10 text-[#d9af6b]">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+              <path d="M6 4h12v3a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V4Zm-2 1h1v2H4a2 2 0 0 1 0-2Zm15 0a2 2 0 0 1 0 2h-1V5h1ZM11 13h2v4h3.5l1 4h-11l1-4H11v-4Z" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-[#d9af6b]">
+              {season} World Champion
+            </p>
+            <p className="truncate font-f1 text-[17px] font-bold uppercase leading-tight tracking-wide text-white">
+              {payload.champion.name}
+            </p>
+          </div>
+          <p className="ml-auto text-right text-[10.5px] font-semibold uppercase leading-tight tracking-[0.12em] text-white/45">
+            {payload.champion.teamName}
+            <span className="block tabular-nums text-white/35">
+              {payload.champion.points} pts · {payload.champion.wins} wins · after round{" "}
+              {payload.champion.round}
+            </span>
+          </p>
+        </div>
+      )}
 
       <div className="mb-4 flex items-center gap-3">
         <div

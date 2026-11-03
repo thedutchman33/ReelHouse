@@ -224,6 +224,15 @@ export function opponentTeam(match: CricketMatch): CricketTeam {
   return match.teams.find((team) => team.id !== india.id) ?? match.teams[1] ?? match.teams[0];
 }
 
+/**
+ * BCCI lists the host side first. India second therefore means a tour abroad
+ * (neutral-venue tournaments still list India first and read as home).
+ */
+export function isAwayMatch(match: CricketMatch): boolean {
+  const india = indiaTeam(match);
+  return match.teams.length > 1 && match.teams[0]?.id !== india.id;
+}
+
 export function playerNameKey(name: string): string {
   return name
     .toLowerCase()

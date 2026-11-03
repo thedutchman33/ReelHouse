@@ -6,6 +6,7 @@ import WatchLiveButton from "@/components/f1/WatchLiveButton";
 import ResultsCentre from "@/components/f1/ResultsCentre";
 import TelemetryCentre from "@/components/f1/TelemetryCentre";
 import SessionTabs from "@/components/f1/SessionTabs";
+import RaceDetails from "@/components/f1/RaceDetails";
 import SessionRecords from "@/components/f1/SessionRecords";
 import StandingsCentre from "@/components/f1/StandingsCentre";
 import CircuitMap3D from "@/components/f1/CircuitMap3D";
@@ -15,6 +16,8 @@ import {
   useSessionTime,
 } from "@/components/f1/timezone";
 import type { F1LapPick, F1Round, F1Schedule, F1Session } from "@/lib/f1";
+import { nextF1Session } from "@/lib/live-windows";
+import { SESSION_WATCH_GRACE_MS } from "@/components/f1/watch-live-phase";
 
 // ---------------------------------------------------------------------------
 // Formula 1 dashboard (the /f1 page). Palette: red / white / black / grey /
@@ -71,9 +74,16 @@ function fmtAgo(ms: number): string {
 
 type SessionStatus = "completed" | "live" | "next" | "scheduled";
 
+/** Scheduled session end, with the same three-hour fallback the button uses. */
+function sessionEndMs(s: F1Session): number {
+  const start = new Date(s.date_start).getTime();
+  const end = s.date_end ? new Date(s.date_end).getTime() : NaN;
+  return Number.isFinite(end) ? end : start + 3 * 3600_000;
+}
+
 function sessionStatus(s: F1Session, next: F1Session | null, now: number): SessionStatus {
   const start = new Date(s.date_start).getTime();
-  const end = s.date_end ? new Date(s.date_end).getTime() : start + 2 * 3600_000;
+  const end = sessionEndMs(s);
   if (now > end) return "completed";
   if (now >= start && now <= end) return "live";
   if (next && s.session_key === next.session_key) return "next";
@@ -100,13 +110,26 @@ function DashboardBody() {
   const [picks, setPicks] = useState<F1LapPick[]>(readStoredPicks);
   /** Session-records hand-off: the centre loads this session when it lands. */
   const [preset, setPreset] = useState<{ key: number; nonce: number } | null>(null);
+  /** Season-calendar hand-off: the analytics deck opens this weekend. */
+  const [analyticsFocus, setAnalyticsFocus] = useState<{ key: number; nonce: number } | null>(null);
   const nonceRef = useRef(0);
+  const focusNonceRef = useRef(0);
   /** Whether a good schedule has ever landed (a failed poll isn't an outage). */
   const hasDataRef = useRef(false);
 
   const openSession = useCallback((key: number) => {
     nonceRef.current += 1;
     setPreset({ key, nonce: nonceRef.current });
+  }, []);
+
+  /** A finished round in the season calendar opens that GP's race in the
+   *  Analytics deck and scrolls the reader to the analytics section. */
+  const openRaceAnalytics = useCallback((target: F1Round) => {
+    focusNonceRef.current += 1;
+    setAnalyticsFocus({ key: target.meeting.meeting_key, nonce: focusNonceRef.current });
+    window.setTimeout(() => {
+      document.getElementById("f1-analytics")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   }, []);
 
   const load = useCallback(async () => {
@@ -163,19 +186,21 @@ function DashboardBody() {
     return <DashboardSkeleton />;
   }
 
-  // The event the hero tracks: the first session that hasn't finished, so the
-  // Watch Live control rolls onto the next countdown at the scheduled end.
-  const next =
+  // The hero tracks the live session and holds the just-finished one for its
+  // 30-minute watch grace, so Watch Live does not roll onto the next countdown
+  // the instant the session ends.
+  const picked = nextF1Session(schedule, now);
+  const next = picked?.session ?? schedule.nextSession;
+  const round =
+    picked?.round ?? schedule.rounds[schedule.nextRoundIndex] ?? null;
+
+  // The weekend strip still points at the true next session (no grace): the
+  // session that just finished reads as done, and the upcoming one as next.
+  const upcoming =
     schedule.rounds
       .flatMap((r) => r.sessions)
       .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime())
-      .find((s) => new Date(s.date_end ?? s.date_start).getTime() >= now) ??
-    schedule.nextSession;
-  const round =
-    (next &&
-      schedule.rounds.find((r) => r.sessions.some((s) => s.session_key === next.session_key))) ||
-    schedule.rounds[schedule.nextRoundIndex] ||
-    null;
+      .find((s) => sessionEndMs(s) >= now) ?? schedule.nextSession;
   const agoLabel = lastUpdated == null ? "not yet updated" : fmtAgo(now - lastUpdated);
 
   return (
@@ -238,8 +263,14 @@ function DashboardBody() {
       )}
 
       {round && next && <NextRaceCard round={round} next={next} schedule={schedule} now={now} />}
-      {round && next && (
-        <NextUpCalendarCard schedule={schedule} round={round} next={next} now={now} />
+      {round && upcoming && (
+        <NextUpCalendarCard
+          schedule={schedule}
+          round={round}
+          next={upcoming}
+          now={now}
+          onOpenRace={openRaceAnalytics}
+        />
       )}
       {round && (
         <SessionRecords
@@ -247,6 +278,7 @@ function DashboardBody() {
           round={round}
           now={now}
           onOpenSession={openSession}
+          focus={analyticsFocus}
         />
       )}
       <SessionTabs
@@ -282,6 +314,12 @@ function NextRaceCard({
   now: number;
 }) {
   const m = round.meeting;
+  const roundNumber =
+    schedule.rounds.findIndex((entry) => entry.meeting.meeting_key === m.meeting_key) + 1;
+  const startMs = Date.parse(next.date_start);
+  const endMs = sessionEndMs(next);
+  const liveNow = now >= startMs && now <= endMs;
+  const inGrace = now > endMs && now <= endMs + SESSION_WATCH_GRACE_MS;
   const { dayRange } = useSessionTime();
   return (
     <section className="f1-card relative overflow-hidden rounded-2xl p-5 md:p-8">
@@ -289,7 +327,7 @@ function NextRaceCard({
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="rounded-full bg-[#e10600]/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#ff5347]">
-              <span aria-hidden="true">◆ </span>Round {schedule.nextRoundIndex + 1} of{" "}
+              <span aria-hidden="true">◆ </span>Round {roundNumber || schedule.nextRoundIndex + 1} of{" "}
               {schedule.rounds.length}
             </span>
             {m.country_flag && (
@@ -313,6 +351,7 @@ function NextRaceCard({
                 now={now}
                 targetISO={next.date_start}
                 endISO={next.date_end}
+                graceMs={SESSION_WATCH_GRACE_MS}
                 sessionName={next.session_name}
               />
             </div>
@@ -324,15 +363,20 @@ function NextRaceCard({
 
           <div className="mt-6 w-full max-w-md">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.22em] text-white/50">
-              {next.session_name} in
+              {liveNow ? "Live session" : inGrace ? "Session ended" : `${next.session_name} in`}
             </p>
-            <CountdownCells target={next.date_start} now={now} />
+            {liveNow || inGrace ? (
+              <LiveSessionPanel session={next} live={liveNow} />
+            ) : (
+              <CountdownCells target={next.date_start} now={now} />
+            )}
           </div>
         </div>
 
-        {/* Circuit map — REAL track geometry, extruded into a 3D plate */}
+        {/* Circuit map — the calendar sheet's sector plate, with its HUD */}
         <div className="flex w-[230px] shrink-0 flex-col items-center sm:w-[280px] lg:w-[330px] xl:w-[380px]">
           <CircuitMap3D
+            variant="sectors"
             circuitInfoUrl={m.circuit_info_url}
             circuitImage={m.circuit_image}
             name={m.circuit_short_name ?? m.location}
@@ -351,6 +395,47 @@ function NextRaceCard({
   );
 }
 
+/**
+ * The hero's countdown slot while the session is running (or its 30-minute
+ * watch grace is open). It spans the countdown's four columns and uses the same
+ * single-cell padding, so the hero card keeps its exact height.
+ */
+function LiveSessionPanel({ session, live }: { session: F1Session; live: boolean }) {
+  return (
+    <div
+      role="status"
+      aria-label={`${session.session_name} ${
+        live ? "live now" : "has ended; watch live remains open"
+      }`}
+      className="grid grid-cols-4 gap-2 sm:gap-3"
+    >
+      <div className="nm-inset col-span-4 flex items-center justify-between gap-3 rounded-xl px-3 py-3 sm:py-4">
+        <div className="min-w-0 text-left">
+          <div
+            className={`flex items-center gap-2 font-f1 text-3xl font-bold leading-none sm:text-[44px] ${
+              live ? "text-[#e10600]" : "text-white/60"
+            }`}
+          >
+            {live && (
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 animate-pulse rounded-full bg-[#e10600]"
+              />
+            )}
+            {live ? "LIVE" : "ENDED"}
+          </div>
+          <div className="mt-1.5 truncate text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/70">
+            {session.session_name}
+          </div>
+        </div>
+        <p className="max-w-[42%] text-right text-[10px] font-bold uppercase leading-tight tracking-[0.14em] text-white/40">
+          {live ? "Live timing below" : "Watch live open"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------ next up + calendar --------------------------
 
 const STATUS_STYLES: Record<SessionStatus, string> = {
@@ -365,14 +450,19 @@ function NextUpCalendarCard({
   round,
   next,
   now,
+  onOpenRace,
 }: {
   schedule: F1Schedule;
   /** The weekend the hero is pointing at (drives the session strip). */
   round: F1Round;
   next: F1Session;
   now: number;
+  /** Finished rounds jump into the analytics deck. */
+  onOpenRace: (target: F1Round) => void;
 }) {
   const { dateTime, dayMonth } = useSessionTime();
+  /** The upcoming round whose circuit sheet is open. */
+  const [details, setDetails] = useState<F1Round | null>(null);
   // The whole weekend — FP1 → Race (or the sprint layout) — not just the next
   // three sessions anywhere on the calendar.
   const weekend = round.sessions.map((session) => ({ session, meeting: round.meeting }));
@@ -621,12 +711,30 @@ function NextUpCalendarCard({
             const raceEnd = new Date(r.race.date_end ?? r.race.date_start).getTime();
             const done = raceEnd < now;
             const isNext = i === schedule.nextRoundIndex;
+            const open = () => {
+              if (done) onOpenRace(r);
+              else setDetails(r);
+            };
             return (
               <article
                 key={r.meeting.meeting_key}
                 data-next={isNext ? "" : undefined}
                 aria-current={isNext ? "true" : undefined}
-                className={`relative w-[118px] shrink-0 snap-start rounded-xl border p-3 transition ${
+                role="button"
+                tabIndex={0}
+                onClick={open}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    open();
+                  }
+                }}
+                aria-label={
+                  done
+                    ? `Open the ${r.meeting.meeting_name} race analytics`
+                    : `Show ${r.meeting.meeting_name} circuit details`
+                }
+                className={`relative w-[118px] shrink-0 cursor-pointer snap-start rounded-xl border p-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e10600]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0f15] ${
                   isNext
                     ? "border-[#e10600]/70 bg-gradient-to-b from-[#e10600]/[0.16] to-black/55 shadow-[0_0_26px_rgb(225_6_0/0.32)]"
                     : done
@@ -711,6 +819,16 @@ function NextUpCalendarCard({
           <div aria-hidden="true" className="w-px shrink-0" />
         </div>
       </div>
+
+      {details && (
+        <RaceDetails
+          round={details}
+          roundNumber={schedule.rounds.indexOf(details) + 1}
+          year={schedule.year}
+          open
+          onClose={() => setDetails(null)}
+        />
+      )}
     </section>
   );
 }

@@ -11,8 +11,9 @@ import type { F1Meeting, F1Round, F1Schedule, F1Session } from "@/lib/f1";
 // ---------------------------------------------------------------------------
 // The navbar LIVE badge and the hero's live posters are only allowed to appear
 // while the section's Watch Live button is unlocked: 15 minutes before the
-// scheduled start through the session/match end. These tests pin that boundary
-// against the same rules WatchLiveButton uses.
+// scheduled start through the session/match end, plus F1's 30-minute watch
+// grace. These tests pin that boundary against the same rules WatchLiveButton
+// uses.
 // ---------------------------------------------------------------------------
 
 const MIN = 60_000;
@@ -129,7 +130,14 @@ describe("f1LiveWindow", () => {
     expect(window.subtitle).toBe("Practice 1 · Round 1 of 1");
     expect(window.details).toEqual(["Mexico City", "Mexico"]);
     expect(window.liveFrom).toBe(new Date(START - 15 * MIN).toISOString());
-    expect(window.endsAt).toBe(new Date(START + 60 * MIN).toISOString());
+    expect(window.endsAt).toBe(new Date(START + 90 * MIN).toISOString());
+  });
+
+  it("holds the finished session for its 30-minute watch grace", () => {
+    expect(windowIsLive(window, START + 90 * MIN)).toBe(true);
+    expect(windowIsLive(window, START + 90 * MIN + 1)).toBe(false);
+    expect(f1LiveWindow(sched, START + 90 * MIN)?.subtitle).toBe("Practice 1 · Round 1 of 1");
+    expect(f1LiveWindow(sched, START + 90 * MIN + 1)).toBeNull();
   });
 
   it("stays locked until 15 minutes before the session", () => {
@@ -138,19 +146,23 @@ describe("f1LiveWindow", () => {
     expect(windowIsLive(window, START - 15 * MIN)).toBe(true);
     expect(windowIsLive(window, START + 30 * MIN)).toBe(true);
     expect(windowIsLive(window, START + 60 * MIN)).toBe(true);
-    expect(windowIsLive(window, START + 61 * MIN)).toBe(false);
+    expect(windowIsLive(window, START + 90 * MIN)).toBe(true);
+    expect(windowIsLive(window, START + 91 * MIN)).toBe(false);
   });
 
-  it("rolls onto the next session and eventually reports none", () => {
+  it("rolls onto the next session after the grace and eventually reports none", () => {
     const later = session({
       session_key: 2,
       session_name: "Race",
       date_start: "2026-11-01T20:00:00+00:00",
       date_end: "2026-11-01T22:00:00+00:00",
     });
-    const picked = f1LiveWindow(schedule([next, later]), START + 61 * MIN);
+    // During the grace the finished session is still the featured one.
+    expect(f1LiveWindow(schedule([next]), START + 61 * MIN)?.subtitle).toContain("Practice 1");
+    // After it, the next scheduled session takes over.
+    const picked = f1LiveWindow(schedule([next, later]), START + 91 * MIN);
     expect(picked?.subtitle).toContain("Race");
-    expect(f1LiveWindow(schedule([next]), START + 61 * MIN)).toBeNull();
+    expect(f1LiveWindow(schedule([next]), START + 91 * MIN)).toBeNull();
   });
 });
 

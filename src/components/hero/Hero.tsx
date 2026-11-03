@@ -6,6 +6,7 @@ import PosterImage from "@/components/media/PosterImage";
 import WatchlistButton from "@/components/media/WatchlistButton";
 import { PlayIcon, StarIcon } from "@/components/player/icons";
 import { useLiveWindows } from "@/components/live/use-live-windows";
+import { flagCodeFor } from "@/components/cricket/TeamFlag";
 import { windowIsLive, type LiveWindow } from "@/lib/live-windows";
 import { formatRating, yearOf } from "@/lib/utils";
 import type { MediaSummary } from "@/types";
@@ -268,7 +269,43 @@ function LiveCopy({ live }: { live: LiveWindow }) {
 }
 
 function LiveBackdrop({ live }: { live: LiveWindow }) {
-  const isF1 = live.kind === "f1";
+  const [posterFailed, setPosterFailed] = useState(false);
+
+  // A new live event means new artwork; a failure from the previous poster
+  // must not hide it.
+  useEffect(() => {
+    setPosterFailed(false);
+  }, [live.posterUrl]);
+
+  if (live.posterUrl && !posterFailed) {
+    return (
+      <div className="absolute inset-0 overflow-hidden bg-[#0b0b0d]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={live.posterUrl}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          onError={() => setPosterFailed(true)}
+          className="h-full w-full object-cover object-[50%_35%]"
+        />
+        {/* The copy scrims sit above this; the small wash keeps a bright race
+            photo from washing out the red Watch Live button. */}
+        <div className="absolute inset-0 bg-black/25" />
+      </div>
+    );
+  }
+
+  if (live.kind === "cricket" && live.teams?.length) {
+    return <CricketPoster teams={live.teams} />;
+  }
+
+  return <BrandBackdrop kind={live.kind} />;
+}
+
+/** Branded fallback while a poster is unavailable, or while one loads. */
+function BrandBackdrop({ kind }: { kind: "f1" | "cricket" }) {
+  const isF1 = kind === "f1";
   return (
     <div className="absolute inset-0 overflow-hidden">
       <div
@@ -279,16 +316,6 @@ function LiveBackdrop({ live }: { live: LiveWindow }) {
         }
       />
       <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:64px_64px] [mask-image:linear-gradient(to_right,#000,transparent_78%)]" />
-      {live.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={live.imageUrl}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          className="absolute right-[-2%] top-1/2 w-[52%] max-w-[760px] -translate-y-1/2 opacity-20 brightness-0 invert"
-        />
-      )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={isF1 ? "/f1/brand/f1-logo.svg" : "/cricket/brand/bcci-logo.svg"}
@@ -298,6 +325,67 @@ function LiveBackdrop({ live }: { live: LiveWindow }) {
         className={`absolute right-[3%] top-[9%] opacity-[0.16] ${
           isF1 ? "w-[38%] max-w-[520px]" : "w-[30%] max-w-[400px]"
         }`}
+      />
+    </div>
+  );
+}
+
+/**
+ * Cricket's broadcast-poster stand-in. BCCI's public feeds carry no per-match
+ * poster image (its match share-card route answers with a placeholder), so the
+ * slide is composed from the two official flags — the real, match-specific art
+ * available — over the section's navy broadcast gradient. It changes with every
+ * fixture, unlike the old single BCCI watermark.
+ */
+function CricketPoster({ teams }: { teams: NonNullable<LiveWindow["teams"]> }) {
+  const [home, away] = teams;
+  const wash = (colour?: string) => (colour ? `${colour}55` : "transparent");
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(120%_130%_at_78%_8%,#174a96_0%,#0c2347_44%,#0b0b0d_100%)]" />
+      {/* Both sides' official jersey colours, so the fixture — not just the
+          section — gives the poster its tint. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-40"
+        style={{
+          background: `linear-gradient(115deg, ${wash(home?.primary)}, transparent 45%, ${wash(away?.primary)})`,
+        }}
+      />
+      <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:64px_64px] [mask-image:linear-gradient(to_right,#000,transparent_78%)]" />
+      <div className="absolute inset-y-0 right-0 flex w-full items-center justify-end gap-[6vw] pr-[5vw] opacity-[0.28] sm:gap-[5vw] sm:pr-[7vw]">
+        {teams.map((team) => {
+          const code = flagCodeFor(team.name, team.abbreviation);
+          return (
+            <div key={team.name} className="flex flex-col items-center gap-3 sm:gap-5">
+              {code ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/cricket/flags/${code}.svg`}
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                  className="h-[14vw] max-h-[190px] w-[22vw] max-w-[300px] rounded-md object-cover ring-1 ring-white/25 sm:h-[12vw] sm:w-[18vw]"
+                />
+              ) : (
+                <span className="font-display text-[12vw] uppercase leading-none text-white sm:text-[8vw]">
+                  {team.abbreviation}
+                </span>
+              )}
+              <span className="font-display text-[4.5vw] uppercase tracking-wide text-white/80 sm:text-4xl">
+                {team.abbreviation}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/cricket/brand/bcci-logo.svg"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="absolute right-[3%] top-[9%] w-[16%] max-w-[210px] opacity-[0.12]"
       />
     </div>
   );

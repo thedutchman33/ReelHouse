@@ -247,10 +247,13 @@ export function StandingsTable({
   rows,
   variant,
   season,
+  championId,
 }: {
   rows: StandingRow[];
   variant: "driver" | "constructor";
   season: number;
+  /** The clinched world champion's id — the row carries the gold mark. */
+  championId?: string | null;
 }) {
   return (
     <div className="min-w-0">
@@ -291,6 +294,17 @@ export function StandingsTable({
                   <span className="min-w-0 truncate text-[12.5px] font-semibold text-white" title={row.name}>
                     {variant === "driver" ? surname(row.name) : row.name}
                   </span>
+                  {championId && row.id === championId && (
+                    <span
+                      className="shrink-0 text-[#d9af6b]"
+                      title={`${season} World Champion`}
+                      aria-label={`${row.name} is the ${season} world champion`}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
+                        <path d="M6 4h12v3a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V4Zm-2 1h1v2H4a2 2 0 0 1 0-2Zm15 0a2 2 0 0 1 0 2h-1V5h1ZM11 13h2v4h3.5l1 4h-11l1-4H11v-4Z" />
+                      </svg>
+                    </span>
+                  )}
                 </div>
               </td>
               <td className="py-2 text-right align-middle">

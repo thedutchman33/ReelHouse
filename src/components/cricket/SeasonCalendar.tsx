@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { CricketMatch, Gender } from "@/lib/cricket/types";
-import { formatShortDate, opponentTeam } from "@/lib/cricket/shared";
+import { formatShortDate, isAwayMatch, opponentTeam } from "@/lib/cricket/shared";
 import { MiniCountdown } from "./Countdown";
 import SquadModal from "./SquadModal";
 import { TeamFlag } from "./TeamFlag";
+import { AwayMark } from "./ui";
 
 interface CalendarGroup {
   key: string;
@@ -331,8 +332,9 @@ function CalendarCard({
                   <p className={`truncate text-[11.5px] ${isNext ? "text-[#b9d7ff]" : done ? "text-white/30" : "text-white/45"}`}>
                     {match.title}
                   </p>
-                  <p className={`mt-0.5 truncate text-[11px] ${done ? "text-white/25" : "text-white/40"}`}>
-                    {match.city || match.venue}
+                  <p className={`mt-0.5 flex items-center gap-1 text-[11px] ${done ? "text-white/25" : "text-white/40"}`}>
+                    {isAwayMatch(match) && <AwayMark className={done ? "opacity-60" : ""} />}
+                    <span className="truncate">{match.city || match.venue}</span>
                   </p>
 
                   <div className="mt-2 border-t border-white/[0.07] pt-1.5">

@@ -2,15 +2,16 @@
 
 import { useEffect, useState, type MouseEvent } from "react";
 
-// The three long-form stops on /f1. Rendered as an extension of the site
-// navbar (see Navbar), so it is fixed with it and clears its own height when
-// jumping. Telemetry also has to bring its tab forward — the panel is not in
-// the DOM while the Session view is active.
+// The long-form stops on /f1. Rendered as an extension of the site navbar (see
+// Navbar), so it is fixed with it and clears its own height when jumping.
+// Telemetry and Drivers also have to bring their tab forward — each is only in
+// the DOM while its tab is open.
 
 const SECTIONS = [
   { id: "f1-analytics", label: "Analytics" },
   { id: "f1-tabs-anchor", label: "Telemetry", telemetry: true },
   { id: "f1-standings", label: "Standings" },
+  { id: "f1-drivers", label: "Drivers", drivers: true },
 ] as const;
 
 /** How far below the fixed header a section counts as "in view". */
@@ -54,11 +55,15 @@ export default function F1SectionNav() {
 
   const jump = (event: MouseEvent<HTMLAnchorElement>, section: (typeof SECTIONS)[number]) => {
     const target = document.getElementById(section.id);
-    if (!target) return; // fall back to the plain anchor jump
+    const tabbed = "telemetry" in section || "drivers" in section;
+    if (!target && !tabbed) return; // fall back to the plain anchor jump
 
     event.preventDefault();
     if ("telemetry" in section) {
       window.dispatchEvent(new CustomEvent("f1:open-telemetry"));
+    }
+    if ("drivers" in section) {
+      window.dispatchEvent(new CustomEvent("f1:open-drivers"));
     }
 
     // The bar lives inside the fixed header, so its bottom edge is exactly the
@@ -66,10 +71,17 @@ export default function F1SectionNav() {
     const header = document.querySelector("header");
     const offset = (header?.getBoundingClientRect().bottom ?? 0) + 16;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({
-      top: target.getBoundingClientRect().top + window.scrollY - offset,
-      behavior: reduce ? "auto" : "smooth",
-    });
+    const scroll = () => {
+      const el = document.getElementById(section.id);
+      if (!el) return;
+      window.scrollTo({
+        top: el.getBoundingClientRect().top + window.scrollY - offset,
+        behavior: reduce ? "auto" : "smooth",
+      });
+    };
+    // A tab switch renders on the next frame, so wait for the section to exist.
+    if (tabbed) requestAnimationFrame(() => requestAnimationFrame(scroll));
+    else scroll();
   };
 
   return (

@@ -293,6 +293,7 @@ export default function SessionRecords({
   round,
   now,
   onOpenSession,
+  focus,
 }: {
   /** The year's full calendar (powers the Grand Prix dropdown). */
   schedule: F1Schedule;
@@ -301,6 +302,9 @@ export default function SessionRecords({
   /** Dashboard clock (ticks every second with the rest of the page). */
   now: number;
   onOpenSession: (key: number) => void;
+  /** Ordered hand-off from the season calendar: {meetingKey, nonce}. A new
+   *  nonce opens that weekend's race in the deck. */
+  focus?: { key: number; nonce: number } | null;
 }) {
   const { dateTime } = useSessionTime();
   const [year, setYear] = useState(schedule.year);
@@ -345,6 +349,24 @@ export default function SessionRecords({
       alive = false;
     };
   }, [year, schedule]);
+
+  // Ordered jump-in from the season calendar: pin the deck to the current
+  // season, open that weekend and land on its race (the session the card
+  // names), then let the analytics section show the card.
+  const focusNonce = focus?.nonce ?? 0;
+  useEffect(() => {
+    if (!focusNonce || focus?.key == null) return;
+    const target = schedule.rounds.find((r) => r.meeting.meeting_key === focus.key);
+    if (!target) return;
+    setYear(schedule.year);
+    // Pin the calendar in the same tick, so the "weekend missing from this
+    // season" guard cannot fall back to another round while the year swaps.
+    setYearSchedule(schedule);
+    setMeetingKey(focus.key);
+    setChosenSession(target.race.session_key);
+    setView("classification");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNonce, schedule]);
 
   // A season change picks the weekend to open on, the way the reference's
   // picker does: the current year opens at its latest running round, a past

@@ -26,12 +26,19 @@ export default function CircuitMap3D({
   circuitInfoUrl,
   circuitImage,
   name,
+  variant = "track",
 }: {
   /** OpenF1's link to MultiViewer's circuit geometry API. */
   circuitInfoUrl: string | null;
   /** Official F1 outline PNG (fallback). */
   circuitImage: string | null;
   name: string;
+  /**
+   * `track` (default) is the broadcast ribbon. `sectors` paints the F1-site
+   * calendar layout — three coloured sector bands, sector labels, the speed
+   * trap — on the same extruded plate, so the tilt and the lapping light stay.
+   */
+  variant?: "track" | "sectors";
 }) {
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
   const [failed, setFailed] = useState(false);
@@ -49,7 +56,7 @@ export default function CircuitMap3D({
     };
   }, [circuitInfoUrl, name]);
 
-  if (geo) return <TrackScene geo={geo} />;
+  if (geo) return <TrackScene geo={geo} variant={variant} />;
   if (circuitImage) return <TiltedImage src={circuitImage} alt={`${name} circuit map`} />;
   return (
     <div className="grid h-40 place-items-center text-xs text-white/30">
@@ -73,7 +80,20 @@ interface Label {
   apex: number;
 }
 
-function TrackScene({ geo }: { geo: CircuitGeometry }) {
+const SECTOR_COLOURS = ["#ff1801", "#00a0de", "#ffd800"] as const;
+
+function readingAngle(angle: number): number {
+  let a = angle;
+  if (a > 90) a -= 180;
+  if (a < -90) a += 180;
+  return a;
+}
+
+function TrackScene({ geo, variant }: { geo: CircuitGeometry; variant: "track" | "sectors" }) {
+  const sectors = variant === "sectors";
+  // The calendar sheet is its own plate: a taller side wall under the sector
+  // ribbon, matched by a deeper tilt on the scene.
+  const drop = sectors ? 5.2 : WALL_DROP;
   const L = useMemo(() => {
     const pts = geo.points;
     const n = pts.length;
@@ -91,7 +111,7 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
     // --- corner pins: sit tight beside the apex, off the ribbon by just
     // enough; resolve clashes by sliding along the track or pushing slightly
     // further out — never far from the corner they label.
-    const OFF = ASPHALT_W / 2 + 2.15; // pin center off the centerline
+    const OFF = ASPHALT_W / 2 + 3.3; // pin center off the centerline
     const labels: Label[] = geo.corners.map((c) => {
       let best = 0;
       let bd = Infinity;
@@ -121,7 +141,7 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
       const placed: { x: number; y: number }[] = [];
       for (const l of labels) {
         for (let i = 0; i < 7; i++) {
-          if (placed.every((p) => Math.hypot(p.x - l.x, p.y - l.y) >= 6.4)) break;
+          if (placed.every((p) => Math.hypot(p.x - l.x, p.y - l.y) >= 7)) break;
           if (i % 2 === 0) {
             l.x += l.ox * 1.7;
             l.y += l.oy * 1.7;
@@ -180,6 +200,88 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
         .join(" ")
     );
 
+    // --- sector bands (calendar layout): lap-distance thirds, each labelled in
+    // the roomiest gap outside the ribbon so nothing sits on the track.
+    const segPath = (from: number, to: number) => {
+      const out: string[] = [];
+      for (let i = from; i <= to && i < n; i++) {
+        out.push(`${i === from ? "M" : "L"} ${pts[i][0].toFixed(2)} ${pts[i][1].toFixed(2)}`);
+      }
+      return out.join(" ");
+    };
+    const angleAt = (i: number) => {
+      const a = pts[(i - 2 + n) % n];
+      const b = pts[(i + 2) % n];
+      return readingAngle((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI);
+    };
+    // A sector name belongs on its own band, and reads best on a straight:
+    // set the word on the flattest stretch of that band, just off the ribbon.
+    // Straights carry no corners, so no number can land under the text.
+    const anchorFor = (from: number, to: number) => {
+      const span = to - from;
+      let index = from + Math.floor(span / 2);
+      if (span >= 6) {
+        const turnAt = (i: number) => {
+          const a = angleAt((i - 6 + n) % n);
+          const b = angleAt((i + 6) % n);
+          const d = Math.abs(b - a);
+          return d > 180 ? 360 - d : d;
+        };
+        let runStart = -1;
+        let bestRun = -1;
+        for (let i = from; i <= to; i++) {
+          const flat = i < to && turnAt(i % n) < 12;
+          if (flat && runStart === -1) runStart = i;
+          if ((!flat || i === to) && runStart !== -1) {
+            const runEnd = flat ? i : i - 1;
+            if (runEnd - runStart > bestRun) {
+              bestRun = runEnd - runStart;
+              index = Math.round((runStart + runEnd) / 2);
+            }
+            runStart = -1;
+          }
+        }
+      }
+      const at = ((index % n) + n) % n;
+      const p = pts[at];
+      const angle = angleAt(at);
+      const rad = (angle * Math.PI) / 180;
+      let nx = -Math.sin(rad);
+      let ny = Math.cos(rad);
+      if (nx * (p[0] - cx) + ny * (p[1] - cy) < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      return { x: p[0] + nx * 6.2, y: p[1] + ny * 6.2, angle };
+    };
+    const [split1, split2] = geo.sectorSplits;
+    const sectorBands = [
+      { d: segPath(0, split1), label: "SECTOR 1", colour: SECTOR_COLOURS[0], anchor: anchorFor(0, split1) },
+      { d: segPath(split1, split2), label: "SECTOR 2", colour: SECTOR_COLOURS[1], anchor: anchorFor(split1, split2) },
+      {
+        d: `${segPath(split2, n - 1)} L ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`,
+        label: "SECTOR 3",
+        colour: SECTOR_COLOURS[2],
+        anchor: anchorFor(split2, n),
+      },
+    ];
+
+    // Speed trap: the official marker sits at the end of the longest straight,
+    // held off the ribbon on the outside of the layout.
+    const trap = geo.speedTrap
+      ? (() => {
+          const st = geo.speedTrap!;
+          const rad = (readingAngle(st.angle) * Math.PI) / 180;
+          let nx = -Math.sin(rad);
+          let ny = Math.cos(rad);
+          if (nx * (st.x - cx) + ny * (st.y - cy) < 0) {
+            nx = -nx;
+            ny = -ny;
+          }
+          return { x: st.x, y: st.y, chipX: st.x + nx * 8.5, chipY: st.y + ny * 8.5 };
+        })()
+      : null;
+
     // Closed path + ~130 samples for the lap light.
     const dPath =
       pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" ") + " Z";
@@ -190,20 +292,34 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
     // viewBox fits ribbon + pins + extrusion (pins can outrun the track edge).
     const lblXs = labels.flatMap((l) => [l.x - 2.6, l.x + 2.6]);
     const lblYs = labels.flatMap((l) => [l.y - 2.1, l.y + 2.1]);
+    // Sector names are rotated along the track, so reserve a square around
+    // each anchor — otherwise the viewBox crops the ends of the word.
+    // The name is set along the track, so reserve a square around its anchor
+    // — rotated text can reach either way.
+    for (const band of sectorBands) {
+      lblXs.push(band.anchor.x - 10, band.anchor.x + 10);
+      lblYs.push(band.anchor.y - 10, band.anchor.y + 10);
+    }
+    if (trap) {
+      lblXs.push(trap.chipX - 10.6, trap.chipX + 10.6);
+      lblYs.push(trap.chipY - 3.4, trap.chipY + 3.4);
+    }
     const vbX = Math.min(minX - EDGE_W / 2, ...lblXs) - 0.9;
     const vbY = Math.min(minY - EDGE_W / 2, ...lblYs) - 0.9;
     const vbX1 = Math.max(maxX + EDGE_W / 2, ...lblXs) + 0.9;
-    const vbY1 = Math.max(maxY + WALL_DROP + EDGE_W / 2, ...lblYs) + 0.9;
+    const vbY1 = Math.max(maxY + drop + EDGE_W / 2, ...lblYs) + 0.9;
     return {
       vb: [vbX, vbY, vbX1 - vbX, vbY1 - vbY] as [number, number, number, number],
       dPath,
       sampled,
       labels,
       kerbDs,
+      sectorBands,
+      trap,
     };
-  }, [geo]);
+  }, [geo, drop]);
 
-  const { vb, dPath, sampled, labels, kerbDs } = L;
+  const { vb, dPath, sampled, labels, kerbDs, sectorBands, trap } = L;
 
   // The racing light + comet tail walk the sampled points.
   const lightRef = useRef<SVGCircleElement>(null);
@@ -245,7 +361,7 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
 
   return (
     <div className="circuit-3d-scene" aria-label={`${geo.circuitName || "Circuit"} 3D map`}>
-      <div className="circuit-3d-tilt">
+      <div className={`circuit-3d-tilt${sectors ? " circuit-3d-deep" : ""}`}>
         <svg viewBox={vb.map((v) => v.toFixed(1)).join(" ")} className="circuit-3d-svg" role="img">
           <defs>
             <linearGradient id="trackSurface" x1="0" y1="0" x2="1" y2="1">
@@ -266,26 +382,127 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
           </defs>
 
           {/* EXTRUSION: the side wall — same path, offset down, drawn FIRST so
-              the surface overlaps its top edge. Low profile: depth, not bulk. */}
-          <path d={dPath} transform={`translate(0 ${WALL_DROP})`} fill="#0a0b0c" stroke="#0a0b0c" strokeWidth={EDGE_W} strokeLinejoin="round" />
-          <path d={dPath} transform={`translate(0 ${WALL_DROP})`} fill="none" stroke="#000000" strokeWidth={ASPHALT_W} strokeLinejoin="round" opacity="0.6" />
+              the surface overlaps its top edge. Low profile: depth, not bulk.
+              The wall is a touch lighter than the page so the plate reads as a
+              solid model against the dark sheet. */}
+          <path d={dPath} transform={`translate(0 ${drop + 1.4})`} fill="none" stroke="#16181d" strokeWidth={EDGE_W + 0.6} strokeLinejoin="round" />
+          <path d={dPath} transform={`translate(0 ${drop})`} fill="none" stroke="#2a2e36" strokeWidth={EDGE_W} strokeLinejoin="round" />
+          <path d={dPath} transform={`translate(0 ${drop - 0.6})`} fill="none" stroke="#454b56" strokeWidth={ASPHALT_W} strokeLinejoin="round" opacity="0.55" />
 
-          {/* white outline peeking from under the asphalt */}
-          <path d={dPath} fill="none" stroke="#f2f3f4" strokeWidth={EDGE_W} strokeLinejoin="round" opacity="0.8" />
+          {sectors ? (
+            <>
+              {/* F1 calendar layout: the same ribbon painted in three sector
+                  bands, with the sector names on the outside of the lap. */}
+              {sectorBands.map((band) => (
+                <path
+                  key={`${band.label}-edge`}
+                  d={band.d}
+                  fill="none"
+                  stroke="#f2f3f4"
+                  strokeWidth={EDGE_W}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity="0.8"
+                />
+              ))}
+              {sectorBands.map((band) => (
+                <path
+                  key={band.label}
+                  d={band.d}
+                  fill="none"
+                  stroke={band.colour}
+                  strokeWidth={ASPHALT_W}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))}
+              {sectorBands.map((band) => (
+                <path
+                  key={`${band.label}-gloss`}
+                  d={band.d}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={CORE_W}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity="0.14"
+                />
+              ))}
+              {sectorBands.map((band) => (
+                <text
+                  key={`${band.label}-text`}
+                  x={band.anchor.x}
+                  y={band.anchor.y + 1}
+                  transform={`rotate(${band.anchor.angle.toFixed(1)} ${band.anchor.x.toFixed(2)} ${band.anchor.y.toFixed(2)})`}
+                  textAnchor="middle"
+                  fontSize="2.9"
+                  fontWeight="800"
+                  letterSpacing="0.45"
+                  fill={band.colour}
+                  stroke="#050507"
+                  strokeWidth="0.7"
+                  paintOrder="stroke"
+                >
+                  {band.label}
+                </text>
+              ))}
 
-          {/* track surface (full width, under the kerbs) */}
-          <path d={dPath} fill="none" stroke="url(#trackSurface)" strokeWidth={ASPHALT_W} strokeLinejoin="round" strokeLinecap="round" />
+              {/* speed trap, as marked on the official map */}
+              {trap && (
+                <g>
+                  <line
+                    x1={trap.x}
+                    y1={trap.y}
+                    x2={trap.chipX}
+                    y2={trap.chipY}
+                    stroke="#f000b8"
+                    strokeWidth="0.5"
+                    opacity="0.9"
+                  />
+                  <circle cx={trap.x} cy={trap.y} r="1" fill="#f000b8" stroke="#f4f5f7" strokeWidth="0.3" />
+                  <rect
+                    x={trap.chipX - 10.4}
+                    y={trap.chipY - 3.1}
+                    width="20.8"
+                    height="6.2"
+                    rx="0.9"
+                    fill="#f000b8"
+                    opacity="0.95"
+                  />
+                  <text
+                    x={trap.chipX}
+                    y={trap.chipY + 0.9}
+                    textAnchor="middle"
+                    fontSize="2.4"
+                    fontWeight="800"
+                    letterSpacing="0.05"
+                    fill="#ffffff"
+                  >
+                    SPEED TRAP
+                  </text>
+                </g>
+              )}
+            </>
+          ) : (
+            <>
+              {/* white outline peeking from under the asphalt */}
+              <path d={dPath} fill="none" stroke="#f2f3f4" strokeWidth={EDGE_W} strokeLinejoin="round" opacity="0.8" />
 
-          {/* kerbs: red base + white dashes at apex zones only; a narrower
-              asphalt core reduces them to rim stripes on the edges */}
-          {kerbDs.map((d, i) => (
-            <g key={i}>
-              <path d={d} fill="none" stroke="#e10600" strokeWidth={ASPHALT_W} strokeLinejoin="round" />
-              <path d={d} fill="none" stroke="#eceef0" strokeWidth={ASPHALT_W} strokeDasharray={`${KERB_CHUNK} ${KERB_CHUNK}`} strokeDashoffset={KERB_CHUNK} opacity="0.9" strokeLinejoin="round" />
-            </g>
-          ))}
-          <path d={dPath} fill="none" stroke="url(#trackSurface)" strokeWidth={CORE_W} strokeLinejoin="round" strokeLinecap="round" />
-          <path d={dPath} fill="none" stroke="url(#trackGloss)" strokeWidth={CORE_W} strokeLinejoin="round" />
+              {/* track surface (full width, under the kerbs) */}
+              <path d={dPath} fill="none" stroke="url(#trackSurface)" strokeWidth={ASPHALT_W} strokeLinejoin="round" strokeLinecap="round" />
+
+              {/* kerbs: red base + white dashes at apex zones only; a narrower
+                  asphalt core reduces them to rim stripes on the edges */}
+              {kerbDs.map((d, i) => (
+                <g key={i}>
+                  <path d={d} fill="none" stroke="#e10600" strokeWidth={ASPHALT_W} strokeLinejoin="round" />
+                  <path d={d} fill="none" stroke="#eceef0" strokeWidth={ASPHALT_W} strokeDasharray={`${KERB_CHUNK} ${KERB_CHUNK}`} strokeDashoffset={KERB_CHUNK} opacity="0.9" strokeLinejoin="round" />
+                </g>
+              ))}
+              <path d={dPath} fill="none" stroke="url(#trackSurface)" strokeWidth={CORE_W} strokeLinejoin="round" strokeLinecap="round" />
+              <path d={dPath} fill="none" stroke="url(#trackGloss)" strokeWidth={CORE_W} strokeLinejoin="round" />
+            </>
+          )}
 
           {/* start / finish: small white diamond on the centerline */}
           <rect x={x0 - 1.7} y={y0 - 1.7} width="3.4" height="3.4" rx="0.6" fill="#ffffff" opacity="0.95" transform={`rotate(45 ${x0} ${y0})`} />
@@ -309,19 +526,39 @@ function TrackScene({ geo }: { geo: CircuitGeometry }) {
             </g>
           ))}
 
-          {/* the racing light: comet tail, glow, white-ringed head */}
-          <circle ref={tailB} r="0.75" fill="#e10600" opacity="0.28" />
-          <circle ref={tailA} r="0.95" fill="#e10600" opacity="0.45" />
-          <circle ref={glowRef} cx={x0} cy={y0} r="3.8" fill="url(#lightGlow)">
+          {/* the racing light: comet tail, glow, white-ringed head. The
+              calendar plate runs it a touch larger so the lap point reads. */}
+          <circle ref={tailB} r={sectors ? 1.0 : 0.75} fill="#e10600" opacity="0.3" />
+          <circle ref={tailA} r={sectors ? 1.25 : 0.95} fill="#e10600" opacity="0.5" />
+          <circle ref={glowRef} cx={x0} cy={y0} r={sectors ? 4.8 : 3.8} fill="url(#lightGlow)">
             <animate attributeName="opacity" values="0.95;0.6;0.95" dur="1.1s" repeatCount="indefinite" />
           </circle>
-          <circle ref={lightRef} cx={x0} cy={y0} r="1.25" fill="#e10600" stroke="#ffffff" strokeWidth="0.35">
-            <animate attributeName="r" values="1.2;1.35;1.2" dur="1.1s" repeatCount="indefinite" />
+          <circle ref={lightRef} cx={x0} cy={y0} r={sectors ? 1.6 : 1.25} fill="#e10600" stroke="#ffffff" strokeWidth="0.35">
+            {!sectors && (
+              <animate attributeName="r" values="1.2;1.35;1.2" dur="1.1s" repeatCount="indefinite" />
+            )}
           </circle>
         </svg>
       </div>
       {/* soft ground shadow under the tilted plate */}
       <div className="circuit-3d-shadow" aria-hidden="true" />
+      {sectors && (
+        <div className="circuit-3d-hud" aria-hidden="true">
+          <span className="circuit-3d-hud-item">
+            {SECTOR_COLOURS.map((colour, i) => (
+              <span key={colour} className="circuit-3d-hud-key">
+                <span className="circuit-3d-hud-dot" style={{ background: colour }} />S{i + 1}
+              </span>
+            ))}
+          </span>
+          <span className="circuit-3d-hud-item">
+            <span className="circuit-3d-hud-dot" style={{ background: "#f000b8" }} />Speed trap
+          </span>
+          <span className="circuit-3d-hud-item circuit-3d-hud-count">
+            {geo.cornerCount} turns
+          </span>
+        </div>
+      )}
     </div>
   );
 }

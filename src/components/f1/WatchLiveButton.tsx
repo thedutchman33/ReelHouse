@@ -16,7 +16,8 @@ import {
 //   ended  → muted "session ended" plate (only when nothing else is scheduled)
 //
 // The countdown ends 15 minutes before the scheduled session so the watch page
-// opens early; the button is live from then through the session's end.
+// opens early; the button is live from then through the session's end plus any
+// post-session grace the caller allows (F1 keeps it open for 30 minutes).
 //
 // Playback stays on ReelHouse: the watch page lists that channel's configured
 // servers in the same layout used for movies and TV. F1 is the default href;
@@ -113,6 +114,7 @@ export default function WatchLiveButton({
   now,
   targetISO,
   endISO = null,
+  graceMs = 0,
   sessionName = null,
   demoSeconds,
   isLive = false,
@@ -124,6 +126,8 @@ export default function WatchLiveButton({
   targetISO: string | null;
   /** Session end; when absent the live window assumes three hours. */
   endISO?: string | null;
+  /** Extra time the stream stays open after `endISO` (F1's 30-minute grace). */
+  graceMs?: number;
   sessionName?: string | null;
   /** A genuinely live source overrides the scheduled three-hour window. */
   isLive?: boolean;
@@ -162,8 +166,8 @@ export default function WatchLiveButton({
     demoSeconds != null
       ? Number.POSITIVE_INFINITY
       : Number.isFinite(endRaw)
-        ? endRaw
-        : target + 3 * 3600_000;
+        ? endRaw + graceMs
+        : target + 3 * 3600_000 + graceMs;
 
   const known = Number.isFinite(target);
   // The whole control runs 15 minutes ahead of the scheduled start: the

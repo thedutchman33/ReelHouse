@@ -163,7 +163,7 @@ export default function SearchOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-[60] animate-fade-in overflow-y-auto bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] animate-fade-in overflow-y-auto bg-black/50"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -176,7 +176,12 @@ export default function SearchOverlay({
       >
         {/* Input panel */}
         <form onSubmit={submit} role="search">
-          <div className="overflow-hidden rounded-xl border border-white/10 bg-surface shadow-2xl transition-colors focus-within:border-accent/40">
+          {/* Same glass surface as the floating navbar: a translucent bar over
+              the page, blurred and slightly saturated so the artwork behind
+              stays visible through it. */}
+          {/* Frosted grey pane, matching the reference: near-solid so results
+              read cleanly, with the page behind reduced to a soft glow. */}
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[rgb(24_25_28/0.94)] shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-2xl backdrop-saturate-150 transition-colors focus-within:border-accent/40">
             <div className="flex h-16 items-center gap-3 px-4">
               <SearchIcon size={22} className="shrink-0 text-muted" />
               <input
@@ -186,7 +191,7 @@ export default function SearchOverlay({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search movies & TV shows..."
                 aria-label="Search movies and series"
-                className="h-full w-full min-w-0 bg-transparent text-lg text-text placeholder:text-muted/80 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+                className="h-full w-full min-w-0 bg-transparent text-xl text-white placeholder:text-white/45 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
               />
               <button
                 type="button"
@@ -205,7 +210,7 @@ export default function SearchOverlay({
 
         {/* Results panel — visually connected below the input. Scrollbar is
             hidden like every rail in the design system; wheel/touch still scroll. */}
-        <div className="no-scrollbar mt-3 max-h-[62vh] overflow-y-auto rounded-xl border border-white/10 bg-surface/95 p-3 shadow-2xl">
+        <div className="no-scrollbar mt-4 max-h-[62vh] overflow-y-auto rounded-2xl border border-white/10 bg-[rgb(24_25_28/0.94)] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-2xl backdrop-saturate-150">
           {showRecent && (
             <section aria-label="Recent searches" className="mb-2">
               <div className="flex items-center justify-between px-1">

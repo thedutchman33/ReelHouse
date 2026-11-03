@@ -84,6 +84,22 @@ export function TeamBadge({
   );
 }
 
+/** Small aeroplane mark for fixtures India plays abroad. */
+export function AwayMark({ className = "" }: { className?: string }) {
+  return (
+    <span
+      role="img"
+      aria-label="Away match"
+      title="Away match"
+      className={`inline-flex shrink-0 text-[#8fb4ec] ${className}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
+        <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2.5 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5Z" />
+      </svg>
+    </span>
+  );
+}
+
 export interface SelectOption {
   value: string;
   label: string;

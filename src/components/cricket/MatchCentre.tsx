@@ -13,12 +13,13 @@ import {
   formatDate,
   formatTime,
   formatDecimal,
+  isAwayMatch,
   teamJerseyColour,
 } from "@/lib/cricket/shared";
 import { BoardLogo } from "./BoardLogo";
 import { MatchProgressChart, PartnershipChart, RunsChart } from "./MatchCharts";
 import { TeamFlag } from "./TeamFlag";
-import { EmptyState, PlayerAvatar, SectionHeading, Select } from "./ui";
+import { AwayMark, EmptyState, PlayerAvatar, SectionHeading, Select } from "./ui";
 
 type View = "scorecard" | "squads" | "charts";
 
@@ -455,12 +456,15 @@ export default function MatchCentre({
                 options={filtered.map((entry) => ({
                   value: entry.gid,
                   label: `${entry.matchNumber} · ${entry.series}`,
-                  hint: `${formatDate(entry.date)} · ${entry.venue}`,
+                  hint: `${isAwayMatch(entry) ? "Away · " : ""}${formatDate(entry.date)} · ${entry.venue}`,
                   leading: (
-                    <span className="flex items-center -space-x-1">
-                      {entry.teams.slice(0, 2).map((team) => (
-                        <TeamFlag key={team.id} team={team} size="xs" />
-                      ))}
+                    <span className="flex items-center gap-1">
+                      <span className="flex items-center -space-x-1">
+                        {entry.teams.slice(0, 2).map((team) => (
+                          <TeamFlag key={team.id} team={team} size="xs" />
+                        ))}
+                      </span>
+                      {isAwayMatch(entry) && <AwayMark />}
                     </span>
                   ),
                 }))}
@@ -469,6 +473,12 @@ export default function MatchCentre({
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#8fb4ec]">
                   <span aria-hidden="true" className="ck-live-dot" />
                   Live
+                </span>
+              )}
+              {selected && isAwayMatch(selected) && (
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/45">
+                  <AwayMark />
+                  Away fixture
                 </span>
               )}
             </div>
