@@ -1,7 +1,0 @@
-﻿Reelhouse, measured instead of claimed.
-
-A streaming front end that tests providers, keeps your place when you switch, and puts live sport alongside the rest of your library.
-
-12 ms TTFB. 0 spinners. 193 tests.
-
-Built from the project’s real UI, provider flow, brand assets, and product numbers.
