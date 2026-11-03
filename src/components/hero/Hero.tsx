@@ -109,6 +109,9 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
                   type={slide.item.type}
                   variant="backdrop"
                   priority={i === 0}
+                  // Full-bleed: the ladder has to reach 1920, not stop at the
+                  // 780 a card-sized `sizes` would imply.
+                  sizes="100vw"
                   // A 16:9 backdrop in a much wider frame has to lose height
                   // somewhere; biasing above centre keeps faces and titles in shot.
                   className="h-full w-full object-cover object-[50%_32%]"
@@ -302,11 +305,30 @@ function LiveBackdrop({ live }: { live: LiveWindow }) {
 
 // Title logo artwork with a graceful fallback: if the image fails to load the
 // text title takes over, so the hero never shows a broken image.
+//
+// The logo is the sharpest-edged thing on the page and is boxed at up to 520px,
+// so it gets the 500/780 rungs: `logoUrl` is a w500 file, which is 0.96x on a
+// wide 1x display. A failed 780 (some masters are smaller) drops back to that
+// documented w500 src before the text title.
+const TMDB_LOGO = /^https:\/\/image\.tmdb\.org\/t\/p\/(?:w\d+|original)(\/.+)$/;
+const LOGO_SIZES =
+  "(min-width: 1024px) 520px, (min-width: 640px) 420px, 300px";
+
+function logoSrcSet(src: string): string | undefined {
+  const path = TMDB_LOGO.exec(src)?.[1];
+  if (!path) return undefined;
+  return [500, 780]
+    .map((w) => `https://image.tmdb.org/t/p/w${w}${path} ${w}w`)
+    .join(", ");
+}
+
 function TitleLogo({ src, title }: { src: string; title: string }) {
   const [failed, setFailed] = useState(false);
+  const [plain, setPlain] = useState(false);
 
   useEffect(() => {
     setFailed(false);
+    setPlain(false);
   }, [src]);
 
   if (failed) {
@@ -317,6 +339,8 @@ function TitleLogo({ src, title }: { src: string; title: string }) {
     );
   }
 
+  const srcSet = plain ? undefined : logoSrcSet(src);
+
   return (
     <div className="relative mb-2 h-20 sm:h-24 lg:h-32">
       <h1 className="sr-only">{title}</h1>
@@ -324,7 +348,9 @@ function TitleLogo({ src, title }: { src: string; title: string }) {
       <img
         src={src}
         alt={title}
-        onError={() => setFailed(true)}
+        onError={() => (srcSet ? setPlain(true) : setFailed(true))}
+        srcSet={srcSet}
+        sizes={srcSet ? LOGO_SIZES : undefined}
         className="max-h-full w-auto max-w-[300px] object-contain object-left drop-shadow-[0_4px_28px_rgba(0,0,0,0.85)] sm:max-w-[420px] lg:max-w-[520px]"
         draggable={false}
       />

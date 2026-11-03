@@ -59,6 +59,8 @@ export default function WatchDetails({ detail, seasonInfo }: { detail: Media; se
           type={detail.type}
           variant="backdrop"
           className="h-full w-full scale-110 object-cover opacity-45 blur-[16px] !absolute !inset-0"
+          // Blurred wash: resolution is invisible through a 16px blur.
+          sizes="400px"
         />
       </div>
 
@@ -70,6 +72,7 @@ export default function WatchDetails({ detail, seasonInfo }: { detail: Media; se
             title={detail.title}
             type={detail.type}
             className="hidden w-24 shrink-0 self-start rounded-xl object-cover shadow-[0_14px_34px_rgba(0,0,0,0.62)] ring-1 ring-white/10 sm:block md:w-[124px]"
+            sizes="(min-width: 768px) 124px, 96px"
           />
         )}
         <div className="min-w-0 flex-1">

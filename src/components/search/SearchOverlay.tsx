@@ -296,6 +296,8 @@ export default function SearchOverlay({
                   title={item.title}
                   type={item.type}
                   className="h-full w-full object-cover"
+                  // h-16 w-11 thumbnail — 44px, not a rail card.
+                  sizes="44px"
                 />
               </span>
               <span className="min-w-0 flex-1">

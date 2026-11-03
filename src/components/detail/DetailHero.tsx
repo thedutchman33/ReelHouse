@@ -54,6 +54,7 @@ export default function DetailHero({ media }: { media: Media }) {
           type={media.type}
           variant="backdrop"
           priority
+          sizes="100vw"
           // Biased above centre so a wide crop keeps the subject in frame.
           className="h-full w-full object-cover object-[50%_28%]"
         />
@@ -73,6 +74,9 @@ export default function DetailHero({ media }: { media: Media }) {
               title={media.title}
               type={media.type}
               className="frame-img"
+              // .poster-frame w-32 / sm:w-48 / lg:w-56 — a real poster, so it
+              // gets the 500/780 rungs rather than the 148px rail default.
+              sizes="(min-width: 1024px) 224px, (min-width: 640px) 192px, 128px"
             />
           </div>
 

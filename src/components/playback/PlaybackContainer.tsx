@@ -449,6 +449,8 @@ export default function PlaybackContainer({
           type={media.type}
           variant="backdrop"
           className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-3xl"
+          // Fixed, blurred page wash — only the colour survives the blur.
+          sizes="600px"
         />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(0,0,0,0.35),rgba(0,0,0,0.85)_55%,#000_100%)]" />
       </div>
@@ -478,6 +480,7 @@ export default function PlaybackContainer({
               type={media.type}
               variant="backdrop"
               className="h-full w-full scale-125 object-cover blur-[64px]"
+              sizes="600px"
             />
           </div>
 

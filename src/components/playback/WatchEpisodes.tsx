@@ -157,6 +157,7 @@ export default function WatchEpisodes({
                           type="tv"
                           variant="backdrop"
                           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                          sizes="(min-width: 640px) 300px, 260px"
                         />
                       ) : (
                         /* Anime stub without a streaming still: the title's
@@ -167,6 +168,7 @@ export default function WatchEpisodes({
                           type="anime"
                           variant="backdrop"
                           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                          sizes="(min-width: 640px) 300px, 260px"
                         />
                       )}
                       <span className="absolute left-2 top-2 rounded-md bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">

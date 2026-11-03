@@ -67,6 +67,7 @@ export default function ContinueWatching() {
                     type={media.type}
                     variant="backdrop"
                     className="poster-img"
+                    sizes="(min-width: 768px) 300px, 264px"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                   {/* Episode badge (reference pattern): "S1 · E3" top-left. */}
