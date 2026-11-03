@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   title: {
     // "{Page} | REELHOUSE" everywhere below the home page; the home page names
     // every section the site now carries.
-    default: "REELHOUSE — Movies, TV, Formula 1, Cricket & Games",
+    default: "REELHOUSE - Movies, TV, Anime, Formula 1, Cricket & Games",
     template: "%s | REELHOUSE",
   },
   description:
