@@ -1,0 +1,216 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Bebas Neue";
+      src: url("assets/fonts/bebas-neue.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #0a0b0b;
+      color: var(--color-ink, #f2f3f2);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .s6-ground {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(64% 56% at 50% 62%, rgba(16, 185, 129, 0.075) 0%, rgba(16, 185, 129, 0) 70%),
+        radial-gradient(100% 90% at 50% 0%, #101312 0%, #0b0c0c 46%, #080909 100%);
+    }
+    .s6-vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(120% 90% at 50% 50%, rgba(0, 0, 0, 0) 46%, rgba(0, 0, 0, 0.55) 100%);
+    }
+
+    .s6-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 430px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .s6-stat {
+      padding: 0 92px;
+      text-align: center;
+    }
+    .s6-stat + .s6-stat {
+      border-left: 1px solid rgba(255, 255, 255, 0.10);
+    }
+    .s6-value {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 9px;
+      font-size: 136px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.045em;
+      font-variant-numeric: tabular-nums;
+      color: #f2f3f2;
+    }
+    .s6-unit {
+      font-size: 40px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      color: #89908c;
+    }
+    .s6-label {
+      margin-top: 22px;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.30em;
+      color: #89908c;
+      text-indent: 0.30em;
+    }
+
+    .s6-logo-wrap {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 424px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .s6-halo {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 1040px;
+      height: 460px;
+      margin: -230px 0 0 -520px;
+      background: radial-gradient(50% 50% at 50% 50%, rgba(16, 185, 129, 0.28) 0%, rgba(16, 185, 129, 0.08) 42%, rgba(16, 185, 129, 0) 72%);
+      filter: blur(26px);
+      pointer-events: none;
+    }
+    .s6-logo {
+      display: block;
+      width: 560px;
+      height: auto;
+      filter: drop-shadow(0 18px 44px rgba(0, 0, 0, 0.65));
+    }
+    .s6-rule {
+      width: 58px;
+      height: 2px;
+      margin-top: 30px;
+      background: #10b981;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.65);
+      transform-origin: center center;
+    }
+    .s6-tagline {
+      margin-top: 24px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.30em;
+      text-indent: 0.30em;
+      color: #9aa19d;
+      white-space: nowrap;
+    }
+  </style>
+
+  <div id="root" data-composition-id="s6" data-width="1920" data-height="1080">
+    <div class="s6-ground"></div>
+    <div class="s6-vignette"></div>
+
+    <div id="s6-numbers" class="clip" data-start="0" data-duration="1.62" data-track-index="1">
+      <div class="s6-row">
+        <div class="s6-stat" id="s6-stat-1">
+          <div class="s6-value">12<span class="s6-unit">ms</span></div>
+          <div class="s6-label">TTFB</div>
+        </div>
+        <div class="s6-stat" id="s6-stat-2">
+          <div class="s6-value">0</div>
+          <div class="s6-label">SPINNERS</div>
+        </div>
+        <div class="s6-stat" id="s6-stat-3">
+          <div class="s6-value">193</div>
+          <div class="s6-label">TESTS</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="s6-logo-clip" class="clip" data-start="1.63" data-duration="1.63" data-track-index="2">
+      <div class="s6-logo-wrap">
+        <div class="s6-halo"></div>
+        <img class="s6-logo" src="assets/brand/reelhouse-logo.png" alt="Reelhouse" />
+        <div class="s6-rule"></div>
+        <p class="s6-tagline">MEASURED, NEVER INVENTED.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // RMS of the music bed, 30 fps, sliced to this scene's root interval (16.93-20.19s).
+    const S6_AUDIO = [0.514,0.477,0.463,0.408,0.29,0.224,0.255,0.268,0.306,0.283,0.266,0.264,0.25,0.237,0.221,0.42,0.781,0.725,0.568,0.543,0.571,0.545,0.385,0.118,0.176,0.16,0.148,0.167,0.295,0.179,0.137,0.188,0.776,0.736,0.469,0.283,0.229,0.218,0.139,0.049,0.178,0.168,0.144,0.103,0.319,0.357,0.312,0.28,0.622,0.749,0.523,0.307,0.211,0.242,0.246,0.226,0.281,0.465,0.419,0.427,0.427,0.402,0.418,0.42,0.535,0.827,0.619,0.41,0.212,0.271,0.316,0.303,0.348,0.521,0.505,0.544,0.48,0.428,0.489,0.484,0.46,0.685,0.707,0.535,0.364,0.383,0.429,0.406,0.436,0.425,0.29,0.238,0.208,0.166,0.194,0.192,0.162,0.758];
+
+    const s6 = gsap.timeline({ paused: true });
+
+    // the three receipts are already on screen at the cut; the row settles into place
+    s6.fromTo(
+      ".s6-row",
+      { opacity: 1, scale: 0.985 },
+      { opacity: 1, scale: 1, duration: 0.45, ease: "power2.out" },
+      0
+    );
+
+    // they clear before the mark lands
+    s6.to(
+      ".s6-row",
+      { opacity: 0, y: -20, filter: "blur(10px)", duration: 0.2, ease: "power2.in" },
+      1.42
+    );
+
+    // wordmark: root 18.56
+    s6.fromTo(
+      ".s6-logo",
+      { opacity: 0, scale: 0.965, filter: "blur(8px)" },
+      { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.46, ease: "power4.out" },
+      1.63
+    );
+    s6.fromTo(
+      ".s6-halo",
+      { opacity: 0, scale: 0.9 },
+      { opacity: 0.55, scale: 1, duration: 0.8, ease: "power2.out" },
+      1.63
+    );
+    s6.to(".s6-halo", { opacity: 0.4, duration: 1.4, ease: "sine.inOut" }, 2.43);
+
+    s6.fromTo(".s6-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power2.out" }, 1.8);
+    s6.fromTo(
+      ".s6-tagline",
+      { opacity: 0, y: 10, filter: "blur(4px)" },
+      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.38, ease: "power2.out" },
+      1.85
+    );
+
+    // Audio-reactive: the logo halo brightens with the closing bars' RMS.
+    const s6AudioT = { t: 0 };
+    s6.fromTo(
+      s6AudioT,
+      { t: 0 },
+      {
+        t: 3.26,
+        duration: 3.26,
+        ease: "none",
+        onUpdate: () => {
+          const i = Math.max(0, Math.min(S6_AUDIO.length - 1, Math.floor(s6AudioT.t * 30)));
+          const e = S6_AUDIO[i] || 0;
+          const halo = document.querySelector(".s6-halo");
+          if (halo) {
+            halo.style.filter = "blur(26px) brightness(" + (0.82 + e * 0.55).toFixed(3) + ")";
+          }
+        },
+      },
+      0
+    );
+
+    window.__timelines["s6"] = s6;
+  </script>
+</template>

@@ -1,0 +1,1513 @@
+{
+  "ok": false,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 3,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#s3-beam\" for opacity between 2.05s and 2.14s.",
+        "selector": "#s3-beam",
+        "dataAttributes": {},
+        "sourceFile": "D:\\reelhouse\\brag-output\\composition\\compositions\\s3-watch.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "svg_round_cap_hidden_dash",
+        "severity": "warning",
+        "message": "<path> is hidden with stroke-dasharray 1 and stroke-dashoffset 1 on pathLength 1, but its round cap can still paint a dot at the end of the path (Chrome rounds the zero-length dash differently per curve).",
+        "selector": "#s5-trace-path",
+        "dataAttributes": {},
+        "sourceFile": "D:\\reelhouse\\brag-output\\composition\\compositions\\s5-sport.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Make the gap longer than the path (stroke-dasharray \"1 1.2\" with stroke-dashoffset 1.1), or keep the element visibility:hidden until its draw tween starts."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \".s6-halo\" for opacity between 2.35s and 2.43s.",
+        "selector": ".s6-halo",
+        "dataAttributes": {},
+        "sourceFile": "D:\\reelhouse\\brag-output\\composition\\compositions\\s6-receipts.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      }
+    ],
+    "filesScanned": 7
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 7,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-hook-chip\" is 0.12s but its slot (data-duration) is 1.00s — the slot is shortened to the media length when rendered. Set data-duration to ~0.12s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      },
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-server-check\" is 0.21s but its slot (data-duration) is 1.20s — the slot is shortened to the media length when rendered. Set data-duration to ~0.21s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      },
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-play-click\" is 0.01s but its slot (data-duration) is 0.80s — the slot is shortened to the media length when rendered. Set data-duration to ~0.01s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      },
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-switch-click\" is 0.01s but its slot (data-duration) is 0.80s — the slot is shortened to the media length when rendered. Set data-duration to ~0.01s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      },
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-card-1\" is 0.60s but its slot (data-duration) is 1.20s — the slot is shortened to the media length when rendered. Set data-duration to ~0.60s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      },
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-card-3\" is 0.60s but its slot (data-duration) is 1.20s — the slot is shortened to the media length when rendered. Set data-duration to ~0.60s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      },
+      {
+        "code": "clip_media_fit",
+        "severity": "warning",
+        "message": "Audio \"sfx-logo\" is 1.48s but its slot (data-duration) is 1.60s — the slot is shortened to the media length when rendered. Set data-duration to ~1.48s if that isn't intended.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-composition-id": "main",
+          "data-start": "0",
+          "data-duration": "20.19",
+          "data-width": "1920",
+          "data-height": "1080"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "time": 0
+      }
+    ]
+  },
+  "layout": {
+    "ok": false,
+    "errorCount": 4,
+    "warningCount": 0,
+    "infoCount": 5,
+    "findings": [
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 14.956,
+        "selector": "div.s5-left-body > div:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 887.55,
+          "top": 395.26,
+          "right": 1050.45,
+          "bottom": 410.26,
+          "width": 162.9,
+          "height": 15
+        },
+        "containerSelector": "div.s5-right-body > div:nth-of-type(1)",
+        "text": "LIVE · TELEMETRY",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5-sport.html",
+        "bbox": {
+          "x": 887.55,
+          "y": 395.26,
+          "width": 162.9,
+          "height": 15
+        },
+        "firstSeen": 14.956,
+        "lastSeen": 16.7,
+        "occurrences": 15,
+        "heldMs": 1743.9999999999998,
+        "times": [
+          14.956,
+          15.08,
+          15.205,
+          15.329,
+          15.454,
+          15.579,
+          15.703,
+          15.828,
+          15.953,
+          16.077,
+          16.202,
+          16.326,
+          16.451,
+          16.576,
+          16.7
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 15.08,
+        "selector": "div.s5-laptime",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 720.42,
+          "top": 417.63,
+          "right": 1199.56,
+          "bottom": 513.63,
+          "width": 479.14,
+          "height": 96
+        },
+        "containerSelector": "span.s5-team",
+        "text": "1:24.871",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5-sport.html",
+        "bbox": {
+          "x": 720.42,
+          "y": 417.63,
+          "width": 479.14,
+          "height": 96
+        },
+        "firstSeen": 15.08,
+        "lastSeen": 16.7,
+        "occurrences": 14,
+        "heldMs": 1619.9999999999993,
+        "times": [
+          15.08,
+          15.205,
+          15.329,
+          15.454,
+          15.579,
+          15.703,
+          15.828,
+          15.953,
+          16.077,
+          16.202,
+          16.326,
+          16.451,
+          16.576,
+          16.7
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 15.08,
+        "selector": "span.s5-pill.s5-pill-red",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 880.27,
+          "top": 531.53,
+          "right": 965.36,
+          "bottom": 545.53,
+          "width": 85.09,
+          "height": 14
+        },
+        "containerSelector": "div.s5-overs",
+        "text": "S3 · LAP 42",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5-sport.html",
+        "bbox": {
+          "x": 880.27,
+          "y": 531.53,
+          "width": 85.09,
+          "height": 14
+        },
+        "firstSeen": 15.08,
+        "lastSeen": 16.7,
+        "occurrences": 14,
+        "heldMs": 1619.9999999999993,
+        "times": [
+          15.08,
+          15.205,
+          15.329,
+          15.454,
+          15.579,
+          15.703,
+          15.828,
+          15.953,
+          16.077,
+          16.202,
+          16.326,
+          16.451,
+          16.576,
+          16.7
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 15.08,
+        "selector": "span.s5-pill.s5-pill-quiet",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 1001.36,
+          "top": 531.53,
+          "right": 1039.72,
+          "bottom": 545.53,
+          "width": 38.36,
+          "height": 14
+        },
+        "containerSelector": "div.s5-overs > b:nth-of-type(1)",
+        "text": "SOFT",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5-sport.html",
+        "bbox": {
+          "x": 1001.36,
+          "y": 531.53,
+          "width": 38.36,
+          "height": 14
+        },
+        "firstSeen": 15.08,
+        "lastSeen": 16.7,
+        "occurrences": 14,
+        "heldMs": 1619.9999999999993,
+        "times": [
+          15.08,
+          15.205,
+          15.329,
+          15.454,
+          15.579,
+          15.703,
+          15.828,
+          15.953,
+          16.077,
+          16.202,
+          16.326,
+          16.451,
+          16.576,
+          16.7
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 3.365,
+        "selector": "#s2-head > p:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 0,
+          "top": -20,
+          "right": 361.09,
+          "bottom": 115,
+          "width": 361.09,
+          "height": 135
+        },
+        "containerSelector": "#root",
+        "text": "MEASURED,",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "top": 20
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s2-measure.html",
+        "bbox": {
+          "x": 0,
+          "y": -20,
+          "width": 361.09,
+          "height": 135
+        },
+        "firstSeen": 3.365,
+        "lastSeen": 5.608,
+        "occurrences": 2,
+        "heldMs": 0,
+        "times": [
+          3.365,
+          5.608
+        ]
+      },
+      {
+        "code": "text_box_overflow",
+        "severity": "info",
+        "time": 7.852,
+        "selector": "#s3-time",
+        "message": "Text extends outside its nearest visual/container box.",
+        "rect": {
+          "left": 1587.95,
+          "top": 777,
+          "right": 1694,
+          "bottom": 797,
+          "width": 106.05,
+          "height": 20
+        },
+        "containerSelector": "div.s3-track",
+        "text": "14:32 / 42:10",
+        "fixHint": "Text is 106px x 20px inside 1468px x 4px and overflows by up to 36px; increase the container height to at least ~40px or shrink font-size from 16px to ~3px, or allow wrapping with max-width/fitTextFontSize.",
+        "containerRect": {
+          "left": 226,
+          "top": 813,
+          "right": 1694,
+          "bottom": 817,
+          "width": 1468,
+          "height": 4
+        },
+        "overflow": {
+          "top": 36
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 1587.95,
+          "y": 777,
+          "width": 106.05,
+          "height": 20
+        },
+        "firstSeen": 7.852,
+        "lastSeen": 10.095,
+        "occurrences": 2,
+        "heldMs": 0,
+        "times": [
+          7.852,
+          10.095
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 7.852,
+        "selector": "div.s3-footage",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 163.21,
+          "top": 50.18,
+          "right": 1756.79,
+          "bottom": 946.82,
+          "width": 1593.59,
+          "height": 896.65
+        },
+        "containerSelector": "div.s3-card",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 170,
+          "top": 54,
+          "right": 1750,
+          "bottom": 943,
+          "width": 1580,
+          "height": 889
+        },
+        "overflow": {
+          "left": 6.79,
+          "right": 6.79,
+          "top": 3.82,
+          "bottom": 3.82
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 163.21,
+          "y": 50.18,
+          "width": 1593.59,
+          "height": 896.65
+        },
+        "firstSeen": 7.852,
+        "lastSeen": 10.095,
+        "occurrences": 2,
+        "heldMs": 0,
+        "times": [
+          7.852,
+          10.095
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "info",
+        "time": 8.599,
+        "selector": "#s3-srv-a",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 298.64,
+          "top": 981.9,
+          "right": 373.25,
+          "bottom": 1004.9,
+          "width": 74.61,
+          "height": 23
+        },
+        "containerSelector": "#s3-srv-b",
+        "text": "Videasy",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 298.64,
+          "y": 981.9,
+          "width": 74.61,
+          "height": 23
+        },
+        "firstSeen": 8.599,
+        "lastSeen": 8.599,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          8.599
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 14.582,
+        "selector": "span.s4-wire",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 1219.84,
+          "top": 496.79,
+          "right": 1768.16,
+          "bottom": 516.93,
+          "width": 548.33,
+          "height": 20.15
+        },
+        "containerSelector": "div.s4-art.s4-art-3",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 1240,
+          "top": 432,
+          "right": 1748,
+          "bottom": 718,
+          "width": 508,
+          "height": 286
+        },
+        "overflow": {
+          "left": 20.16,
+          "right": 20.16
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s4-resume.html",
+        "bbox": {
+          "x": 1219.84,
+          "y": 496.79,
+          "width": 548.33,
+          "height": 20.15
+        },
+        "firstSeen": 14.582,
+        "lastSeen": 14.582,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.582
+        ]
+      }
+    ],
+    "duration": 20.19,
+    "samples": [
+      1.122,
+      3.365,
+      5.608,
+      7.852,
+      10.095,
+      12.338,
+      14.582,
+      16.825,
+      19.068
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 9,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 4,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "contrast_aa_failure",
+        "severity": "warning",
+        "message": "Contrast is 3.49:1; WCAG AA requires 4.5:1.",
+        "text": "SERVERS",
+        "fg": "rgb(115,116,115)",
+        "bg": "rgb(30,32,31)",
+        "ratio": 3.49,
+        "requiredRatio": 4.5,
+        "suggestedColor": "rgb(134,135,134)",
+        "large": false,
+        "selector": "div > div:nth-of-type(2) > div > div:nth-of-type(4) > div > div:nth-of-type(1) > span:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s2-measure.html",
+        "bbox": {
+          "x": 205,
+          "y": 634,
+          "width": 102.9375,
+          "height": 20
+        },
+        "time": 5.608,
+        "times": [
+          5.608
+        ]
+      },
+      {
+        "code": "contrast_aa_failure",
+        "severity": "warning",
+        "message": "Contrast is 3.97:1; WCAG AA requires 4.5:1.",
+        "text": "FAQ →",
+        "fg": "rgb(20,142,102)",
+        "bg": "rgb(30,32,31)",
+        "ratio": 3.97,
+        "requiredRatio": 4.5,
+        "suggestedColor": "rgb(40,152,115)",
+        "large": false,
+        "selector": "div > div:nth-of-type(2) > div > div:nth-of-type(4) > div > div:nth-of-type(1) > div > span:nth-of-type(4)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s2-measure.html",
+        "bbox": {
+          "x": 1624.359375,
+          "y": 634,
+          "width": 50.640625,
+          "height": 20
+        },
+        "time": 5.608,
+        "times": [
+          5.608
+        ]
+      },
+      {
+        "code": "contrast_aa_failure",
+        "severity": "warning",
+        "message": "Contrast is 3.52:1; WCAG AA requires 4.5:1.",
+        "text": "SERVERS",
+        "fg": "rgb(114,115,114)",
+        "bg": "rgb(28,30,29)",
+        "ratio": 3.52,
+        "requiredRatio": 4.5,
+        "suggestedColor": "rgb(132,133,132)",
+        "large": false,
+        "selector": "div > div:nth-of-type(3) > div > div:nth-of-type(3) > div > span:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 197,
+          "y": 990,
+          "width": 83.640625,
+          "height": 16
+        },
+        "time": 10.095,
+        "times": [
+          10.095
+        ]
+      },
+      {
+        "code": "contrast_aa_failure",
+        "severity": "warning",
+        "message": "Contrast is 4.06:1; WCAG AA requires 4.5:1.",
+        "text": "FAQ →",
+        "fg": "rgb(19,142,101)",
+        "bg": "rgb(28,30,29)",
+        "ratio": 4.06,
+        "requiredRatio": 4.5,
+        "suggestedColor": "rgb(35,150,111)",
+        "large": false,
+        "selector": "div > div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(1) > span:nth-of-type(4)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 1647.859375,
+          "y": 990,
+          "width": 41.140625,
+          "height": 16
+        },
+        "time": 10.095,
+        "times": [
+          10.095
+        ]
+      }
+    ],
+    "enabled": true,
+    "samples": [
+      1.122,
+      5.608,
+      10.095,
+      14.582,
+      19.068
+    ],
+    "checked": 28,
+    "passed": 24
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 11,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "first_frame_empty",
+        "severity": "warning",
+        "message": "Frame 0 shows only the background, and the first frame is the thumbnail on social players: have the title or key image already on screen at 0 s instead of entering from nothing; see references/review.md.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 4 text elements stay under it for 0.5 s or more, the smallest \"EVERY STREAMING SITE\" at 15 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "EVERY STREAMING SITE",
+        "selector": "p.s1-eyebrow",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s1-hook.html",
+        "bbox": {
+          "x": 824.58,
+          "y": 286,
+          "width": 270.83,
+          "height": 19
+        },
+        "time": 0.249,
+        "times": [
+          0.249,
+          0.748,
+          1.246,
+          1.745
+        ],
+        "fontPx": 15,
+        "floorPx": 28,
+        "seconds": 2.493,
+        "elements": [
+          {
+            "selector": "p.s1-eyebrow",
+            "text": "EVERY STREAMING SITE",
+            "fontPx": 15,
+            "time": 0.249,
+            "seconds": 2.493
+          },
+          {
+            "selector": "#s1-chip-1 > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "SERVER 1",
+            "fontPx": 20,
+            "time": 0.748,
+            "seconds": 1.994
+          },
+          {
+            "selector": "#s1-chip-2 > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "SERVER 2",
+            "fontPx": 20,
+            "time": 1.246,
+            "seconds": 1.496
+          },
+          {
+            "selector": "#s1-chip-3 > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "SERVER 3",
+            "fontPx": 20,
+            "time": 1.745,
+            "seconds": 0.997
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 8 text elements stay under it for 0.5 s or more, the smallest \"SERVERS\" at 16 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "SERVERS",
+        "selector": "span.s2-servers",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s2-measure.html",
+        "bbox": {
+          "x": 205,
+          "y": 636.08,
+          "width": 102.94,
+          "height": 20
+        },
+        "time": 2.991,
+        "times": [
+          2.991,
+          2.991,
+          2.991,
+          2.991,
+          2.991,
+          3.988,
+          4.487,
+          4.985
+        ],
+        "fontPx": 16,
+        "floorPx": 28,
+        "seconds": 4.113,
+        "elements": [
+          {
+            "selector": "span.s2-servers",
+            "text": "SERVERS",
+            "fontPx": 16,
+            "time": 2.991,
+            "seconds": 4.113
+          },
+          {
+            "selector": "span.s2-test",
+            "text": "TEST",
+            "fontPx": 16,
+            "time": 2.991,
+            "seconds": 4.113
+          },
+          {
+            "selector": "span.s2-faq",
+            "text": "FAQ →",
+            "fontPx": 16,
+            "time": 2.991,
+            "seconds": 4.113
+          },
+          {
+            "selector": "#s2-mbps",
+            "text": "0.0 Mbps",
+            "fontPx": 22,
+            "time": 2.991,
+            "seconds": 4.113
+          },
+          {
+            "selector": "div.s2-chip.s2-chip-active > span:nth-of-type(3)",
+            "text": "Videasy",
+            "fontPx": 22,
+            "time": 3.988,
+            "seconds": 3.116
+          },
+          {
+            "selector": "div.s2-rail > div:nth-of-type(2) > span:nth-of-type(2)",
+            "text": "VidVault",
+            "fontPx": 22,
+            "time": 4.487,
+            "seconds": 2.617
+          },
+          {
+            "selector": "div.s2-rail > div:nth-of-type(3) > span:nth-of-type(2)",
+            "text": "FlyEmbed",
+            "fontPx": 22,
+            "time": 4.985,
+            "seconds": 2.119
+          },
+          {
+            "selector": "span.s2-current",
+            "text": "Videasy",
+            "fontPx": 24,
+            "time": 2.991,
+            "seconds": 4.113
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 11 text elements stay under it for 0.5 s or more, the smallest \"10\" at 9 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "10",
+        "selector": "div.s3-icons > svg:nth-of-type(2) > text:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 281.09,
+          "y": 858.38,
+          "width": 9.65,
+          "height": 10.92
+        },
+        "time": 7.229,
+        "times": [
+          7.229,
+          7.229,
+          7.353,
+          7.353,
+          7.353,
+          7.353,
+          7.353,
+          7.353,
+          7.478,
+          7.478,
+          8.724
+        ],
+        "fontPx": 8.67,
+        "floorPx": 28,
+        "seconds": 3.739,
+        "elements": [
+          {
+            "selector": "div.s3-icons > svg:nth-of-type(2) > text:nth-of-type(1)",
+            "text": "10",
+            "fontPx": 8.67,
+            "time": 7.229,
+            "seconds": 3.739
+          },
+          {
+            "selector": "span.s3-servers-label",
+            "text": "SERVERS",
+            "fontPx": 13,
+            "time": 7.353,
+            "seconds": 3.615
+          },
+          {
+            "selector": "span.s3-servtest",
+            "text": "TEST",
+            "fontPx": 13,
+            "time": 7.353,
+            "seconds": 3.615
+          },
+          {
+            "selector": "span.s3-servfaq",
+            "text": "FAQ →",
+            "fontPx": 13,
+            "time": 7.353,
+            "seconds": 3.615
+          },
+          {
+            "selector": "div.s3-servmeta > span:nth-of-type(2)",
+            "text": "4.3 Mbps",
+            "fontPx": 15,
+            "time": 7.353,
+            "seconds": 3.615
+          },
+          {
+            "selector": "#s3-time",
+            "text": "14:32 / 42:10",
+            "fontPx": 16,
+            "time": 7.229,
+            "seconds": 3.739
+          },
+          {
+            "selector": "div.s3-top > span:nth-of-type(1)",
+            "text": "Quality 1080p",
+            "fontPx": 17,
+            "time": 7.478,
+            "seconds": 3.49
+          },
+          {
+            "selector": "div.s3-top > span:nth-of-type(2)",
+            "text": "Audio & Subtitles",
+            "fontPx": 17,
+            "time": 7.478,
+            "seconds": 3.49
+          },
+          {
+            "selector": "div.s3-title > p:nth-of-type(1)",
+            "text": "S2 E4 · The Long Bright Dark",
+            "fontPx": 18,
+            "time": 7.353,
+            "seconds": 3.615
+          },
+          {
+            "selector": "#s3-srv-a",
+            "text": "Videasy",
+            "fontPx": 19,
+            "time": 7.353,
+            "seconds": 1.371
+          },
+          {
+            "selector": "#s3-srv-b",
+            "text": "VidVault",
+            "fontPx": 19,
+            "time": 8.724,
+            "seconds": 2.244
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 24 text elements stay under it for 0.5 s or more, the smallest \"MERIDIAN\" at 9 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "MERIDIAN",
+        "selector": "span.s4-mer-label",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s4-resume.html",
+        "bbox": {
+          "x": 923.87,
+          "y": 632.08,
+          "width": 72.26,
+          "height": 11.45
+        },
+        "time": 12.712,
+        "times": [
+          11.092,
+          11.092,
+          11.092,
+          11.092,
+          11.092,
+          11.092,
+          11.466,
+          11.715,
+          11.964,
+          12.214,
+          12.214,
+          12.214,
+          12.214,
+          12.712,
+          12.712,
+          12.712,
+          12.712,
+          12.712,
+          13.211,
+          13.211,
+          13.211,
+          13.211,
+          13.709,
+          13.709
+        ],
+        "fontPx": 9,
+        "floorPx": 28,
+        "seconds": 2.119,
+        "elements": [
+          {
+            "selector": "span.s4-mer-label",
+            "text": "MERIDIAN",
+            "fontPx": 9,
+            "time": 12.712,
+            "seconds": 2.119
+          },
+          {
+            "selector": "article.s4-card.s4-card-1 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "S2 · E4",
+            "fontPx": 10.5,
+            "time": 12.214,
+            "seconds": 2.617
+          },
+          {
+            "selector": "article.s4-card.s4-card-2 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "S1 · E1",
+            "fontPx": 10.5,
+            "time": 12.712,
+            "seconds": 2.119
+          },
+          {
+            "selector": "article.s4-card.s4-card-3 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "S3 · E7",
+            "fontPx": 10.5,
+            "time": 13.211,
+            "seconds": 1.62
+          },
+          {
+            "selector": "p.s4-kicker",
+            "text": "PICK UP WHERE YOU LEFT OFF",
+            "fontPx": 11.5,
+            "time": 11.715,
+            "seconds": 3.116
+          },
+          {
+            "selector": "div.s4-search",
+            "text": "Search titles, people, genres",
+            "fontPx": 12,
+            "time": 11.092,
+            "seconds": 3.739
+          },
+          {
+            "selector": "p.s4-eyebrow",
+            "text": "THE HOME ROW",
+            "fontPx": 12,
+            "time": 11.466,
+            "seconds": 3.365
+          },
+          {
+            "selector": "div.s4-clear",
+            "text": "Clear all",
+            "fontPx": 12,
+            "time": 11.964,
+            "seconds": 2.867
+          },
+          {
+            "selector": "p.s4-caption",
+            "text": "— ONE CARD PER TITLE, EVERYWHERE",
+            "fontPx": 12,
+            "time": 13.709,
+            "seconds": 1.122
+          },
+          {
+            "selector": "p.s4-caption > strong:nth-of-type(1)",
+            "text": "NEWEST EPISODE WINS",
+            "fontPx": 12,
+            "time": 13.709,
+            "seconds": 1.122
+          },
+          {
+            "selector": "#s4-pct-1",
+            "text": "0%",
+            "fontPx": 13,
+            "time": 12.214,
+            "seconds": 2.617
+          },
+          {
+            "selector": "article.s4-card.s4-card-1 > p:nth-of-type(1)",
+            "text": "S2 E4 · The Long Bright Dark",
+            "fontPx": 13,
+            "time": 12.214,
+            "seconds": 2.617
+          },
+          {
+            "selector": "#s4-pct-2",
+            "text": "0%",
+            "fontPx": 13,
+            "time": 12.712,
+            "seconds": 2.119
+          },
+          {
+            "selector": "article.s4-card.s4-card-2 > p:nth-of-type(1)",
+            "text": "S1 E1 · Cold Open",
+            "fontPx": 13,
+            "time": 12.712,
+            "seconds": 2.119
+          },
+          {
+            "selector": "#s4-pct-3",
+            "text": "0%",
+            "fontPx": 13,
+            "time": 13.211,
+            "seconds": 1.62
+          },
+          {
+            "selector": "article.s4-card.s4-card-3 > p:nth-of-type(1)",
+            "text": "S3 E7 · Lantern Season",
+            "fontPx": 13,
+            "time": 13.211,
+            "seconds": 1.62
+          },
+          {
+            "selector": "span.s4-active",
+            "text": "Home",
+            "fontPx": 13.5,
+            "time": 11.092,
+            "seconds": 3.739
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(2)",
+            "text": "Browse",
+            "fontPx": 13.5,
+            "time": 11.092,
+            "seconds": 3.739
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(3)",
+            "text": "My List",
+            "fontPx": 13.5,
+            "time": 11.092,
+            "seconds": 3.739
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(4)",
+            "text": "F1",
+            "fontPx": 13.5,
+            "time": 11.092,
+            "seconds": 3.739
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(5)",
+            "text": "Cricket",
+            "fontPx": 13.5,
+            "time": 11.092,
+            "seconds": 3.739
+          },
+          {
+            "selector": "article.s4-card.s4-card-1 > div:nth-of-type(2) > h3:nth-of-type(1)",
+            "text": "The Salt Road",
+            "fontPx": 19,
+            "time": 12.214,
+            "seconds": 2.617
+          },
+          {
+            "selector": "article.s4-card.s4-card-2 > div:nth-of-type(2) > h3:nth-of-type(1)",
+            "text": "Meridian",
+            "fontPx": 19,
+            "time": 12.712,
+            "seconds": 2.119
+          },
+          {
+            "selector": "article.s4-card.s4-card-3 > div:nth-of-type(2) > h3:nth-of-type(1)",
+            "text": "Nightmarket",
+            "fontPx": 19,
+            "time": 13.211,
+            "seconds": 1.62
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 10 text elements stay under it for 0.5 s or more, the smallest \"TELEMETRY · SECTOR 3\" at 10 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "TELEMETRY · SECTOR 3",
+        "selector": "div.s5-graph-label",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5-sport.html",
+        "bbox": {
+          "x": 151,
+          "y": 690,
+          "width": 170.34,
+          "height": 12
+        },
+        "time": 14.831,
+        "times": [
+          14.831,
+          14.831,
+          14.956,
+          15.08,
+          15.08,
+          15.08,
+          15.08,
+          15.205,
+          15.205,
+          15.703
+        ],
+        "fontPx": 10,
+        "floorPx": 28,
+        "seconds": 2.119,
+        "elements": [
+          {
+            "selector": "div.s5-graph-label",
+            "text": "TELEMETRY · SECTOR 3",
+            "fontPx": 10,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-bars-label",
+            "text": "LAST 10 OVERS",
+            "fontPx": 10,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "span.s5-pill.s5-pill-red",
+            "text": "S3 · LAP 42",
+            "fontPx": 11.5,
+            "time": 15.08,
+            "seconds": 1.87
+          },
+          {
+            "selector": "span.s5-pill.s5-pill-quiet",
+            "text": "SOFT",
+            "fontPx": 11.5,
+            "time": 15.08,
+            "seconds": 1.87
+          },
+          {
+            "selector": "div.s5-left-body > div:nth-of-type(1)",
+            "text": "LIVE · TELEMETRY",
+            "fontPx": 12,
+            "time": 14.956,
+            "seconds": 1.994
+          },
+          {
+            "selector": "div.s5-right-body > div:nth-of-type(1)",
+            "text": "LIVE · MATCH CENTRE",
+            "fontPx": 12,
+            "time": 15.08,
+            "seconds": 1.87
+          },
+          {
+            "selector": "div.s5-overs",
+            "text": "16.2 OV ·",
+            "fontPx": 15,
+            "time": 15.205,
+            "seconds": 1.745
+          },
+          {
+            "selector": "div.s5-overs > b:nth-of-type(1)",
+            "text": "CRR 11.46",
+            "fontPx": 15,
+            "time": 15.205,
+            "seconds": 1.745
+          },
+          {
+            "selector": "#s5-plus",
+            "text": "+1",
+            "fontPx": 22,
+            "time": 15.703,
+            "seconds": 0.873
+          },
+          {
+            "selector": "span.s5-team",
+            "text": "IND",
+            "fontPx": 24,
+            "time": 15.08,
+            "seconds": 1.87
+          }
+        ]
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"12 ms\" (2 words) is on screen 1.46 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "12 ms",
+        "selector": "#s6-stat-1 > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 493.11,
+          "y": 315.76,
+          "width": 163.08000000000004,
+          "height": 165
+        },
+        "time": 17.074,
+        "words": 2,
+        "seconds": 1.465,
+        "floorSeconds": 2
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"ms\" (1 word) is on screen 1.46 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "ms",
+        "selector": "span.s6-unit",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 665.19,
+          "y": 408.76,
+          "width": 59.72000000000003,
+          "height": 49
+        },
+        "time": 17.074,
+        "words": 1,
+        "seconds": 1.465,
+        "floorSeconds": 2
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 4 text elements stay under it for 0.5 s or more, the smallest \"TTFB\" at 11 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "TTFB",
+        "selector": "#s6-stat-1 > div:nth-of-type(2)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 589.41,
+          "y": 488.76,
+          "width": 42.72,
+          "height": 14
+        },
+        "time": 17.074,
+        "times": [
+          17.074,
+          17.324,
+          17.448,
+          18.944
+        ],
+        "fontPx": 11,
+        "floorPx": 28,
+        "seconds": 1.496,
+        "elements": [
+          {
+            "selector": "#s6-stat-1 > div:nth-of-type(2)",
+            "text": "TTFB",
+            "fontPx": 11,
+            "time": 17.074,
+            "seconds": 1.496
+          },
+          {
+            "selector": "#s6-stat-2 > div:nth-of-type(2)",
+            "text": "SPINNERS",
+            "fontPx": 11,
+            "time": 17.324,
+            "seconds": 1.246
+          },
+          {
+            "selector": "#s6-stat-3 > div:nth-of-type(2)",
+            "text": "TESTS",
+            "fontPx": 11,
+            "time": 17.448,
+            "seconds": 1.122
+          },
+          {
+            "selector": "p.s6-tagline",
+            "text": "MEASURED, NEVER INVENTED.",
+            "fontPx": 14,
+            "time": 18.944,
+            "seconds": 1.246
+          }
+        ]
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"0\" (1 word) is on screen 1.33 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "0",
+        "selector": "#s6-stat-2 > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 912.81,
+          "y": 308.21,
+          "width": 81.54999999999995,
+          "height": 165
+        },
+        "time": 17.207,
+        "words": 1,
+        "seconds": 1.332,
+        "floorSeconds": 2
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"193\" (1 word) is on screen 1.17 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "193",
+        "selector": "#s6-stat-3 > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 1182.27,
+          "y": 308.96,
+          "width": 244.61000000000013,
+          "height": 165
+        },
+        "time": 17.371,
+        "words": 1,
+        "seconds": 1.168,
+        "floorSeconds": 2
+      }
+    ],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 162
+  },
+  "audio": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

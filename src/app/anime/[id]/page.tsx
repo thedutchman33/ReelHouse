@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DetailContent from "@/components/detail/DetailContent";
 import { getMediaDetail } from "@/lib/tmdb";
+import { anilistTrending } from "@/lib/anilist";
 
 // Anime detail — AniList-backed (the id in the URL is an AniList id, not a
 // TMDB one). Same DetailContent implementation as movie/tv detail pages; the
@@ -11,6 +12,14 @@ import { getMediaDetail } from "@/lib/tmdb";
 // ISR: AniList detail (artwork, streaming-episode thumbnails, recs) refreshes
 // hourly; the page serves from the CDN edge like movie/tv detail.
 export const revalidate = 3600;
+
+// Required for the revalidate above to do anything (see movie/[id]/page.tsx).
+// Anime ids are AniList ids; trending is the closest equivalent of TMDB's
+// popular list. A build-time AniList outage just leaves the list empty.
+export async function generateStaticParams() {
+  const trending = await anilistTrending(8).catch(() => []);
+  return trending.map((media) => ({ id: String(media.tmdbId) }));
+}
 
 export async function generateMetadata({
   params,

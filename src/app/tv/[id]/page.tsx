@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DetailContent from "@/components/detail/DetailContent";
-import { getMediaDetail } from "@/lib/tmdb";
+import { getMediaDetail, getPopularDetailIds } from "@/lib/tmdb";
 
 // ISR: TMDB data moves on TMDB's clock — revalidate in the background,
 // serve the cached page from the CDN edge (the reference's 25ms TTFB).
 export const revalidate = 3600;
+
+// Required for the revalidate above to do anything — see movie/[id]/page.tsx.
+export async function generateStaticParams() {
+  const ids = await getPopularDetailIds("tv");
+  return ids.map((id) => ({ id: String(id) }));
+}
 
 export async function generateMetadata({
   params,

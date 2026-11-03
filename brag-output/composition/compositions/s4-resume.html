@@ -1,0 +1,611 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Bebas Neue";
+      src: url("assets/fonts/bebas-neue.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: var(--color-ground, #111212);
+      color: var(--color-ink, #f2f3f2);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .s4-ground {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(95% 70% at 78% 4%, #171d1b 0%, #111413 44%, #0b0c0c 100%);
+    }
+
+    /* floating glass nav, faithful to the home page's fixed bar */
+    .s4-nav {
+      position: absolute;
+      left: 60px;
+      right: 60px;
+      top: 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0 22px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(20, 22, 21, 0.74);
+      box-shadow:
+        0 18px 40px -22px rgba(0, 0, 0, 0.85),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(14px);
+    }
+    .s4-brand img {
+      display: block;
+      height: 34px;
+      width: auto;
+    }
+    .s4-links {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+      margin-left: 38px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      color: rgba(242, 243, 242, 0.56);
+    }
+    .s4-links .s4-active {
+      color: #f2f3f2;
+      font-weight: 600;
+    }
+    .s4-navright {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .s4-search {
+      width: 246px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 13px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.035);
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(242, 243, 242, 0.62);
+    }
+    .s4-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(140deg, #10b981 0%, #0a6b4c 100%);
+      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);
+    }
+
+    .s4-eyebrow {
+      position: absolute;
+      left: 172px;
+      top: 146px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.30em;
+      color: #89908c;
+    }
+    .s4-headline {
+      position: absolute;
+      left: 170px;
+      top: 170px;
+      font-family: "Bebas Neue", Inter, sans-serif;
+      font-weight: 400;
+      font-size: 102px;
+      line-height: 0.94;
+      letter-spacing: 0.004em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: #f2f3f2;
+    }
+    .s4-headline .s4-dim {
+      color: #6f7672;
+    }
+
+    .s4-kicker {
+      position: absolute;
+      left: 172px;
+      top: 312px;
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.26em;
+      color: #89908c;
+    }
+    .s4-section-title {
+      position: absolute;
+      left: 170px;
+      top: 330px;
+      font-family: "Bebas Neue", Inter, sans-serif;
+      font-weight: 400;
+      font-size: 46px;
+      line-height: 1;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      color: #f2f3f2;
+    }
+    .s4-clear {
+      position: absolute;
+      right: 172px;
+      top: 344px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(242, 243, 242, 0.62);
+    }
+
+    .s4-card {
+      position: absolute;
+      top: 432px;
+      width: 508px;
+    }
+    .s4-card-1 {
+      left: 172px;
+    }
+    .s4-card-2 {
+      left: 706px;
+    }
+    .s4-card-3 {
+      left: 1240px;
+    }
+    .s4-still {
+      position: relative;
+      width: 508px;
+      height: 286px;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #151817;
+      box-shadow:
+        0 22px 44px -24px rgba(0, 0, 0, 0.9),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    .s4-art {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    .s4-art-1 {
+      background:
+        radial-gradient(80% 95% at 72% 76%, rgba(214, 143, 82, 0.42) 0%, rgba(214, 143, 82, 0) 56%),
+        radial-gradient(120% 120% at 18% 0%, #4a3626 0%, #2a1e15 42%, #15100c 100%);
+    }
+    .s4-art-1::before {
+      content: "";
+      position: absolute;
+      left: 57%;
+      top: 20%;
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #f2c693 0%, #d68f52 46%, rgba(214, 143, 82, 0) 72%);
+      opacity: 0.92;
+    }
+    .s4-art-1::after {
+      content: "";
+      position: absolute;
+      left: -12%;
+      right: -12%;
+      bottom: -34%;
+      height: 72%;
+      border-radius: 50% 50% 0 0 / 84% 84% 0 0;
+      background: linear-gradient(180deg, #3d2b1d 0%, #1d150e 58%, #0d0907 100%);
+      transform: rotate(-4deg);
+      box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.09);
+    }
+    .s4-art-2 {
+      background:
+        radial-gradient(90% 110% at 50% 34%, #163d40 0%, #0c2022 48%, #070f10 100%);
+    }
+    .s4-art-2::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(242, 243, 242, 0.55);
+    }
+    .s4-art-2::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 60%;
+      height: 1px;
+      background: rgba(242, 243, 242, 0.16);
+    }
+    .s4-mer-dot {
+      position: absolute;
+      left: 50%;
+      top: 60%;
+      width: 11px;
+      height: 11px;
+      margin: -5px 0 0 -5px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 18px rgba(52, 211, 153, 0.85);
+    }
+    .s4-mer-label {
+      position: absolute;
+      left: 50%;
+      top: 68%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.34em;
+      color: rgba(242, 243, 242, 0.66);
+    }
+    .s4-art-3 {
+      background:
+        radial-gradient(100% 100% at 26% 8%, #3d1c31 0%, #251022 44%, #100913 100%);
+    }
+    .s4-lantern {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffd9a3 0%, #f2a35c 44%, rgba(242, 163, 92, 0) 72%);
+    }
+    .s4-lantern-1 {
+      left: 16%;
+      top: 18%;
+      width: 34px;
+      height: 34px;
+      opacity: 0.9;
+    }
+    .s4-lantern-2 {
+      left: 40%;
+      top: 30%;
+      width: 22px;
+      height: 22px;
+      opacity: 0.72;
+    }
+    .s4-lantern-3 {
+      left: 62%;
+      top: 14%;
+      width: 44px;
+      height: 44px;
+      opacity: 0.95;
+    }
+    .s4-lantern-4 {
+      left: 79%;
+      top: 34%;
+      width: 26px;
+      height: 26px;
+      opacity: 0.8;
+    }
+    .s4-lantern-5 {
+      left: 52%;
+      top: 52%;
+      width: 18px;
+      height: 18px;
+      opacity: 0.62;
+    }
+    .s4-wire {
+      position: absolute;
+      left: -4%;
+      right: -4%;
+      top: 26%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.13);
+      transform: rotate(-2deg);
+    }
+    .s4-art-3::after {
+      content: "";
+      position: absolute;
+      left: -6%;
+      right: -6%;
+      bottom: -8%;
+      height: 34%;
+      background: linear-gradient(180deg, rgba(8, 5, 10, 0) 0%, rgba(8, 5, 10, 0.88) 100%);
+    }
+
+    .s4-badge {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 9px;
+      border-radius: 6px;
+      background: rgba(8, 10, 9, 0.76);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      color: #f2f3f2;
+    }
+    .s4-progress {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 4px;
+      background: rgba(10, 12, 11, 0.55);
+    }
+    .s4-bar {
+      position: absolute;
+      inset: 0;
+      background: #10b981;
+      transform-origin: left center;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.55);
+      opacity: 0;
+    }
+    .s4-rim {
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      box-shadow:
+        0 0 0 1.5px rgba(16, 185, 129, 0.55),
+        0 0 34px rgba(16, 185, 129, 0.20);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .s4-meta-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-top: 15px;
+    }
+    .s4-title {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #f2f3f2;
+      white-space: nowrap;
+    }
+    .s4-pct {
+      margin-left: auto;
+      font-size: 14px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #34d399;
+      opacity: 0;
+    }
+    .s4-sub {
+      margin-top: 5px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #89908c;
+      white-space: nowrap;
+    }
+
+    .s4-rule {
+      position: absolute;
+      left: 172px;
+      right: 172px;
+      top: 946px;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .s4-caption {
+      position: absolute;
+      left: 172px;
+      top: 980px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      color: #838a86;
+    }
+    .s4-caption .s4-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+    }
+    .s4-caption strong {
+      font-weight: 700;
+      color: #a8afab;
+    }
+  </style>
+
+  <div id="root" data-composition-id="s4" data-width="1920" data-height="1080">
+    <div class="s4-ground"></div>
+
+    <div id="s4-nav" class="clip" data-start="0" data-duration="3.80" data-track-index="1">
+      <div class="s4-nav">
+        <div class="s4-brand">
+          <img src="assets/brand/reelhouse-logo.png" alt="Reelhouse" />
+        </div>
+        <nav class="s4-links">
+          <span class="s4-active">Home</span>
+          <span>Browse</span>
+          <span>My List</span>
+          <span>F1</span>
+          <span>Cricket</span>
+        </nav>
+        <div class="s4-navright">
+          <div class="s4-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.6-3.6" />
+            </svg>
+            Search titles, people, genres
+          </div>
+          <div class="s4-avatar"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="s4-head" class="clip" data-start="0.42" data-duration="3.38" data-track-index="2">
+      <p class="s4-eyebrow">THE HOME ROW</p>
+      <h1 class="s4-headline">ONE CARD <span class="s4-dim">PER TITLE.</span></h1>
+    </div>
+
+    <div id="s4-section" class="clip" data-start="0" data-duration="3.80" data-track-index="3">
+      <p class="s4-kicker">PICK UP WHERE YOU LEFT OFF</p>
+      <h2 class="s4-section-title">Continue Watching</h2>
+      <div class="s4-clear">
+        Clear all
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </div>
+    </div>
+
+    <div id="s4-card-1" class="clip" data-start="0" data-duration="3.80" data-track-index="4">
+      <article class="s4-card s4-card-1">
+        <div class="s4-still">
+          <div class="s4-art s4-art-1" data-layout-ignore></div>
+          <span class="s4-badge">S2 &middot; E4</span>
+          <div class="s4-progress"><i class="s4-bar"></i></div>
+          <div class="s4-rim"></div>
+        </div>
+        <div class="s4-meta-row">
+          <h3 class="s4-title">The Salt Road</h3>
+          <span class="s4-pct" id="s4-pct-1">0%</span>
+        </div>
+        <p class="s4-sub">S2 E4 &middot; The Long Bright Dark</p>
+      </article>
+    </div>
+
+    <div id="s4-card-2" class="clip" data-start="0" data-duration="3.80" data-track-index="5">
+      <article class="s4-card s4-card-2">
+        <div class="s4-still">
+          <div class="s4-art s4-art-2" data-layout-ignore>
+            <span class="s4-mer-dot"></span>
+            <span class="s4-mer-label">MERIDIAN</span>
+          </div>
+          <span class="s4-badge">S1 &middot; E1</span>
+          <div class="s4-progress"><i class="s4-bar"></i></div>
+        </div>
+        <div class="s4-meta-row">
+          <h3 class="s4-title">Meridian</h3>
+          <span class="s4-pct" id="s4-pct-2">0%</span>
+        </div>
+        <p class="s4-sub">S1 E1 &middot; Cold Open</p>
+      </article>
+    </div>
+
+    <div id="s4-card-3" class="clip" data-start="0" data-duration="3.80" data-track-index="6">
+      <article class="s4-card s4-card-3">
+        <div class="s4-still">
+          <div class="s4-art s4-art-3" data-layout-ignore>
+            <span class="s4-wire" data-layout-ignore></span>
+            <span class="s4-lantern s4-lantern-1"></span>
+            <span class="s4-lantern s4-lantern-2"></span>
+            <span class="s4-lantern s4-lantern-3"></span>
+            <span class="s4-lantern s4-lantern-4"></span>
+            <span class="s4-lantern s4-lantern-5"></span>
+          </div>
+          <span class="s4-badge">S3 &middot; E7</span>
+          <div class="s4-progress"><i class="s4-bar"></i></div>
+        </div>
+        <div class="s4-meta-row">
+          <h3 class="s4-title">Nightmarket</h3>
+          <span class="s4-pct" id="s4-pct-3">0%</span>
+        </div>
+        <p class="s4-sub">S3 E7 &middot; Lantern Season</p>
+      </article>
+    </div>
+
+    <div class="s4-rule"></div>
+
+    <div id="s4-caption" class="clip" data-start="2.67" data-duration="1.13" data-track-index="7">
+      <p class="s4-caption">
+        <span class="s4-dot"></span>
+        <strong>NEWEST EPISODE WINS</strong>
+        &mdash; ONE CARD PER TITLE, EVERYWHERE
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const s4 = gsap.timeline({ paused: true });
+
+    s4.fromTo(
+      ".s4-nav",
+      { y: -16, opacity: 1 },
+      { y: 0, opacity: 1, duration: 0.36, ease: "power3.out" },
+      0
+    );
+
+    s4.fromTo(
+      ".s4-eyebrow",
+      { opacity: 0, y: 8 },
+      { opacity: 1, y: 0, duration: 0.24, ease: "power2.out" },
+      0.42
+    );
+
+    // beat-locked: 11.46s root
+    s4.fromTo(
+      ".s4-headline",
+      { opacity: 0, y: 20, filter: "blur(10px)" },
+      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.36, ease: "power4.out" },
+      0.53
+    );
+
+    // the row is already home; progress fills land on the beat grid: 12.02 / 12.55 / 13.11 root
+    const cards = [
+      { id: "#s4-card-1", at: 1.09, pct: 68, pctEl: "s4-pct-1" },
+      { id: "#s4-card-2", at: 1.62, pct: 22, pctEl: "s4-pct-2" },
+      { id: "#s4-card-3", at: 2.18, pct: 91, pctEl: "s4-pct-3" },
+    ];
+
+    cards.forEach(({ id, at, pct, pctEl }) => {
+      s4.fromTo(
+        `${id} .s4-card`,
+        { y: 10, opacity: 1 },
+        { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" },
+        0
+      );
+      s4.fromTo(`${id} .s4-art`, { scale: 1.06 }, { scale: 1, duration: 1.3, ease: "power2.out" }, 0);
+      s4.to(`${id} .s4-bar`, { opacity: 1, duration: 0.01 }, at);
+      s4.to(`${id} .s4-pct`, { opacity: 1, duration: 0.01 }, at);
+      s4.fromTo(
+        `${id} .s4-bar`,
+        { scaleX: 0 },
+        { scaleX: pct / 100, duration: 0.5, ease: "power2.out" },
+        at
+      );
+
+      const counter = { v: 0 };
+      s4.fromTo(
+        counter,
+        { v: 0 },
+        {
+          v: pct,
+          duration: 0.5,
+          ease: "power2.out",
+          onUpdate: () => {
+            const el = document.getElementById(pctEl);
+            if (el) el.textContent = Math.round(counter.v) + "%";
+          },
+        },
+        at
+      );
+    });
+
+    // first card's bar completes: faint emerald rim, one accent only
+    s4.fromTo(
+      "#s4-card-1 .s4-rim",
+      { opacity: 0 },
+      { opacity: 1, duration: 0.4, ease: "power2.out" },
+      1.61
+    );
+
+    s4.fromTo(
+      "#s4-caption .s4-caption",
+      { opacity: 0, y: 8 },
+      { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" },
+      2.67
+    );
+
+    window.__timelines["s4"] = s4;
+  </script>
+</template>

@@ -1,0 +1,792 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "filesScanned": 7
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "duration": 20.19,
+    "samples": [
+      1.122,
+      3.365,
+      5.608,
+      7.852,
+      10.095,
+      12.338,
+      14.582,
+      16.825,
+      19.068
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 0,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.122,
+      5.608,
+      10.095,
+      14.582,
+      19.068
+    ],
+    "checked": 53,
+    "passed": 53
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 10,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 4 text elements stay under it for 0.5 s or more, the smallest \"EVERY STREAMING SITE\" at 15 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "EVERY STREAMING SITE",
+        "selector": "p.s1-eyebrow",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s1-hook.html",
+        "bbox": {
+          "x": 824.58,
+          "y": 286,
+          "width": 270.83,
+          "height": 19
+        },
+        "time": 0.997,
+        "times": [
+          0.997,
+          0.997,
+          1.246,
+          1.745
+        ],
+        "fontPx": 15,
+        "floorPx": 28,
+        "seconds": 1.745,
+        "elements": [
+          {
+            "selector": "p.s1-eyebrow",
+            "text": "EVERY STREAMING SITE",
+            "fontPx": 15,
+            "time": 0.997,
+            "seconds": 1.745
+          },
+          {
+            "selector": "#s1-chip-1 > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "SERVER 1",
+            "fontPx": 20,
+            "time": 0.997,
+            "seconds": 1.745
+          },
+          {
+            "selector": "#s1-chip-2 > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "SERVER 2",
+            "fontPx": 20,
+            "time": 1.246,
+            "seconds": 1.496
+          },
+          {
+            "selector": "#s1-chip-3 > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "SERVER 3",
+            "fontPx": 20,
+            "time": 1.745,
+            "seconds": 0.997
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 8 text elements stay under it for 0.5 s or more, the smallest \"TEST\" at 17 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "TEST",
+        "selector": "span.s2-test",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s2-measure.html",
+        "bbox": {
+          "x": 1551.94,
+          "y": 634,
+          "width": 51.26,
+          "height": 20
+        },
+        "time": 2.742,
+        "times": [
+          2.742,
+          2.742,
+          2.742,
+          2.742,
+          2.742,
+          2.742,
+          2.742,
+          2.742
+        ],
+        "fontPx": 17,
+        "floorPx": 28,
+        "seconds": 4.362,
+        "elements": [
+          {
+            "selector": "span.s2-test",
+            "text": "TEST",
+            "fontPx": 17,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "span.s2-faq",
+            "text": "FAQ →",
+            "fontPx": 17,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "span.s2-servers",
+            "text": "SERVERS",
+            "fontPx": 18,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "div.s2-chip.s2-chip-active > span:nth-of-type(3)",
+            "text": "Videasy",
+            "fontPx": 23,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "div.s2-rail > div:nth-of-type(2) > span:nth-of-type(2)",
+            "text": "VidVault",
+            "fontPx": 23,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "div.s2-rail > div:nth-of-type(3) > span:nth-of-type(2)",
+            "text": "FlyEmbed",
+            "fontPx": 23,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "#s2-mbps",
+            "text": "4.3 Mbps",
+            "fontPx": 24,
+            "time": 2.742,
+            "seconds": 4.362
+          },
+          {
+            "selector": "span.s2-current",
+            "text": "Videasy",
+            "fontPx": 26,
+            "time": 2.742,
+            "seconds": 4.362
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 11 text elements stay under it for 0.5 s or more, the smallest \"10\" at 9 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "10",
+        "selector": "div.s3-icons > svg:nth-of-type(2) > text:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3-watch.html",
+        "bbox": {
+          "x": 278.6,
+          "y": 877.91,
+          "width": 9.68,
+          "height": 10.95
+        },
+        "time": 7.104,
+        "times": [
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          7.104,
+          8.724
+        ],
+        "fontPx": 8.67,
+        "floorPx": 28,
+        "seconds": 3.864,
+        "elements": [
+          {
+            "selector": "div.s3-icons > svg:nth-of-type(2) > text:nth-of-type(1)",
+            "text": "10",
+            "fontPx": 8.67,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "span.s3-servtest",
+            "text": "TEST",
+            "fontPx": 14,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "span.s3-servfaq",
+            "text": "FAQ →",
+            "fontPx": 14,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "span.s3-servers-label",
+            "text": "SERVERS",
+            "fontPx": 15,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "#s3-time",
+            "text": "15:10 / 42:10",
+            "fontPx": 16,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "div.s3-servmeta > span:nth-of-type(2)",
+            "text": "4.3 Mbps",
+            "fontPx": 16,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "div.s3-top > span:nth-of-type(1)",
+            "text": "Quality 1080p",
+            "fontPx": 17,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "div.s3-top > span:nth-of-type(2)",
+            "text": "Audio & Subtitles",
+            "fontPx": 17,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "div.s3-title > p:nth-of-type(1)",
+            "text": "S2 E4 · The Long Bright Dark",
+            "fontPx": 18,
+            "time": 7.104,
+            "seconds": 3.864
+          },
+          {
+            "selector": "#s3-srv-a",
+            "text": "Videasy",
+            "fontPx": 21,
+            "time": 7.104,
+            "seconds": 1.62
+          },
+          {
+            "selector": "#s3-srv-b",
+            "text": "VidVault",
+            "fontPx": 21,
+            "time": 8.724,
+            "seconds": 2.244
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 23 text elements stay under it for 0.5 s or more, the smallest \"PICK UP WHERE YOU LEFT OFF\" at 12 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "PICK UP WHERE YOU LEFT OFF",
+        "selector": "p.s4-kicker",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s4-resume.html",
+        "bbox": {
+          "x": 172,
+          "y": 312,
+          "width": 252.17,
+          "height": 14
+        },
+        "time": 10.967,
+        "times": [
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          10.967,
+          11.466,
+          12.089,
+          12.588,
+          13.211,
+          13.709,
+          13.709
+        ],
+        "fontPx": 11.5,
+        "floorPx": 28,
+        "seconds": 3.864,
+        "elements": [
+          {
+            "selector": "p.s4-kicker",
+            "text": "PICK UP WHERE YOU LEFT OFF",
+            "fontPx": 11.5,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-1 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "S2 · E4",
+            "fontPx": 11.5,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-2 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "S1 · E1",
+            "fontPx": 11.5,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-3 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "S3 · E7",
+            "fontPx": 11.5,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "div.s4-clear",
+            "text": "Clear all",
+            "fontPx": 12,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "p.s4-eyebrow",
+            "text": "THE HOME ROW",
+            "fontPx": 12,
+            "time": 11.466,
+            "seconds": 3.365
+          },
+          {
+            "selector": "div.s4-search",
+            "text": "Search titles, people, genres",
+            "fontPx": 13,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "p.s4-caption",
+            "text": "— ONE CARD PER TITLE, EVERYWHERE",
+            "fontPx": 13.5,
+            "time": 13.709,
+            "seconds": 1.122
+          },
+          {
+            "selector": "p.s4-caption > strong:nth-of-type(1)",
+            "text": "NEWEST EPISODE WINS",
+            "fontPx": 13.5,
+            "time": 13.709,
+            "seconds": 1.122
+          },
+          {
+            "selector": "span.s4-active",
+            "text": "Home",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(2)",
+            "text": "Browse",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(3)",
+            "text": "My List",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(4)",
+            "text": "F1",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "nav.s4-links > span:nth-of-type(5)",
+            "text": "Cricket",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-1 > p:nth-of-type(1)",
+            "text": "S2 E4 · The Long Bright Dark",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-2 > p:nth-of-type(1)",
+            "text": "S1 E1 · Cold Open",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-3 > p:nth-of-type(1)",
+            "text": "S3 E7 · Lantern Season",
+            "fontPx": 14,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "#s4-pct-1",
+            "text": "17%",
+            "fontPx": 14,
+            "time": 12.089,
+            "seconds": 2.742
+          },
+          {
+            "selector": "#s4-pct-2",
+            "text": "2%",
+            "fontPx": 14,
+            "time": 12.588,
+            "seconds": 2.243
+          },
+          {
+            "selector": "#s4-pct-3",
+            "text": "41%",
+            "fontPx": 14,
+            "time": 13.211,
+            "seconds": 1.62
+          },
+          {
+            "selector": "article.s4-card.s4-card-1 > div:nth-of-type(2) > h3:nth-of-type(1)",
+            "text": "The Salt Road",
+            "fontPx": 21,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-2 > div:nth-of-type(2) > h3:nth-of-type(1)",
+            "text": "Meridian",
+            "fontPx": 21,
+            "time": 10.967,
+            "seconds": 3.864
+          },
+          {
+            "selector": "article.s4-card.s4-card-3 > div:nth-of-type(2) > h3:nth-of-type(1)",
+            "text": "Nightmarket",
+            "fontPx": 21,
+            "time": 10.967,
+            "seconds": 3.864
+          }
+        ]
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 10 text elements stay under it for 0.5 s or more, the smallest \"S3 · LAP 42\" at 12 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "S3 · LAP 42",
+        "selector": "span.s5-pill.s5-pill-red",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5-sport.html",
+        "bbox": {
+          "x": 400.27,
+          "y": 539,
+          "width": 85.09,
+          "height": 14
+        },
+        "time": 14.831,
+        "times": [
+          14.831,
+          14.831,
+          14.831,
+          14.831,
+          14.831,
+          14.831,
+          14.831,
+          14.831,
+          14.831,
+          15.703
+        ],
+        "fontPx": 11.5,
+        "floorPx": 28,
+        "seconds": 2.119,
+        "elements": [
+          {
+            "selector": "span.s5-pill.s5-pill-red",
+            "text": "S3 · LAP 42",
+            "fontPx": 11.5,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "span.s5-pill.s5-pill-quiet",
+            "text": "SOFT",
+            "fontPx": 11.5,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-graph-label",
+            "text": "TELEMETRY · SECTOR 3",
+            "fontPx": 12,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-bars-label",
+            "text": "LAST 10 OVERS",
+            "fontPx": 12,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-left-body > div:nth-of-type(1)",
+            "text": "LIVE · TELEMETRY",
+            "fontPx": 14,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-right-body > div:nth-of-type(1)",
+            "text": "LIVE · MATCH CENTRE",
+            "fontPx": 14,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-overs",
+            "text": "16.2 OV ·",
+            "fontPx": 15,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "div.s5-overs > b:nth-of-type(1)",
+            "text": "CRR 11.46",
+            "fontPx": 15,
+            "time": 14.831,
+            "seconds": 2.119
+          },
+          {
+            "selector": "#s5-plus",
+            "text": "+1",
+            "fontPx": 22,
+            "time": 15.703,
+            "seconds": 0.873
+          },
+          {
+            "selector": "span.s5-team",
+            "text": "IND",
+            "fontPx": 24,
+            "time": 14.831,
+            "seconds": 2.119
+          }
+        ]
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"12 ms\" (2 words) is on screen 1.60 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "12 ms",
+        "selector": "#s6-stat-1 > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 485.66,
+          "y": 416.52,
+          "width": 160.68,
+          "height": 162.58000000000004
+        },
+        "time": 16.934,
+        "words": 2,
+        "seconds": 1.604,
+        "floorSeconds": 2
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"ms\" (1 word) is on screen 1.60 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "ms",
+        "selector": "span.s6-unit",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 655.2,
+          "y": 508.15,
+          "width": 58.84000000000003,
+          "height": 48.27999999999997
+        },
+        "time": 16.934,
+        "words": 1,
+        "seconds": 1.604,
+        "floorSeconds": 2
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"0\" (1 word) is on screen 1.60 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "0",
+        "selector": "#s6-stat-2 > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 913.51,
+          "y": 416.52,
+          "width": 80.34000000000003,
+          "height": 162.58000000000004
+        },
+        "time": 16.934,
+        "words": 1,
+        "seconds": 1.604,
+        "floorSeconds": 2
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"193\" (1 word) is on screen 1.60 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "193",
+        "selector": "#s6-stat-3 > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 1193.32,
+          "y": 416.52,
+          "width": 241.01,
+          "height": 162.58000000000004
+        },
+        "time": 16.934,
+        "words": 1,
+        "seconds": 1.604,
+        "floorSeconds": 2
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 4 text elements stay under it for 0.5 s or more, the smallest \"TTFB\" at 15 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "TTFB",
+        "selector": "#s6-stat-1 > div:nth-of-type(2)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/s6-receipts.html",
+        "bbox": {
+          "x": 573.95,
+          "y": 586.98,
+          "width": 56.22,
+          "height": 18.72
+        },
+        "time": 16.95,
+        "times": [
+          16.95,
+          16.95,
+          16.95,
+          18.944
+        ],
+        "fontPx": 14.78,
+        "floorPx": 28,
+        "seconds": 1.62,
+        "elements": [
+          {
+            "selector": "#s6-stat-1 > div:nth-of-type(2)",
+            "text": "TTFB",
+            "fontPx": 14.78,
+            "time": 16.95,
+            "seconds": 1.62
+          },
+          {
+            "selector": "#s6-stat-2 > div:nth-of-type(2)",
+            "text": "SPINNERS",
+            "fontPx": 14.78,
+            "time": 16.95,
+            "seconds": 1.62
+          },
+          {
+            "selector": "#s6-stat-3 > div:nth-of-type(2)",
+            "text": "TESTS",
+            "fontPx": 14.78,
+            "time": 16.95,
+            "seconds": 1.62
+          },
+          {
+            "selector": "p.s6-tagline",
+            "text": "MEASURED, NEVER INVENTED.",
+            "fontPx": 20,
+            "time": 18.944,
+            "seconds": 1.246
+          }
+        ]
+      }
+    ],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 162
+  },
+  "audio": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

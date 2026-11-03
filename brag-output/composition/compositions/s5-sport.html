@@ -1,0 +1,504 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Bebas Neue";
+      src: url("assets/fonts/bebas-neue.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "Formula1";
+      src: url("assets/fonts/formula1-black.woff2") format("woff2");
+      font-weight: 900;
+      font-style: normal;
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #0a0b0b;
+      color: var(--color-ink, #f2f3f2);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .s5-left {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 960px;
+      height: 1080px;
+      background:
+        radial-gradient(80% 62% at 50% 34%, rgba(225, 6, 0, 0.22) 0%, rgba(225, 6, 0, 0) 64%),
+        linear-gradient(160deg, #180a0c 0%, #100708 48%, #0a0b0b 100%);
+    }
+    .s5-right {
+      position: absolute;
+      left: 960px;
+      top: 0;
+      width: 960px;
+      height: 1080px;
+      background:
+        radial-gradient(80% 62% at 50% 34%, rgba(59, 130, 246, 0.20) 0%, rgba(59, 130, 246, 0) 64%),
+        linear-gradient(200deg, #0a1120 0%, #080d16 48%, #0a0b0b 100%);
+    }
+    .s5-grid-left {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(70% 60% at 50% 46%, #000 0%, transparent 100%);
+      -webkit-mask-image: radial-gradient(70% 60% at 50% 46%, #000 0%, transparent 100%);
+    }
+    .s5-grid-right {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.10) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: radial-gradient(75% 62% at 50% 44%, #000 0%, transparent 100%);
+      -webkit-mask-image: radial-gradient(75% 62% at 50% 44%, #000 0%, transparent 100%);
+      opacity: 0.55;
+    }
+    .s5-divider {
+      position: absolute;
+      left: 959px;
+      top: 0;
+      width: 1px;
+      height: 1080px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.16) 34%, rgba(255, 255, 255, 0.16) 66%, rgba(255, 255, 255, 0.02) 100%);
+    }
+    .s5-scrim {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 300px;
+      background: linear-gradient(180deg, #0a0b0b 0%, rgba(10, 11, 11, 0.86) 48%, rgba(10, 11, 11, 0) 100%);
+      z-index: 4;
+    }
+
+    .s5-headline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 92px;
+      z-index: 5;
+      text-align: center;
+      font-family: "Bebas Neue", Inter, sans-serif;
+      font-weight: 400;
+      font-size: 90px;
+      line-height: 1;
+      letter-spacing: 0.008em;
+      text-transform: uppercase;
+      color: #f2f3f2;
+    }
+    .s5-headline .s5-dim {
+      color: #6f7672;
+    }
+
+    .s5-left-body {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 960px;
+      height: 1080px;
+      z-index: 3;
+    }
+    .s5-right-body {
+      position: absolute;
+      left: 960px;
+      top: 0;
+      width: 960px;
+      height: 1080px;
+      z-index: 3;
+    }
+
+    .s5-f1mark {
+      position: absolute;
+      left: 355px;
+      top: 286px;
+      width: 250px;
+      height: auto;
+    }
+    .s5-crest {
+      position: absolute;
+      left: 432px;
+      top: 262px;
+      height: 100px;
+      width: auto;
+    }
+
+    .s5-eyebrow {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 392px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.28em;
+      color: rgba(242, 243, 242, 0.66);
+    }
+    .s5-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .s5-dot-red {
+      background: #e10600;
+      box-shadow: 0 0 0 4px rgba(225, 6, 0, 0.14), 0 0 12px rgba(225, 6, 0, 0.7);
+    }
+    .s5-dot-blue {
+      background: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.14), 0 0 12px rgba(59, 130, 246, 0.7);
+    }
+
+    .s5-laptime {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 420px;
+      text-align: center;
+      font-family: "Formula1", Inter, sans-serif;
+      font-weight: 900;
+      font-size: 84px;
+      line-height: 90px;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+    }
+    .s5-session {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 522px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+    .s5-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+    }
+    .s5-pill-red {
+      color: #ff8b82;
+      background: rgba(225, 6, 0, 0.14);
+      border: 1px solid rgba(225, 6, 0, 0.38);
+    }
+    .s5-pill-quiet {
+      color: rgba(242, 243, 242, 0.52);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+    }
+
+    .s5-graph-label {
+      position: absolute;
+      left: 120px;
+      top: 690px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.26em;
+      color: rgba(242, 243, 242, 0.42);
+    }
+    .s5-graph-label .s5-rule {
+      width: 22px;
+      height: 1px;
+      background: rgba(242, 243, 242, 0.24);
+    }
+    .s5-trace {
+      position: absolute;
+      left: 120px;
+      top: 714px;
+    }
+
+    .s5-score-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .s5-team {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #93b4e8;
+      transform: translateY(-4px);
+    }
+    .s5-score-mask {
+      position: relative;
+      width: 272px;
+      height: 90px;
+      overflow: hidden;
+    }
+    .s5-score-track {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      font-size: 80px;
+      font-weight: 900;
+      line-height: 90px;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+      text-align: center;
+    }
+    .s5-score-track span {
+      display: block;
+      height: 90px;
+    }
+    .s5-plus {
+      position: absolute;
+      left: 648px;
+      top: 438px;
+      font-size: 22px;
+      font-weight: 800;
+      color: #60a5fa;
+      opacity: 0;
+    }
+    .s5-overs {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 522px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      font-variant-numeric: tabular-nums;
+      color: rgba(242, 243, 242, 0.52);
+    }
+    .s5-overs b {
+      color: rgba(147, 180, 232, 0.92);
+      font-weight: 700;
+    }
+
+    .s5-bars-label {
+      position: absolute;
+      left: 269px;
+      top: 690px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.26em;
+      color: rgba(242, 243, 242, 0.42);
+    }
+    .s5-bars-label .s5-rule {
+      width: 22px;
+      height: 1px;
+      background: rgba(242, 243, 242, 0.24);
+    }
+    .s5-bars {
+      position: absolute;
+      left: 269px;
+      top: 884px;
+      display: flex;
+      align-items: flex-end;
+      gap: 18px;
+      height: 130px;
+    }
+    .s5-bar {
+      width: 26px;
+      border-radius: 3px 3px 1px 1px;
+      background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+      transform-origin: bottom center;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.22);
+    }
+    .s5-baseline {
+      position: absolute;
+      left: 269px;
+      top: 884px;
+      width: 420px;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.14);
+    }
+  </style>
+
+  <div id="root" data-composition-id="s5" data-width="1920" data-height="1080">
+    <div class="s5-left"></div>
+    <div class="s5-right"></div>
+    <div class="s5-grid-left"></div>
+    <div class="s5-grid-right"></div>
+    <div class="s5-divider"></div>
+    <div class="s5-scrim"></div>
+
+    <div id="s5-headline" class="clip" data-start="0.31" data-duration="1.89" data-track-index="1">
+      <h1 class="s5-headline"><span class="s5-dim">OH &mdash; AND</span> LIVE SPORT.</h1>
+    </div>
+
+    <div id="s5-left-body" class="clip" data-start="0" data-duration="2.20" data-track-index="2">
+      <div class="s5-left-body">
+        <img class="s5-f1mark" src="assets/brand/f1-logo.svg" alt="Formula 1" />
+
+        <div class="s5-eyebrow">
+          <span class="s5-dot s5-dot-red"></span>
+          LIVE &middot; TELEMETRY
+        </div>
+
+        <div class="s5-laptime">1:24.871</div>
+
+        <div class="s5-session">
+          <span class="s5-pill s5-pill-red">S3 &middot; LAP 42</span>
+          <span class="s5-pill s5-pill-quiet">SOFT</span>
+        </div>
+
+        <div class="s5-graph-label">
+          <span class="s5-rule"></span>
+          TELEMETRY &middot; SECTOR 3
+        </div>
+
+        <svg class="s5-trace" width="720" height="170" viewBox="0 0 720 170" fill="none">
+          <g stroke="rgba(255,255,255,0.055)" stroke-width="1">
+            <line x1="0" y1="34" x2="720" y2="34" />
+            <line x1="0" y1="78" x2="720" y2="78" />
+            <line x1="0" y1="122" x2="720" y2="122" />
+            <line x1="0" y1="166" x2="720" y2="166" />
+          </g>
+          <path
+            id="s5-trace-path"
+            d="M6 122 L46 118 L74 96 L104 102 L134 70 L164 74 L194 100 L234 98 L264 52 L294 60 L324 30 L354 44 L384 88 L414 84 L444 120 L474 116 L504 72 L534 80 L564 58 L594 66 L624 108 L654 104 L684 122 L714 118"
+            stroke="#E10600"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            pathLength="1"
+            style="stroke-dasharray: 1 1.2; stroke-dashoffset: 1.1"
+          />
+          <circle
+            id="s5-trace-dot"
+            cx="714"
+            cy="118"
+            r="4.5"
+            fill="#E10600"
+            opacity="0"
+            style="filter: drop-shadow(0 0 8px rgba(225, 6, 0, 0.9))"
+          />
+        </svg>
+      </div>
+    </div>
+
+    <div id="s5-right-body" class="clip" data-start="0" data-duration="2.20" data-track-index="3">
+      <div class="s5-right-body">
+        <img class="s5-crest" src="assets/brand/bcci-logo.svg" alt="BCCI" />
+
+        <div class="s5-eyebrow">
+          <span class="s5-dot s5-dot-blue"></span>
+          LIVE &middot; MATCH CENTRE
+        </div>
+
+        <div class="s5-score-row">
+          <span class="s5-team">IND</span>
+          <div class="s5-score-mask" data-layout-ignore>
+            <div class="s5-score-track" id="s5-score-track" data-layout-ignore>
+              <span>186/3</span>
+              <span>187/3</span>
+            </div>
+          </div>
+        </div>
+        <span class="s5-plus" id="s5-plus">+1</span>
+
+        <div class="s5-overs">16.2 OV &middot; <b>CRR 11.46</b></div>
+
+        <div class="s5-bars-label">
+          <span class="s5-rule"></span>
+          LAST 10 OVERS
+        </div>
+        <div class="s5-bars">
+          <span class="s5-bar" style="height: 46px"></span>
+          <span class="s5-bar" style="height: 78px"></span>
+          <span class="s5-bar" style="height: 34px"></span>
+          <span class="s5-bar" style="height: 96px"></span>
+          <span class="s5-bar" style="height: 62px"></span>
+          <span class="s5-bar" style="height: 118px"></span>
+          <span class="s5-bar" style="height: 40px"></span>
+          <span class="s5-bar" style="height: 84px"></span>
+          <span class="s5-bar" style="height: 68px"></span>
+          <span class="s5-bar" style="height: 104px"></span>
+        </div>
+        <div class="s5-baseline"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const s5 = gsap.timeline({ paused: true });
+
+    s5.fromTo(
+      ".s5-f1mark",
+      { opacity: 1, scale: 0.97 },
+      { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" },
+      0
+    );
+    s5.fromTo(
+      ".s5-crest",
+      { opacity: 1, scale: 0.97 },
+      { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" },
+      0
+    );
+    s5.fromTo(
+      ".s5-left-body .s5-eyebrow, .s5-left-body .s5-laptime, .s5-left-body .s5-session",
+      { opacity: 1, y: 10 },
+      { opacity: 1, y: 0, duration: 0.3, stagger: 0.06, ease: "power3.out" },
+      0
+    );
+    s5.fromTo(
+      ".s5-right-body .s5-eyebrow, .s5-right-body .s5-score-row, .s5-right-body .s5-overs",
+      { opacity: 1, y: 10 },
+      { opacity: 1, y: 0, duration: 0.3, stagger: 0.06, ease: "power3.out" },
+      0
+    );
+
+    // headline: root 15.04
+    s5.fromTo(
+      ".s5-headline",
+      { opacity: 0, y: 16, filter: "blur(10px)" },
+      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.3, ease: "power4.out" },
+      0.31
+    );
+
+    // telemetry trace draws in from 15.00 to 15.75 root
+    s5.fromTo(
+      "#s5-trace-path",
+      { strokeDashoffset: 1.1 },
+      { strokeDashoffset: 0, duration: 0.75, ease: "power2.inOut" },
+      0.27
+    );
+    s5.fromTo("#s5-trace-dot", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out" }, 1.0);
+
+    // run-rate bars rise
+    s5.fromTo(
+      ".s5-bar",
+      { scaleY: 0, opacity: 0 },
+      { scaleY: 1, opacity: 1, duration: 0.34, stagger: 0.035, ease: "power3.out" },
+      0.5
+    );
+
+    // the score ticks 186 -> 187 at 15.60 root
+    s5.to("#s5-score-track", { y: -90, duration: 0.16, ease: "power3.inOut" }, 0.87);
+    s5.fromTo("#s5-plus", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.18, ease: "power2.out" }, 0.92);
+    s5.to("#s5-plus", { opacity: 0, y: -8, duration: 0.32, ease: "power2.in" }, 1.45);
+
+    window.__timelines["s5"] = s5;
+  </script>
+</template>

@@ -37,7 +37,11 @@ export default function MediaCard({
 
   return (
     <div className="group relative w-full">
-      <Link href={href} className="block focus-visible:outline-none">
+      {/* prefetch={false}: a home page renders ~200 of these cards, and Next
+          prefetched every one that entered the viewport — 39 RSC requests on a
+          single home load, each a route render competing with the hero image.
+          Detail pages are edge-cached (ISR) now, so the click itself is cheap. */}
+      <Link href={href} prefetch={false} className="block focus-visible:outline-none">
         <div className="poster-frame">
           <PosterImage
             src={item.posterUrl}

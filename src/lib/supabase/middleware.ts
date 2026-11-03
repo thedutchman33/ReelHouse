@@ -10,6 +10,16 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 export async function updateSession(
   request: NextRequest
 ): Promise<NextResponse> {
+  // Anonymous visitors have no session to refresh. Creating the client and
+  // awaiting getUser() would still cost a Supabase round trip on every single
+  // navigation, so short-circuit before touching the network. The cookie name
+  // is `sb-<project-ref>-auth-token` (chunked as `...-auth-token.0`, `.1`, …),
+  // so match the shape rather than a literal ref — it survives a project move.
+  const hasSessionCookie = request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("-auth-token"));
+  if (!hasSessionCookie) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

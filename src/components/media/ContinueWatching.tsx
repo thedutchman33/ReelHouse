@@ -59,7 +59,7 @@ export default function ContinueWatching() {
               key={entry.key}
               className="group relative w-[264px] shrink-0 md:w-[300px]"
             >
-              <Link href={href} className="block overflow-hidden rounded-lg">
+              <Link href={href} prefetch={false} className="block overflow-hidden rounded-lg">
                 <div className="still-frame !shadow-none !ring-0">
                   <PosterImage
                     src={media.backdropUrl || media.posterUrl}

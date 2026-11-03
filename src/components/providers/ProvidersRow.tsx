@@ -70,6 +70,10 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
             <Link
               key={p.id}
               href={`/providers/${p.id}`}
+              // Provider catalogs are dynamic (they read ?page/?q), so every
+              // prefetch here was a full server render for a page most visitors
+              // never open. See MediaCard for the measured prefetch count.
+              prefetch={false}
               aria-label={`Browse titles on ${p.name}`}
               className="group flex h-[80px] w-[164px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-white/[0.06] bg-surface transition-transform duration-200 hover:-translate-y-0.5"
             >

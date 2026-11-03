@@ -1071,6 +1071,39 @@ async function anilistTmdbMatch(
   return matchTmdbTitle(media.title, year, kind, true);
 }
 
+/**
+ * Ids to warm for a detail route's `generateStaticParams`.
+ *
+ * `generateStaticParams` is what makes a dynamic segment an ISR route at all:
+ * without it Next renders /movie/[id] on every request and the segment's
+ * `revalidate` export is ignored — which is why these pages answered
+ * `Cache-Control: private, no-store` and `x-vercel-cache: MISS` on every hit.
+ * Returning a short list prerenders the most-watched titles at build; every
+ * other id is generated on demand and cached at the edge afterwards.
+ *
+ * Build-safe: an unreachable TMDB (or a build without a key) yields an empty
+ * list, which still leaves the route in on-demand ISR mode.
+ */
+export async function getPopularDetailIds(
+  type: "movie" | "tv",
+  limit = 10
+): Promise<number[]> {
+  if (!USE_LIVE) return [];
+  try {
+    const data = await tmdb<{ results?: any[] }>(
+      `/trending/${type}/week`,
+      { language: "en-US", include_adult: "false" },
+      60 * 60
+    );
+    return (data?.results ?? [])
+      .filter((r: any) => r.media_type !== "person" && r.id)
+      .map((r: any) => r.id as number)
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
 export async function getMediaDetail(
   type: MediaType,
   tmdbId: number

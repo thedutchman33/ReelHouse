@@ -149,8 +149,29 @@ const nextConfig = {
       },
       { key: "Content-Security-Policy-Report-Only", value: csp },
     ];
+    // public/ files are served with `Cache-Control: public, max-age=0,
+    // must-revalidate`, so the logo, the favicon and every provider wordmark
+    // were re-validated on each navigation. They are hand-versioned brand
+    // assets: cache them for a day and let the CDN serve stale for a week while
+    // revalidating, so a new export still lands without a hard refresh.
+    const brandAssetCache = {
+      key: "Cache-Control",
+      value: "public, max-age=86400, stale-while-revalidate=604800",
+    };
+    const brandAssetRules = [
+      "/logo.png",
+      "/logo-cricket.png",
+      "/logo-games.png",
+      "/favicon.png",
+    ].map((source) => ({ source, headers: [brandAssetCache] }));
     return [
       { source: "/:path*", headers: securityHeaders },
+      ...brandAssetRules,
+      { source: "/provider-logos/:path*", headers: [brandAssetCache] },
+      { source: "/f1/brand/:path*", headers: [brandAssetCache] },
+      { source: "/cricket/brand/:path*", headers: [brandAssetCache] },
+      { source: "/cricket/flags/:path*", headers: [brandAssetCache] },
+      { source: "/cricket/boards/:path*", headers: [brandAssetCache] },
       {
         // /api/cricket/embed returns a third-party player document inside a
         // sandbox. The app's policy would flag its CDN scripts and stream
