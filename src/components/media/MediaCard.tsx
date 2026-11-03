@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import PosterImage from "./PosterImage";
 import WatchlistButton from "./WatchlistButton";
 import { PlayIcon } from "@/components/player/icons";
@@ -27,6 +28,34 @@ export default function MediaCard({
   /** Section-scoped link prefix, e.g. "/anime" — keeps the section context. */
   linkRoot?: string;
 }) {
+  // Keep cards opt-out of viewport prefetching: the home page renders a large
+  // catalog and prefetching every visible destination competes with its hero.
+  // Only restore Next's normal prefetch after a deliberate hover/focus pause,
+  // so the card the viewer is actually about to open is ready by click time.
+  const [prefetchActive, setPrefetchActive] = useState(false);
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    };
+  }, []);
+
+  const beginIntentPrefetch = () => {
+    if (prefetchActive || prefetchTimer.current) return;
+    prefetchTimer.current = setTimeout(() => {
+      prefetchTimer.current = null;
+      setPrefetchActive(true);
+    }, 350);
+  };
+
+  const cancelIntentPrefetch = () => {
+    if (!prefetchActive && prefetchTimer.current) {
+      clearTimeout(prefetchTimer.current);
+      prefetchTimer.current = null;
+    }
+  };
+
   // linkRoot lets a section keep its context: cards in the anime section
   // link to /anime/{type}/{id} instead of leaving for /movie or /tv.
   const href = linkRoot
@@ -41,7 +70,16 @@ export default function MediaCard({
           prefetched every one that entered the viewport — 39 RSC requests on a
           single home load, each a route render competing with the hero image.
           Detail pages are edge-cached (ISR) now, so the click itself is cheap. */}
-      <Link href={href} prefetch={false} className="block focus-visible:outline-none">
+      <Link
+        href={href}
+        // `null` restores Next's normal prefetch only after hover/focus intent;
+        // false keeps every untouched card out of the home-page request burst.
+        prefetch={prefetchActive ? null : false}
+        onMouseEnter={beginIntentPrefetch}
+        onMouseLeave={cancelIntentPrefetch}
+        onFocus={() => setPrefetchActive(true)}
+        className="block focus-visible:outline-none"
+      >
         <div className="poster-frame">
           <PosterImage
             src={item.posterUrl}
