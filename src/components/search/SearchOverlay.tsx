@@ -69,18 +69,22 @@ export default function SearchOverlay({
   const [recent, setRecent] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const inputRef = useRef<HTMLInputElement>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
+  // The navbar re-renders on every live-feed tick, so `onClose` is a fresh
+  // function each time. It is read from a ref so that churn can never tear
+  // down the effects below.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
-  // Reset per open; capture focus to restore on close; seed trending once.
+  // Reset per open; seed trending once.
   useEffect(() => {
     if (!open) return;
-    restoreFocusRef.current = document.activeElement as HTMLElement | null;
     setQuery("");
     setResults([]);
     setStatus("idle");
     setRecent(loadRecent());
-    const raf = requestAnimationFrame(() => inputRef.current?.focus());
     let alive = true;
     (async () => {
       try {
@@ -93,25 +97,33 @@ export default function SearchOverlay({
     })();
     return () => {
       alive = false;
-      cancelAnimationFrame(raf);
     };
   }, [open]);
 
-  // Esc closes; focus returns to the trigger.
+  // Esc closes; focus returns to the trigger. Deliberately keyed on `open`
+  // alone: when this re-ran on a parent re-render it cancelled the input's
+  // focus and re-saved an already-locked scroll, so the caret vanished mid
+  // typing and the page stayed frozen after closing.
   useEffect(() => {
     if (!open) return;
+    const trigger = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Focus now as well as on the next frame: the panel is mounted in the same
+    // commit, so the caret is already in the field from the first frame.
+    inputRef.current?.focus();
+    const raf = requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
+      cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
-      restoreFocusRef.current?.focus?.();
+      trigger?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   // Debounced live results against the existing search API.
   useEffect(() => {
