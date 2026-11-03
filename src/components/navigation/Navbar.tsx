@@ -55,6 +55,8 @@ interface NavLink {
   live?: "f1" | "cricket";
   /** Detail routes belong to their section, so /movie/603 lights up "Movies". */
   match?: (pathname: string) => boolean;
+  /** Opt this link out of route prefetching. */
+  prefetch?: false;
 }
 
 interface LiveFlags {
@@ -67,7 +69,14 @@ const LINKS: NavLink[] = [
   { href: "/movies", label: "Movies", match: (p) => p === "/movies" || p.startsWith("/movie/") },
   { href: "/tv-shows", label: "Series", match: (p) => p === "/tv-shows" || p.startsWith("/tv/") },
   { href: "/anime", label: "Anime", match: (p) => p === "/anime" || p.startsWith("/anime/") },
-  { href: "/f1", label: "Formula 1", tone: "f1", live: "f1", match: (p) => p === "/f1" || p.startsWith("/f1/") },
+  // Formula 1 is the one route that must not be prefetched. Its page CSS
+  // declares the whole Formula 1 family (Regular/Italic/Bold/Black), and
+  // prefetching the route makes the client router insert that CSS — which
+  // eagerly downloads the three faces the nav's wordmark does not use.
+  // Measured cost of that prefetch on the home page: ~83KB of fonts and 3
+  // requests competing with the hero artwork, for a section most visitors
+  // never open. The route is ISR-cached, so a real click is still cheap.
+  { href: "/f1", label: "Formula 1", tone: "f1", live: "f1", prefetch: false, match: (p) => p === "/f1" || p.startsWith("/f1/") },
   { href: "/cricket", label: "Cricket", tone: "cricket", live: "cricket", match: (p) => p === "/cricket" || p.startsWith("/cricket/") },
   { href: "/games", label: "Games", tone: "games", match: (p) => p === "/games" || p.startsWith("/games/") },
   { href: "/my-list", label: "My List" },
@@ -114,6 +123,7 @@ function NavLinks({
           <Link
             key={link.href}
             href={link.href}
+            prefetch={link.prefetch}
             aria-current={active ? "page" : undefined}
             className={`flex h-8 shrink-0 items-center rounded-lg px-3.5 text-[15px] font-medium leading-none transition ${
               active ? "bg-white/10" : ""
