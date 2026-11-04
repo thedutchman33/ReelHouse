@@ -94,6 +94,31 @@ allow-same-origin"` — no popups, modals, forms, downloads or top navigation, b
 a real origin. The sanitized third-party fallback stays isolated by its own
 response policy, which the iframe attribute cannot lift.
 
+### Trend48 Live TV
+
+`https://trend48.st/api` is a public read-only JSON feed of matches, but its
+current cache has no cricket category. Cricket is in the **Live TV** directory,
+which is a different surface: add a channel URL to a slot.
+
+```sh
+CRICKET_SERVER_9_NAME=Trend48 - Sky Sports Cricket
+CRICKET_SERVER_9_URL=https://trend48.st/live-tv?ch=skysportscricket-uk
+CRICKET_SERVER_9_MEDIA_TYPES=cricket
+```
+
+The route recognises that URL shape, follows the public iframe chain
+(`trendy48.site` → `ehgembxe.cfd`) server-side, decodes the relay's binary
+ticket and serves our own player. The relay's anti-sandbox script never runs.
+Its HLS segments are MPEG-TS inside a WebP/EXIF envelope, so the first-party
+player unwraps the EXIF payload in a Shaka response filter. The signed manifest
+expires after a few hours; the player calls `?resolve=1` for a fresh ticket and
+reloads the manifest without a page reload.
+
+Cricket channel slugs include `skysportscricket-uk`, `fox-sports-501`,
+`willow-usa`, `willow2-usa` and `sonysportsnetwork-in`; the full list is on
+`https://trend48.st/live-tv`. The segments come from TikTok's CDN, so the
+viewer's network must be able to reach `p16-common-sign.tiktokcdn-us.com`.
+
 A source can still be down on its own. If a server shows a player but never
 starts, check whether the source's own token endpoint has rotated; the proxy is
 not the cause.

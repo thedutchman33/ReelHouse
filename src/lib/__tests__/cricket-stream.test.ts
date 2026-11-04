@@ -116,6 +116,30 @@ describe("cricket stream config extraction", () => {
     });
   });
 
+  it("reads the ci365 RAW_KEYS list", () => {
+    const config = extractCricketStreamConfig(`
+      const STREAM_URL = 'https://otte.test/live/cenc.mpd';
+      const RAW_KEYS = '${KEY_ID}:${KEY}';
+    `);
+    expect(config).toEqual({
+      streamUrl: "https://otte.test/live/cenc.mpd",
+      clearKeys: { [KEY_ID]: KEY },
+      cookieUrl: null,
+      channelId: null,
+    });
+  });
+
+  it("prefers DRM_KEYS when a page publishes both lists", () => {
+    const otherId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const otherKey = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const config = extractCricketStreamConfig(`
+      const STREAM_URL = "https://cdn.test/live/index.mpd";
+      const DRM_KEYS = "${KEY_ID}:${KEY}";
+      const RAW_KEYS = "${otherId}:${otherKey}";
+    `);
+    expect(config?.clearKeys).toEqual({ [KEY_ID]: KEY });
+  });
+
   it("keeps EVERY ClearKey pair, not just the first", () => {
     // The Star Sports manifest encrypts video and audio with different KIDs;
     // dropping the later pairs stalls playback on the poster frame.
@@ -322,6 +346,20 @@ describe("first-party player document", () => {
     expect(html).toContain("cdn.jsdelivr.net/npm/shaka-player@");
     expect(html).toContain("__hdnea__");
     expect(html).toContain("clearKeys");
+  });
+
+  it("installs the WebP/EXIF segment filter for Trend48", () => {
+    const trend48 = renderCricketPlayerPage({
+      streamUrl: "https://tims-001.sytes.net/main/secure/hash/1793772905/a.m3u8",
+      clearKeys: {},
+      cookieUrl: null,
+      unwrapWebpSegments: true,
+      refreshUrl: "/api/cricket/embed?url=x&resolve=1",
+    });
+    expect(trend48).toContain("unwrapWebpSegments");
+    expect(trend48).toContain("EXIF");
+    expect(trend48).toContain("video/mp2t");
+    expect(trend48).toContain("resolve=1");
   });
 
   it("escapes markup inside the injected config", () => {

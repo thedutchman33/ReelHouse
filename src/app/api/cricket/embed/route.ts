@@ -15,6 +15,10 @@ import {
   type CricketChannelSource,
   type CricketStreamConfig,
 } from "@/lib/cricket-stream";
+import {
+  resolveTrend48Channel,
+  trend48ChannelSlug,
+} from "@/lib/cricket-trend48";
 
 // ---------------------------------------------------------------------------
 // GET /api/cricket/embed?url=<encoded source URL>
@@ -238,7 +242,9 @@ async function resolveCricketChannel(
 }
 
 export async function GET(request: Request) {
-  const raw = new URL(request.url).searchParams.get("url");
+  const requestUrl = new URL(request.url);
+  const raw = requestUrl.searchParams.get("url");
+  const resolveOnly = requestUrl.searchParams.get("resolve") === "1";
   if (!raw) {
     return errorPage(400, "No cricket stream URL was supplied.");
   }
@@ -247,6 +253,60 @@ export async function GET(request: Request) {
   const target = parseAllowedCricketUrl(raw, allowlist);
   if (!target) {
     return errorPage(403, "That cricket stream is not configured on this site.");
+  }
+
+  // Trend48 Live TV hides a signed HLS manifest behind a chain of iframes and
+  // an anti-sandbox relay. Resolve that chain server-side and serve our own
+  // player, so the relay's JavaScript never runs. `?resolve=1` returns JSON for
+  // the player to call when the signed manifest expires.
+  const trend48Slug = trend48ChannelSlug(target.href);
+  if (trend48Slug) {
+    const resolved = await resolveTrend48Channel(trend48Slug);
+    if (!resolved) {
+      if (resolveOnly) {
+        return NextResponse.json(
+          { error: "unavailable" },
+          { status: 502, headers: { "Cache-Control": "no-store" } }
+        );
+      }
+      return errorPage(502, "This cricket channel is currently unavailable.");
+    }
+
+    if (resolveOnly) {
+      return NextResponse.json(
+        {
+          streamUrl: resolved.streamUrl,
+          expiresAt: resolved.expiresAt,
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    const config: CricketStreamConfig = {
+      streamUrl: resolved.streamUrl,
+      clearKeys: {},
+      cookieUrl: null,
+      channelId: null,
+      unwrapWebpSegments: true,
+      refreshUrl: `${requestUrl.pathname}?url=${encodeURIComponent(
+        target.href
+      )}&resolve=1`,
+      expiresAt: resolved.expiresAt,
+    };
+    return new NextResponse(renderCricketPlayerPage(config), {
+      status: 200,
+      headers: {
+        ...BASE_HEADERS,
+        "Content-Security-Policy": PLAYER_CSP,
+      },
+    });
+  }
+
+  if (resolveOnly) {
+    return NextResponse.json(
+      { error: "not a live channel" },
+      { status: 400, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const controller = new AbortController();

@@ -51,6 +51,15 @@ export interface CricketStreamConfig {
   channelId?: string | null;
   /** Short-lived CDN token fetched server-side by the embed route. */
   token?: string | null;
+  /**
+   * Trend48 segments are MPEG-TS inside a WebP/EXIF envelope. The player
+   * unwraps them in a Shaka response filter before the HLS parser sees them.
+   */
+  unwrapWebpSegments?: boolean;
+  /** Same-origin endpoint that returns a fresh signed manifest URL. */
+  refreshUrl?: string | null;
+  /** Manifest expiry in Unix milliseconds, when known. */
+  expiresAt?: number | null;
 }
 
 const HEX_32 = /^[0-9a-f]{32}$/i;
@@ -119,13 +128,15 @@ export function extractCricketStreamConfig(
   );
   if (!streamUrl) return null;
 
-  // Two published shapes: a single `keyId`/`key` pair, or the current
-  // `DRM_KEYS="keyId:key,..."` list. Keep every valid pair from the list —
-  // the manifest's tracks do not share one KID.
+  // Two published shapes: a single `keyId`/`key` pair, or a `kid:key,…` list.
+  // newball publishes that list as `DRM_KEYS`; the ci365 static players publish
+  // it as `RAW_KEYS`. Keep every valid pair — the manifest's tracks do not
+  // share one KID.
   const clearKeys: Record<string, string> = {};
   addClearKeyPair(clearKeys, configString(html, "keyId"), configString(html, "key"));
 
-  const drmKeys = constantString(html, "DRM_KEYS");
+  const drmKeys =
+    constantString(html, "DRM_KEYS") ?? constantString(html, "RAW_KEYS");
   for (const pair of drmKeys?.split(",") ?? []) {
     const separator = pair.indexOf(":");
     if (separator <= 0) continue;
@@ -300,6 +311,9 @@ export function renderCricketPlayerPage(config: CricketStreamConfig): string {
     cookieUrl: config.cookieUrl,
     channelId: config.channelId,
     token: config.token ?? null,
+    unwrapWebpSegments: config.unwrapWebpSegments === true,
+    refreshUrl: config.refreshUrl ?? null,
+    expiresAt: config.expiresAt ?? null,
   });
 
   return `<!doctype html>
@@ -347,6 +361,36 @@ export function renderCricketPlayerPage(config: CricketStreamConfig): string {
       streaming: { lowLatencyMode: true, bufferingGoal: 10, rebufferingGoal: 2, safeSeekOffset: 5 }
     });
 
+    // Trend48 (and the TikTok CDN it uses) serves each MPEG-TS segment inside
+    // a WebP container. Shaka would feed the RIFF header to the TS parser, so
+    // replace the response body with the EXIF payload before the parser runs.
+    if (CONFIG.unwrapWebpSegments) {
+      player.getNetworkingEngine().registerResponseFilter(function (type, response) {
+        if (type !== shaka.net.NetworkingEngine.RequestType.SEGMENT) return;
+        var data = response.data;
+        if (!data) return;
+        var bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+        if (bytes.length < 16) return;
+        if (bytes[0] !== 0x52 || bytes[1] !== 0x49 || bytes[2] !== 0x46 || bytes[3] !== 0x46) return;
+        if (bytes[8] !== 0x57 || bytes[9] !== 0x45 || bytes[10] !== 0x42 || bytes[11] !== 0x50) return;
+        var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        var offset = 12;
+        while (offset + 8 <= bytes.length) {
+          var tag = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
+          var size = view.getUint32(offset + 4, true);
+          var start = offset + 8;
+          if (start + size > bytes.length) return;
+          if (tag === "EXIF" && size > 0 && bytes[start] === 0x47) {
+            response.data = bytes.buffer.slice(bytes.byteOffset + start, bytes.byteOffset + start + size);
+            response.headers = response.headers || {};
+            response.headers["content-type"] = "video/mp2t";
+            return;
+          }
+          offset = start + size + (size & 1);
+        }
+      });
+    }
+
     function withToken(token) {
       player.getNetworkingEngine().registerRequestFilter(function (type, request) {
         try {
@@ -383,11 +427,40 @@ export function renderCricketPlayerPage(config: CricketStreamConfig): string {
         .catch(function () { return ""; });
     }
 
-    return fetchToken().then(function (token) {
-      if (token) withToken(token);
-      return player.load(CONFIG.streamUrl).then(function () {
+    function loadStream(url) {
+      return player.load(url).then(function () {
+        var error = document.querySelector("[data-player-error]");
+        if (error) error.remove();
         video.play().catch(function () {});
       });
+    }
+
+    // Trend48's signed manifest expires every few hours. Re-resolve through the
+    // same-origin route instead of making the viewer reload the page. After a
+    // few failures, reload the frame so the server can resolve a fresh ticket.
+    var refreshAttempts = 0;
+    function refreshStream() {
+      if (!CONFIG.refreshUrl) return;
+      if (refreshAttempts >= 3) {
+        setTimeout(function () { window.location.reload(); }, 5000);
+        return;
+      }
+      refreshAttempts++;
+      setTimeout(function () {
+        fetch(CONFIG.refreshUrl, { cache: "no-store" })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (!data || typeof data.streamUrl !== "string") throw new Error("no stream");
+            return loadStream(data.streamUrl).then(function () { refreshAttempts = 0; });
+          })
+          .catch(function () { refreshStream(); });
+      }, 1500 * refreshAttempts);
+    }
+    player.addEventListener("error", refreshStream);
+
+    return fetchToken().then(function (token) {
+      if (token) withToken(token);
+      return loadStream(CONFIG.streamUrl);
     });
   }).catch(function (error) {
     fail(error && error.message ? error.message : "The stream could not be started.");
