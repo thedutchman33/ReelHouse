@@ -55,6 +55,18 @@ export interface CricketStreamConfig {
 
 const HEX_32 = /^[0-9a-f]{32}$/i;
 
+/** Add one `keyId → key` pair when both halves are 32 hex characters. */
+function addClearKeyPair(
+  clearKeys: Record<string, string>,
+  keyId: unknown,
+  key: unknown
+): void {
+  if (typeof keyId !== "string" || typeof key !== "string") return;
+  const id = keyId.trim().toLowerCase();
+  const value = key.trim().toLowerCase();
+  if (HEX_32.test(id) && HEX_32.test(value)) clearKeys[id] = value;
+}
+
 function httpsUrl(raw: string | null): string | null {
   if (!raw) return null;
   try {
@@ -111,20 +123,13 @@ export function extractCricketStreamConfig(
   // `DRM_KEYS="keyId:key,..."` list. Keep every valid pair from the list —
   // the manifest's tracks do not share one KID.
   const clearKeys: Record<string, string> = {};
-  const addPair = (keyId: string | null, key: string | null) => {
-    if (!keyId || !key) return;
-    const id = keyId.trim().toLowerCase();
-    const value = key.trim().toLowerCase();
-    if (HEX_32.test(id) && HEX_32.test(value)) clearKeys[id] = value;
-  };
-
-  addPair(configString(html, "keyId"), configString(html, "key"));
+  addClearKeyPair(clearKeys, configString(html, "keyId"), configString(html, "key"));
 
   const drmKeys = constantString(html, "DRM_KEYS");
   for (const pair of drmKeys?.split(",") ?? []) {
     const separator = pair.indexOf(":");
     if (separator <= 0) continue;
-    addPair(pair.slice(0, separator), pair.slice(separator + 1));
+    addClearKeyPair(clearKeys, pair.slice(0, separator), pair.slice(separator + 1));
   }
 
   return {
@@ -134,6 +139,112 @@ export function extractCricketStreamConfig(
       sourceString(html, "cookieUrl", "COOKIE_JSON_URL")
     ),
     channelId: sourceString(html, "channelId", "CHANNEL_ID"),
+  };
+}
+
+export interface CricketChannelSource {
+  /** JSON list endpoint the page declares as `var API = "…"`. */
+  apiUrl: string;
+  /** Channel id taken from the source page's own `?id=` query. */
+  channelId: string;
+}
+
+/**
+ * ci365's `/star?id=…` page is not a static player: its markup has no manifest
+ * and its script reads `?id=` from its OWN `location.search` to pick a record
+ * from a JSON channel list. Behind the embed proxy that location is
+ * `/api/cricket/embed?url=…`, so the id is gone and the page falls back to its
+ * channel directory instead of playing. The route resolves the record
+ * server-side from the URL it actually fetched, which still carries `?id=`.
+ */
+export function extractCricketChannelSource(
+  html: string,
+  sourceUrl: string
+): CricketChannelSource | null {
+  const apiUrl = httpsUrl(constantString(html, "API"));
+  if (!apiUrl) return null;
+
+  // Only the runtime-list template. A static player page is handled above; an
+  // index page does not reference `stream_url`.
+  if (!/\bchannels\b/.test(html) || !/\bstream_url\b/.test(html)) return null;
+
+  let rawId: string | null;
+  try {
+    rawId = new URL(sourceUrl).searchParams.get("id");
+  } catch {
+    return null;
+  }
+  const channelId = rawId?.trim() ?? "";
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(channelId)) return null;
+
+  return { apiUrl, channelId };
+}
+
+interface CricketChannelRecord {
+  id?: unknown;
+  stream_url?: unknown;
+  cookie?: unknown;
+  key_id?: unknown;
+  key?: unknown;
+  sonuxs?: unknown;
+}
+
+/**
+ * Turn a record from the channel JSON into the same config shape a static
+ * player page publishes. `cookie` is the signed-URL token for that channel; the
+ * route fetches it fresh on every embed request, so the source's expiry is the
+ * only expiry.
+ */
+export function cricketChannelStreamConfig(
+  data: unknown,
+  channelId: string
+): CricketStreamConfig | null {
+  if (!data || typeof data !== "object") return null;
+  const channels = (data as { channels?: unknown }).channels;
+  if (!Array.isArray(channels)) return null;
+
+  const record = channels.find(
+    (item): item is CricketChannelRecord =>
+      !!item &&
+      typeof item === "object" &&
+      String((item as { id?: unknown }).id ?? "") === channelId
+  );
+  if (!record) return null;
+
+  const streamUrl =
+    typeof record.stream_url === "string"
+      ? httpsUrl(record.stream_url.trim())
+      : null;
+  if (!streamUrl) return null;
+
+  // The list publishes every ClearKey pair in `sonuxs`; fall back to the single
+  // `key_id`/`key` form when that list is absent.
+  const clearKeys: Record<string, string> = {};
+  if (Array.isArray(record.sonuxs)) {
+    for (const entry of record.sonuxs) {
+      if (typeof entry !== "string") continue;
+      const separator = entry.indexOf(":");
+      if (separator <= 0) continue;
+      addClearKeyPair(
+        clearKeys,
+        entry.slice(0, separator),
+        entry.slice(separator + 1)
+      );
+    }
+  }
+  if (Object.keys(clearKeys).length === 0) {
+    addClearKeyPair(clearKeys, record.key_id, record.key);
+  }
+
+  return {
+    streamUrl,
+    clearKeys,
+    cookieUrl: null,
+    channelId,
+    token:
+      typeof record.cookie === "string" && record.cookie.trim()
+        ? record.cookie.trim()
+        : null,
   };
 }
 

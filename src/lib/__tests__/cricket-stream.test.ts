@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCricketEmbedDocument,
+  cricketChannelStreamConfig,
+  extractCricketChannelSource,
   extractCricketStreamConfig,
   firstAllowedFrameUrl,
   renderCricketFramePage,
@@ -47,6 +49,47 @@ const SHELL_PAGE = `<!DOCTYPE html><html><body>
 const INDEX_PAGE = `<!DOCTYPE html><html><body>
 <a href="/HIN">Ten 3</a><a href="/HIN1HD">Ten 3 HD</a>
 </body></html>`;
+
+// ci365's /star page: no manifest in the markup. It reads ?id= from its own
+// location and picks the channel out of a JSON list at runtime.
+const CHANNEL_PAGE = `<!DOCTYPE html><html><body>
+<script>
+var API = "https://sonujson-v7.pages.dev/Data/sports.json";
+var sp = new URLSearchParams(location.search);
+var idp = sp.get("id") || "";
+async function loadData(){
+  var r = await fetch(API);
+  var d = await r.json();
+  return d.channels;
+}
+function startPlayer(ch){
+  var url = ch.stream_url;
+  var cookie = ch.cookie;
+}
+</script>
+</body></html>`;
+
+const CHANNEL_ID = "STEN3";
+
+const CHANNEL_DATA = {
+  channels: [
+    {
+      id: CHANNEL_ID,
+      name: "Sony Sports 3 Hindi HD",
+      stream_url:
+        "https://jiotvpllive.cdn.jio.com/bpk-tv/SonySportsTen3HinHDSTB_BTS/WDVLive/index.mpd",
+      cookie: "__hdnea__=st=1~exp=2~acl=/bpk-tv/*~hmac=abc",
+      key_id: null,
+      key: null,
+      sonuxs: [`${KEY_ID.toUpperCase()}:${KEY.toUpperCase()}`, "not-a-pair"],
+    },
+    {
+      id: "INSECURE",
+      stream_url: "http://cdn.test/live/index.mpd",
+      sonuxs: [`${KEY_ID}:${KEY}`],
+    },
+  ],
+};
 
 describe("cricket stream config extraction", () => {
   it("reads the manifest, ClearKey pair and token endpoint", () => {
@@ -128,6 +171,64 @@ describe("cricket stream config extraction", () => {
       cookieUrl: null,
       channelId: null,
     });
+  });
+});
+
+describe("runtime channel pages", () => {
+  it("finds the JSON endpoint and the id the source URL carried", () => {
+    expect(
+      extractCricketChannelSource(
+        CHANNEL_PAGE,
+        "https://ci365.pages.dev/star?id=STEN3"
+      )
+    ).toEqual({
+      apiUrl: "https://sonujson-v7.pages.dev/Data/sports.json",
+      channelId: "STEN3",
+    });
+  });
+
+  it("needs both the list endpoint and the id", () => {
+    expect(
+      extractCricketChannelSource(CHANNEL_PAGE, "https://ci365.pages.dev/star")
+    ).toBeNull();
+    expect(
+      extractCricketChannelSource(INDEX_PAGE, "https://ci365.pages.dev/star?id=X")
+    ).toBeNull();
+  });
+
+  it("maps the channel record to the player config", () => {
+    expect(cricketChannelStreamConfig(CHANNEL_DATA, CHANNEL_ID)).toEqual({
+      streamUrl:
+        "https://jiotvpllive.cdn.jio.com/bpk-tv/SonySportsTen3HinHDSTB_BTS/WDVLive/index.mpd",
+      clearKeys: { [KEY_ID]: KEY },
+      cookieUrl: null,
+      channelId: CHANNEL_ID,
+      token: "__hdnea__=st=1~exp=2~acl=/bpk-tv/*~hmac=abc",
+    });
+  });
+
+  it("falls back to a single key pair and normalizes case", () => {
+    const config = cricketChannelStreamConfig(
+      {
+        channels: [
+          {
+            id: "SINGLE",
+            stream_url: "https://cdn.test/live/index.mpd",
+            key_id: KEY_ID.toUpperCase(),
+            key: KEY.toUpperCase(),
+          },
+        ],
+      },
+      "SINGLE"
+    );
+    expect(config?.clearKeys).toEqual({ [KEY_ID]: KEY });
+    expect(config?.token).toBeNull();
+  });
+
+  it("rejects an unknown channel or an unsafe manifest", () => {
+    expect(cricketChannelStreamConfig(CHANNEL_DATA, "NOPE")).toBeNull();
+    expect(cricketChannelStreamConfig(CHANNEL_DATA, "INSECURE")).toBeNull();
+    expect(cricketChannelStreamConfig(null, CHANNEL_ID)).toBeNull();
   });
 });
 

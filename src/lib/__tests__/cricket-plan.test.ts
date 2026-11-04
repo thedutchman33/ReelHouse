@@ -33,6 +33,12 @@ const ENV_KEYS = [
   "CRICKET_SERVER_4_NAME",
   "CRICKET_SERVER_4_URL",
   "CRICKET_SERVER_4_MEDIA_TYPES",
+  "CRICKET_SERVER_5_NAME",
+  "CRICKET_SERVER_5_URL",
+  "CRICKET_SERVER_5_MEDIA_TYPES",
+  "CRICKET_SERVER_10_NAME",
+  "CRICKET_SERVER_10_URL",
+  "CRICKET_SERVER_10_MEDIA_TYPES",
 ] as const;
 
 const saved = new Map<string, string | undefined>();
@@ -91,6 +97,16 @@ describe("cricket server environment", () => {
     const servers = readCricketServers();
     expect(servers[0].priority).toBe(200);
     expect(servers[1].enabled).toBe(false);
+  });
+
+  it("reads the tenth slot", () => {
+    setEnv("CRICKET_SERVER_10_NAME", "Ten");
+    setEnv("CRICKET_SERVER_10_URL", "https://example.test/ten");
+    setEnv("CRICKET_SERVER_10_MEDIA_TYPES", "cricket");
+
+    const servers = readCricketServers();
+    expect(servers.map((server) => server.id)).toEqual(["cricket-10"]);
+    expect(servers[0].url).toBe("https://example.test/ten");
   });
 
   it("builds the allowlist from configured origins plus known nested players", () => {

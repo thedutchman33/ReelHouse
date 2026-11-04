@@ -43,7 +43,7 @@ Servers panel, no episodes, no watchlist and no resumable history. The hero's
 **Watch Live** button opens it during the channel's live window (15 minutes
 before the scheduled start through the session end).
 
-Servers are environment-backed, up to five slots:
+Servers are environment-backed, up to ten slots:
 
 ```sh
 CRICKET_SERVER_1_NAME=Server 1
@@ -67,17 +67,24 @@ configured servers plus the known nested `newball.pages.dev` /
    cookieUrl }` object, so the route serves its own Shaka page with that
    manifest, the ClearKey pair and the signed-URL token filter. None of the
    source's HTML or JavaScript reaches the browser.
-2. **Shell frame** — the page is only a full-bleed iframe around another
+2. **Channel record** — a runtime page (`ci365.pages.dev/star?id=…`) carries no
+   manifest and picks its channel by reading `?id=` from its own
+   `location.search`. The proxy URL cannot carry that id, so the route reads the
+   id from the URL it fetched, looks the record up in the page's JSON channel
+   list server-side, and serves the same first-party player. The JSON host is a
+   separate data allowlist (`CRICKET_CHANNEL_DATA_ORIGINS`); it is never
+   frameable.
+3. **Shell frame** — the page is only a full-bleed iframe around another
    allowlisted page (dekhobhai/HIN wraps newball/HIN1HD). The route serves a
    first-party frame around the nested URL, so the nested player page is not
    trapped in the shell's sandbox.
-3. **Sanitized page** — anything else (channel indexes). The source's
+4. **Sanitized page** — anything else (channel indexes). The source's
    `confirm`/`alert`/`prompt` shim, its neutralized `isSandboxedEnv()` probe, its
    removed ad scripts and hidden Telegram banners are kept, and the result is
    returned with `Cache-Control: no-store` and
    `Content-Security-Policy: sandbox allow-scripts`.
 
-The first two matter because the streams are ClearKey-encrypted: Encrypted
+The first three matter because the streams are ClearKey-encrypted: Encrypted
 Media Extensions are refused on a unique origin, which is exactly what a
 sandboxed proxy is, so the source's own player can never start there (Shaka
 error 6002, "EME use is not allowed on unique origins"). The first-party player

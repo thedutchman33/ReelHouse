@@ -3,10 +3,16 @@ import {
   parseAllowedCricketUrl,
   sanitizeCricketHtml,
 } from "@/lib/cricket-embed";
-import { getCricketEmbedAllowlist } from "@/lib/cricket-playback";
+import {
+  getCricketEmbedAllowlist,
+  CRICKET_CHANNEL_DATA_ORIGINS,
+} from "@/lib/cricket-playback";
 import {
   buildCricketEmbedDocument,
+  cricketChannelStreamConfig,
+  extractCricketChannelSource,
   renderCricketPlayerPage,
+  type CricketChannelSource,
   type CricketStreamConfig,
 } from "@/lib/cricket-stream";
 
@@ -193,6 +199,44 @@ async function resolveCricketToken(
   }
 }
 
+/**
+ * Resolve a runtime channel page (`/star?id=…`) into a player config. The page
+ * normally fetches this JSON in the browser, but it reads the id from its own
+ * `location.search`, which the proxy URL does not preserve. Doing the lookup
+ * server-side is both the fix and the reason no third-party JavaScript has to
+ * run.
+ */
+async function resolveCricketChannel(
+  source: CricketChannelSource
+): Promise<CricketStreamConfig | null> {
+  let url: URL;
+  try {
+    url = new URL(source.apiUrl);
+  } catch {
+    return null;
+  }
+  if (!CRICKET_CHANNEL_DATA_ORIGINS.has(url.origin)) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { "user-agent": BROWSER_UA, accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    return cricketChannelStreamConfig(
+      (await response.json()) as unknown,
+      source.channelId
+    );
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function GET(request: Request) {
   const raw = new URL(request.url).searchParams.get("url");
   if (!raw) {
@@ -271,6 +315,24 @@ export async function GET(request: Request) {
         ...BASE_HEADERS,
         "Content-Security-Policy":
           document.kind === "player" ? PLAYER_CSP : FRAME_CSP,
+      },
+    });
+  }
+
+  // `/star?id=…` pages choose their channel from `location.search` at runtime.
+  // The proxy URL cannot carry that id, so resolve the record here instead of
+  // letting the page render its channel directory.
+  const channelSource = extractCricketChannelSource(html, finalUrl.href);
+  if (channelSource) {
+    const config = await resolveCricketChannel(channelSource);
+    if (!config) {
+      return errorPage(502, "This cricket channel is currently unavailable.");
+    }
+    return new NextResponse(renderCricketPlayerPage(config), {
+      status: 200,
+      headers: {
+        ...BASE_HEADERS,
+        "Content-Security-Policy": PLAYER_CSP,
       },
     });
   }

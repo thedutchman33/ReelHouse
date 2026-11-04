@@ -14,7 +14,7 @@ import type {
 //
 // Cricket IS environment-backed, unlike F1: the sources are short-lived public
 // pages whose URLs change with the fixture, so the operator drops them into
-// .env.local. Up to five slots are read:
+// .env.local. Up to ten slots are read:
 //
 //   CRICKET_SERVER_N_NAME          display name           (default "Cricket Server N")
 //   CRICKET_SERVER_N_URL           absolute https:// URL
@@ -33,8 +33,8 @@ import type {
 // for browsers with a userscript installed.
 // ---------------------------------------------------------------------------
 
-/** This module owns the five cricket slots; keep the count explicit. */
-export const CRICKET_SERVER_SLOTS = [1, 2, 3, 4, 5] as const;
+/** This module owns the ten cricket slots; keep the count explicit. */
+export const CRICKET_SERVER_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 export type CricketServerSlot = (typeof CRICKET_SERVER_SLOTS)[number];
 
 /**
@@ -46,6 +46,16 @@ export const CRICKET_NESTED_ORIGINS = [
   "https://newball.pages.dev",
   "https://dekhobhai.pages.dev",
 ] as const;
+
+/**
+ * Origins /api/cricket/embed may read CHANNEL DATA from. These are data
+ * endpoints, not frameable sources: the JSON is fetched server-side and never
+ * reaches the browser. Kept separate from the iframe allowlist so a JSON host
+ * can never be framed as a player.
+ */
+export const CRICKET_CHANNEL_DATA_ORIGINS = new Set([
+  "https://sonujson-v7.pages.dev",
+]);
 
 /**
  * The iframe sandbox for every cricket embed.
