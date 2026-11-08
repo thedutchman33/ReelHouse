@@ -63,6 +63,53 @@ export const F1_SERVERS: readonly F1ServerConfig[] = [
     priority: 140,
   },
 
+  // --- DaddyLiveHD (Sky Sports F1 UK, channel 60) -------------------------
+  // DaddyLive publishes the same F1 channel under several player folders.
+  // All of them are listed so a single broken folder can be skipped without
+  // leaving the provider (see https://thedaddy.li/api.php).
+  {
+    id: "daddylive-f1-1",
+    name: "DaddyLive F1 (Player 1)",
+    url: "https://thedaddy.li/stream/stream-60.php",
+    priority: 141,
+  },
+  {
+    id: "daddylive-f1-2",
+    name: "DaddyLive F1 (Player 2)",
+    url: "https://thedaddy.li/cast/stream-60.php",
+    priority: 142,
+  },
+  {
+    id: "daddylive-f1-3",
+    name: "DaddyLive F1 (Player 3)",
+    url: "https://thedaddy.li/watch/stream-60.php",
+    priority: 143,
+  },
+  {
+    id: "daddylive-f1-4",
+    name: "DaddyLive F1 (Player 4)",
+    url: "https://thedaddy.li/plus/stream-60.php",
+    priority: 144,
+  },
+  {
+    id: "daddylive-f1-5",
+    name: "DaddyLive F1 (Player 5)",
+    url: "https://thedaddy.li/casting/stream-60.php",
+    priority: 145,
+  },
+  {
+    id: "daddylive-f1-6",
+    name: "DaddyLive F1 (Player 6)",
+    url: "https://thedaddy.li/player/stream-60.php",
+    priority: 146,
+  },
+  {
+    id: "daddylive-f1-7",
+    name: "DaddyLive F1 (Player 7)",
+    url: "https://thedaddy.li/hub/stream-60.php",
+    priority: 147,
+  },
+
   // --- Multi-host embeds --------------------------------------------------
   {
     id: "stream-1",

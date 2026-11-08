@@ -92,6 +92,7 @@ const nextConfig = {
       "https://vidsrc.sh",
       "https://vidy.st",
       // Formula 1 servers.
+      "https://thedaddy.li",
       "https://westreamf1.st",
       "https://westreamf1.com",
       "https://flyembed.cfd",
