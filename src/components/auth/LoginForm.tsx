@@ -13,6 +13,7 @@ import {
   signUpErrorMessage,
 } from "@/lib/auth";
 import { getBrowserSupabase } from "@/lib/supabase/client";
+import { startPageLoader } from "@/lib/page-loader";
 
 // Which input a message belongs to, so the offending field can carry
 // `aria-invalid` and point at the message with `aria-describedby` instead of the
@@ -122,6 +123,7 @@ export default function LoginForm({
         }
         // The browser client has written the session cookie; refresh server
         // components so the signed-in state takes effect, then go home.
+        startPageLoader("/");
         router.push("/");
         router.refresh();
       } else {
@@ -137,6 +139,7 @@ export default function LoginForm({
         }
         if (data.session) {
           // Email confirmation is off — we're signed in immediately.
+          startPageLoader("/");
           router.push("/");
           router.refresh();
         } else {

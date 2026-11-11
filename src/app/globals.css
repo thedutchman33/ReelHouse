@@ -257,6 +257,203 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Global page-transition loader (OnlyFlix pattern, Reelhouse palette).
+
+   The overlay is always in the DOM but inert and invisible. PageLoader flips
+   data-visible only after a navigation has actually been pending for 200ms,
+   so instant routes never flash it. The wordmark is nine 64×64 stroke SVGs
+   with pathLength="360": a one-shot dash trace draws each glyph, while the O
+   keeps OnlyFlix's slow spin. REEL is white and HOUSE is the logo's red.
+--------------------------------------------------------------------------- */
+.rh-page-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 36%, rgb(255 255 255 / 0.09), transparent 35%),
+    radial-gradient(circle at 27% 72%, rgb(251 1 1 / 0.12), transparent 32%),
+    rgb(5 5 5 / 0.8);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+.rh-page-transition[data-visible="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.rh-page-loadbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.04);
+}
+.rh-page-loadbar span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #ffffff 34%,
+    #fb0101 68%,
+    transparent
+  );
+  filter: drop-shadow(0 0 6px rgb(251 1 1 / 0.55));
+  animation: rhPageLoadbar 1.05s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.rh-page-loader {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(720px, 92vw);
+  opacity: 0;
+  transform: translateY(6px) scale(0.985);
+  transition: opacity 200ms ease, transform 220ms ease;
+}
+.rh-page-transition[data-visible="true"] .rh-page-loader {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.rh-loader-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.rh-loader-word {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(2px, 0.65vw, 7px);
+  max-width: 94vw;
+  filter:
+    drop-shadow(0 18px 42px rgb(0 0 0 / 0.46))
+    drop-shadow(0 0 22px rgb(255 255 255 / 0.12))
+    drop-shadow(0 0 32px rgb(251 1 1 / 0.22));
+}
+.rh-loader-letter {
+  display: block;
+  width: clamp(28px, 8.2vw, 64px);
+  height: auto;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+/* The two-tone split in the logo: REEL | HOUSE. */
+.rh-loader-letter--house {
+  margin-left: clamp(8px, 1.6vw, 18px);
+}
+.rh-loader-letter path {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The wordmark stays readable before/while the trace draws. */
+.rh-loader-base {
+  opacity: 0.16;
+}
+/* Restart the draw every time the overlay is shown. A one-shot trace (rather
+   than OnlyFlix's infinite dash loop) means the wordmark can never be caught
+   in an "almost erased" frame. */
+.rh-page-transition[data-visible="true"] .rh-loader-trace {
+  stroke-dasharray: 360;
+  stroke-dashoffset: 360;
+  animation: rhLoaderDraw 900ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.rh-page-transition[data-visible="true"] .rh-loader-spin {
+  transform-origin: center;
+  animation:
+    rhLoaderDraw 900ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
+    rhLoaderSpin 8s ease-in-out infinite;
+}
+
+@keyframes rhPageLoadbar {
+  0% {
+    transform: translateX(-115%);
+    width: 32%;
+  }
+  48% {
+    width: 52%;
+  }
+  100% {
+    transform: translateX(255%);
+    width: 34%;
+  }
+}
+@keyframes rhLoaderDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rhLoaderSpin {
+  0% {
+    rotate: 0deg;
+  }
+  12.5%,
+  25% {
+    rotate: 270deg;
+  }
+  37.5%,
+  50% {
+    rotate: 540deg;
+  }
+  62.5%,
+  75% {
+    rotate: 810deg;
+  }
+  87.5%,
+  100% {
+    rotate: 1080deg;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .rh-page-loadbar {
+    height: 2.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rh-page-transition,
+  .rh-page-loader {
+    transition-duration: 120ms;
+  }
+  .rh-page-loadbar span {
+    animation: none;
+  }
+  .rh-page-loadbar span {
+    width: 100%;
+    transform: translateX(0);
+  }
+  .rh-page-transition[data-visible="true"] .rh-loader-trace,
+  .rh-page-transition[data-visible="true"] .rh-loader-spin {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .rh-loader-base {
+    opacity: 0;
+  }
+}
+
+
 @layer utilities {
   /* Episode rail scrubber (reference .ep-rail-slider, extracted verbatim
      from their stylesheet): a range input styled as an inset neumorphic

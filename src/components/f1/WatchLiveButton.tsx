@@ -7,6 +7,7 @@ import {
   watchLivePhase,
   type WatchLivePhase as Phase,
 } from "@/components/f1/watch-live-phase";
+import { startPageLoader } from "@/lib/page-loader";
 
 // The hero's broadcast control. Both faces sit in the same grid cell, so the
 // switch from the countdown to the live CTA never shifts the hero card.
@@ -217,6 +218,7 @@ export default function WatchLiveButton({
 
   const open = () => {
     if (!live) return;
+    startPageLoader(watchHref);
     router.push(watchHref);
   };
 

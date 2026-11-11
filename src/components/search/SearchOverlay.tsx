@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CloseIcon, SearchIcon, StarIcon } from "@/components/player/icons";
 import PosterImage from "@/components/media/PosterImage";
+import { startPageLoader } from "@/lib/page-loader";
 import type { MediaSummary } from "@/types";
 
 
@@ -159,6 +160,7 @@ export default function SearchOverlay({
 
   const go = (href: string) => {
     onClose();
+    startPageLoader(href);
     router.push(href);
   };
 
