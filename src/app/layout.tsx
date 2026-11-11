@@ -5,6 +5,7 @@ import "./globals.css";
 import Navbar from "@/components/navigation/Navbar";
 import Footer from "@/components/common/Footer";
 import PageLoader from "@/components/common/PageLoader";
+import BootSplash from "@/components/common/BootSplash";
 import LibrarySync from "@/components/auth/LibrarySync";
 import ResourceHints from "@/components/common/ResourceHints";
 
@@ -98,6 +99,7 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${bebasNeue.variable}`}>
       <body className="flex min-h-screen flex-col font-sans">
+        <BootSplash />
         <PageLoader />
         <ResourceHints />
         <LibrarySync />
