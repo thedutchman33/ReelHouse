@@ -32,6 +32,7 @@ export default function EmbedSurface({
   sandbox,
   onReady,
   onProgress,
+  onEpisode,
   onEnded,
   onFailure,
 }: {
@@ -51,6 +52,8 @@ export default function EmbedSurface({
   sandbox?: string;
   onReady?: () => void;
   onProgress?: (seconds: number, duration: number) => void;
+  /** The provider's own player advanced to another episode. */
+  onEpisode?: (season: number, episode: number) => void;
   onEnded?: () => void;
   onFailure?: (failure: PlaybackFailure) => void;
 }) {
@@ -62,8 +65,8 @@ export default function EmbedSurface({
 
   // Callbacks live in a ref so the message listener is installed once per
   // provider/src rather than on every parent render.
-  const handlers = useRef({ onReady, onProgress, onEnded, onFailure });
-  handlers.current = { onReady, onProgress, onEnded, onFailure };
+  const handlers = useRef({ onReady, onProgress, onEpisode, onEnded, onFailure });
+  handlers.current = { onReady, onProgress, onEpisode, onEnded, onFailure };
 
   const providerId = provider.id;
 
@@ -88,6 +91,9 @@ export default function EmbedSurface({
           break;
         case "progress":
           h.onProgress?.(signal.seconds, signal.duration);
+          break;
+        case "episode":
+          h.onEpisode?.(signal.season, signal.episode);
           break;
         case "ended":
           h.onEnded?.();

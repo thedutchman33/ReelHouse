@@ -226,23 +226,49 @@ VIDEO_PROVIDER_1_REPORTS_FAILURE=1    # provider documents a reliable failure si
 
 ### Provider events (only if documented)
 
-Setting `REPORTS_PROGRESS=1` declares that events *exist*; translating them also
-needs a small **adapter** — the function that turns that provider's message
-payload into Reelhouse's normalized `ready` / `progress` / `ended` / `failure`
-signals. Adapters live in `src/lib/playback/adapters.ts`.
+Setting `REPORTS_PROGRESS=1` declares that a provider's *own* event stream is
+documented and trusted for progress recording. Translating it also needs a small
+**adapter** — the function that turns that provider's message payload into
+Reelhouse's normalized signals. Adapters live in
+`src/lib/playback/adapters.ts` and are keyed by provider id
+(`provider-1` … `provider-15`).
 
-None of the five slots has an adapter today, because no provider documentation has
-been supplied. Until one is added, an embed provider's messages are ignored
-entirely (never guessed at), so:
+#### Reelhouse embed bridge (works with any provider)
 
-- with no adapter: playback works, progress is not recorded from the provider,
-  and failures surface as the manual retry/switch prompt;
-- with an adapter: progress lands in the same store as everything else, and a
-  documented failure can drive automatic fallback.
+Every embed also accepts one documented, namespaced message schema, so a player —
+or a small relay page you control in front of it — can report state without a
+provider-specific adapter. Messages are only read when they carry the bridge's own
+`source`, and the existing origin + frame-window checks still apply:
 
-Adding an adapter is a small, well-scoped change — bring the provider's event
-documentation and it is a single function keyed by the provider id
-(`provider-1` … `provider-5`).
+```js
+// Inside the framed player: one message per event.
+parent.postMessage(
+  {
+    source: "reelhouse-embed",
+    type: "progress",
+    currentTime: video.currentTime,
+    duration: video.duration,
+  },
+  "https://your-reelhouse-origin"
+);
+```
+
+| `type` | Payload | Effect |
+| --- | --- | --- |
+| `ready` | — | clears the loading state |
+| `progress` / `timeupdate` | `currentTime`, `duration` (seconds) | saves the resumable position (throttled) |
+| `episode` | `season`, `episode` (positive integers) | moves watch history, Continue Watching, the URL and the episodes rail to the episode the provider's own **Next Episode** started — without reloading the frame |
+| `ended` | — | marks the episode finished and lets autoplay advance |
+| `error` | `message?` | failure signal (auto-fallback still needs `REPORTS_FAILURE=1`) |
+
+Progress sent through the bridge is recorded without any flag: it is a real
+observation posted by the frame, never inferred. Only the auto-fallback gate stays
+opt-in (`REPORTS_FAILURE=1`), because switching providers on an ambiguous signal
+is guesswork.
+
+Anything that is not this schema — including a provider's private messages — is
+ignored. To support such a provider properly, add one adapter function keyed by
+its provider id.
 
 ---
 

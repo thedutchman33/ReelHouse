@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import VideoPlayer from "@/components/player/VideoPlayer";
-import { clearHistory, readProgress } from "@/lib/library";
+import { clearHistory, readProgress, saveProgress } from "@/lib/library";
 import type { MediaSummary, PlaybackServer, Season } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -288,5 +288,76 @@ describe("VideoPlayer → watch history", () => {
     // Only that episode was touched.
     expect(readProgress("tv-1399:s2e6")).toBeUndefined();
     expect(readProgress("tv-1399")).toBeUndefined();
+  });
+
+  it("records the next episode from the player's Next control, not the first one", async () => {
+    const player = await mountPlayer({
+      type: "tv",
+      media: show,
+      seasons,
+      initialSeasonNumber: 2,
+      initialEpisodeNumber: 5,
+      backHref: "/tv/1399",
+    });
+    fakeDuration = 2700;
+    await player.fire("loadedmetadata");
+    await player.play();
+
+    fakeTime = 300;
+    await player.fire("timeupdate");
+
+    const nextBtn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.getAttribute("aria-label") === "Next episode"
+    );
+    if (!nextBtn) throw new Error("player rendered no next-episode control");
+    await act(async () => {
+      nextBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    // The episode that was left keeps the exact position reached (unthrottled)...
+    expect(readProgress("tv-1399:s2e5")).toMatchObject({ position: 300 });
+    // ...and the NEXT episode is in watch history at once, before it has even
+    // played a second (the element fires no `play` when the switch happens
+    // mid-playback, which is what used to leave history on episode 1).
+    expect(readProgress("tv-1399:s2e6")).toMatchObject({
+      position: 0,
+      duration: 0,
+      completed: false,
+    });
+
+    fakeTime = 12;
+    await player.fire("timeupdate");
+    await player.leave();
+
+    expect(readProgress("tv-1399:s2e6")).toMatchObject({
+      position: 12,
+      duration: 2700,
+      completed: false,
+    });
+  });
+
+  it("resumes a saved episode when the episode list is still loading", async () => {
+    // The live-series page ships season metadata only; episodes arrive from
+    // /api/seasons after mount. Resume must still find that episode's record.
+    saveProgress({
+      media: show,
+      episode: { seasonNumber: 1, episodeNumber: 1, title: "Pilot" },
+      position: 1800,
+      duration: 3000,
+    });
+    const player = await mountPlayer({
+      type: "tv",
+      media: show,
+      seasons: [{ seasonNumber: 1, name: "Season 1", episodeCount: 8 }],
+      initialSeasonNumber: 1,
+      initialEpisodeNumber: 1,
+      backHref: "/tv/1399",
+    });
+
+    fakeDuration = 3000;
+    await player.fire("loadedmetadata");
+
+    expect(fakeTime).toBe(1800);
+    await player.leave();
   });
 });

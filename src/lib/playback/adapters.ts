@@ -25,6 +25,7 @@ import type { PlaybackFailureReason } from "./types";
 export type PlaybackSignal =
   | { kind: "ready" }
   | { kind: "progress"; seconds: number; duration: number }
+  | { kind: "episode"; season: number; episode: number }
   | { kind: "ended" }
   | { kind: "failure"; reason: PlaybackFailureReason; detail?: string };
 
@@ -100,6 +101,82 @@ export const mockEmbedAdapter: ProviderMessageAdapter = (data) => {
   }
 };
 
+// --------------------------- Reelhouse embed bridge --------------------------
+//
+// A provider — or a thin relay page the operator controls in front of one — can
+// report its state with ONE documented, namespaced schema. Nothing is guessed:
+// a message is only read when it carries the bridge's own `source` marker, and
+// the embed surface has already checked that it came from the frame's origin AND
+// that frame's window. Any other message shape is ignored.
+//
+//   { source: "reelhouse-embed", type: "ready" }
+//   { source: "reelhouse-embed", type: "progress" | "timeupdate",
+//     currentTime: 123.4, duration: 2700 }
+//   { source: "reelhouse-embed", type: "episode", season: 3, episode: 4 }
+//   { source: "reelhouse-embed", type: "ended" }
+//   { source: "reelhouse-embed", type: "error", message: "…" }
+//
+// `episode` is what lets a hosted player's OWN Next Episode button reach watch
+// history: the container moves to that episode and re-keys progress without
+// reloading the frame (the provider is already playing it).
+//
+// Because the schema is namespaced, it is safe to accept from every embed: a
+// provider that does not speak it simply sends nothing.
+
+export const EMBED_BRIDGE_SOURCE = "reelhouse-embed";
+
+interface EmbedBridgeMessage {
+  source?: unknown;
+  type?: unknown;
+  currentTime?: unknown;
+  duration?: unknown;
+  season?: unknown;
+  episode?: unknown;
+  message?: unknown;
+}
+
+function positiveInt(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+export const embedBridgeAdapter: ProviderMessageAdapter = (data) => {
+  if (!data || typeof data !== "object") return null;
+  const msg = data as EmbedBridgeMessage;
+  if (msg.source !== EMBED_BRIDGE_SOURCE) return null;
+
+  switch (msg.type) {
+    case "ready":
+      return { kind: "ready" };
+    case "progress":
+    case "timeupdate": {
+      const seconds = num(msg.currentTime);
+      const duration = num(msg.duration);
+      if (seconds == null || duration == null || duration <= 0 || seconds < 0) {
+        return null;
+      }
+      return { kind: "progress", seconds, duration };
+    }
+    case "episode": {
+      const season = positiveInt(msg.season);
+      const episode = positiveInt(msg.episode);
+      if (season == null || episode == null) return null;
+      return { kind: "episode", season, episode };
+    }
+    case "ended":
+      return { kind: "ended" };
+    case "error":
+      return {
+        kind: "failure",
+        reason: "provider-reported",
+        detail: typeof msg.message === "string" ? msg.message : undefined,
+      };
+    default:
+      return null;
+  }
+};
+
 // ------------------------------- adapter table ------------------------------
 
 /**
@@ -128,7 +205,10 @@ export function getMessageAdapter(
   providerId: string,
   src?: string
 ): ProviderMessageAdapter | null {
-  return ADAPTERS[providerId] ?? (isEmbedTestUrl(src) ? mockEmbedAdapter : null);
+  return (
+    ADAPTERS[providerId] ??
+    (isEmbedTestUrl(src) ? mockEmbedAdapter : embedBridgeAdapter)
+  );
 }
 
 /**

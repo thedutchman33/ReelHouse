@@ -163,7 +163,16 @@ export function markPlaybackStarted(input: {
   const key = progressKey(media.id, episode);
   const existing = cache.progress[key];
   const entry: ProgressEntry = existing
-    ? { ...existing, updatedAt: Date.now() }
+    ? {
+        ...existing,
+        // Refresh the labels only. A season's episode titles load after the
+        // first play, so an entry created then would otherwise keep the
+        // "Episode N" fallback forever; the saved position and `completed`
+        // must never be touched here.
+        media,
+        episode,
+        updatedAt: Date.now(),
+      }
     : {
         key,
         media,

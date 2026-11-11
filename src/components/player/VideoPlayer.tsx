@@ -72,6 +72,7 @@ export default function VideoPlayer({
   initialSeconds,
   backHref,
   embedded = false,
+  onEpisodeChange,
 }: {
   type: MediaType;
   media: MediaSummary;
@@ -83,6 +84,9 @@ export default function VideoPlayer({
   initialEpisodeNumber?: number;
   initialSeconds?: number;
   backHref: string;
+  /** Fired when the player itself moves to another episode (Next / drawer /
+      autoplay), so the surrounding page and watch history follow along. */
+  onEpisodeChange?: (seasonNumber: number, episodeNumber: number) => void;
   /** Render inside a 16:9 page section (watch-page layout) instead of a
       fullscreen takeover. All controls, settings and overlays are unchanged —
       they are absolutely positioned within this container either way. */
@@ -155,14 +159,21 @@ export default function VideoPlayer({
     return s?.episodes?.find((x) => x.episodeNumber === episode) ?? null;
   }, [hasEpisodes, seasons, season, episode]);
 
+  // Progress is keyed by the season/episode PLAYING, not by whether its metadata
+  // has arrived. Live series pages ship season metadata only (episodes load from
+  // /api/seasons afterwards), so requiring the episode object here left
+  // `episodeRef` null on first paint: resume read the wrong key, progress was
+  // written without a season/episode, and watch history could never show
+  // anything but the item itself. The coordinates are known synchronously; the
+  // episode object only improves the label.
   const episodeRef = useMemo<EpisodeRef | null>(() => {
-    if (!hasEpisodes || !currentEpisodeObj) return null;
+    if (!hasEpisodes) return null;
     return {
-      seasonNumber: currentEpisodeObj.seasonNumber,
-      episodeNumber: currentEpisodeObj.episodeNumber,
-      title: currentEpisodeObj.title,
+      seasonNumber: season,
+      episodeNumber: episode,
+      title: currentEpisodeObj?.title ?? `Episode ${episode}`,
     };
-  }, [hasEpisodes, currentEpisodeObj]);
+  }, [hasEpisodes, season, episode, currentEpisodeObj]);
 
   const next = useMemo(
     () => (hasEpisodes ? findNext(seasons, season, episode) : null),
@@ -180,6 +191,14 @@ export default function VideoPlayer({
   // ---------------------------------------------------------------------------
   // Progress persistence (preserved from the original player).
   // ---------------------------------------------------------------------------
+  // The episode currently on screen, read at the moment of writing. Persistence
+  // runs from listeners and effect cleanups, where the episode captured at an
+  // older render is no longer the one the media element is showing — writing
+  // then put the NEW episode's 0s under the PREVIOUS episode's key, wiping the
+  // position just left behind.
+  const liveEpisodeRef = useRef<EpisodeRef | null>(episodeRef);
+  liveEpisodeRef.current = episodeRef;
+
   const persist = useCallback(() => {
     const v = videoRef.current;
     // React detaches this ref during unmount, BEFORE the effect cleanup below
@@ -191,8 +210,8 @@ export default function VideoPlayer({
     const duration = liveDuration || durationRef.current;
     if (!duration) return;
     const position = v ? v.currentTime : currentTimeRef.current;
-    saveProgress({ media, episode: episodeRef, position, duration });
-  }, [media, episodeRef]);
+    saveProgress({ media, episode: liveEpisodeRef.current, position, duration });
+  }, [media]);
 
   const logEvent = useCallback(
     (eventType: "play" | "pause" | "ended") => {
@@ -372,6 +391,43 @@ export default function VideoPlayer({
   // ---------------------------------------------------------------------------
   // Media element event handlers
   // ---------------------------------------------------------------------------
+  // Resume must not depend on the media element's `loadedmetadata` event alone:
+  // the element is server-rendered, and a fast (or same-origin/local) source can
+  // finish loading metadata before React attaches the handler, so the event is
+  // missed and the title restarts at 0. The same one-shot restore is therefore
+  // also attempted once the player is mounted.
+  const resumeAttempted = useRef(false);
+  const restoreInitialPosition = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || resumeAttempted.current) return;
+    const total = v.duration;
+    if (!total || Number.isNaN(total)) return;
+    resumeAttempted.current = true;
+    // First-load resume: explicit ?t, else saved progress for THIS episode.
+    let start = initialSeconds;
+    if (start == null) {
+      const saved = readProgress(progressKey(media.id, episodeRef));
+      if (saved && !saved.completed) start = saved.position;
+    }
+    // Skip the first few seconds (nothing worth resuming) and the last stretch
+    // before the credits. The end guard scales down for very short clips, whose
+    // duration can be smaller than a fixed 15s — with the bundled 10s samples
+    // the old subtraction was negative, making every sample unresumable.
+    const endGuard = Math.min(15, total * 0.2);
+    if (start && start > 5 && total - start > endGuard) {
+      v.currentTime = start;
+      // Keep the position of record in step. A source (re)load restores from
+      // currentTimeRef, so leaving it at 0 here silently undid the resume —
+      // e.g. when the source effect's second dev-mode run reloads the element.
+      currentTimeRef.current = start;
+      setCurrentTime(start);
+    }
+  }, [initialSeconds, media.id, episodeRef]);
+
+  useEffect(() => {
+    restoreInitialPosition();
+  }, [restoreInitialPosition]);
+
   const computeBuffered = (v: HTMLVideoElement) => {
     try {
       const t = v.currentTime;
@@ -400,13 +456,10 @@ export default function VideoPlayer({
       return;
     }
 
-    // First-load resume: explicit ?t, else saved progress.
-    let start = initialSeconds;
-    if (start == null) {
-      const saved = readProgress(progressKey(media.id, episodeRef));
-      if (saved && !saved.completed) start = saved.position;
-    }
-    if (start && start > 5 && start < v.duration - 15) v.currentTime = start;
+    // First-load resume (explicit ?t, else saved progress for this episode).
+    // Shared with the mount-time attempt above, which covers a metadata event
+    // that fired before this handler existed.
+    restoreInitialPosition();
   };
 
   const onTimeUpdate = () => {
@@ -433,9 +486,19 @@ export default function VideoPlayer({
   const gotoEpisode = useCallback(
     (s: number, e: number) => {
       if (!hasEpisodes) return;
+      if (s === season && e === episode) return;
+      // Flush the OUTGOING episode first: the 5s throttle would otherwise drop
+      // whatever was watched since the last save, and an episode abandoned in
+      // its first seconds would have no record at all.
+      persist();
       const seasonObj = seasons.find((x) => x.seasonNumber === s);
       const epObj = seasonObj?.episodes?.find((x) => x.episodeNumber === e);
-      if (!epObj) return;
+      // Not requiring epObj: the target season's episodes may still be loading.
+      const ref: EpisodeRef = {
+        seasonNumber: s,
+        episodeNumber: e,
+        title: epObj?.title ?? `Episode ${e}`,
+      };
       setSeason(s);
       setEpisode(e);
       setEnded(false);
@@ -445,9 +508,14 @@ export default function VideoPlayer({
       } catch {
         /* ignore */
       }
+      // Put the new episode in watch history immediately. The element's `play`
+      // event is NOT enough: changing episodes mid-playback calls play() on an
+      // already-playing element, which fires no event at all — so Next Episode
+      // used to leave history (and Continue Watching) on the previous episode.
+      markPlaybackStarted({ media, episode: ref });
       const v = videoRef.current;
       if (v) {
-        const saved = readProgress(progressKey(media.id, { seasonNumber: s, episodeNumber: e, title: epObj.title }));
+        const saved = readProgress(progressKey(media.id, ref));
         const start = saved && !saved.completed ? saved.position : 0;
         try {
           v.currentTime = start;
@@ -455,12 +523,33 @@ export default function VideoPlayer({
           /* ignore */
         }
         currentTimeRef.current = start;
+        // A new episode starts a fresh save window instead of inheriting the
+        // old one, so its first progress write lands within the second.
+        lastSave.current = 0;
         setCurrentTime(start);
         v.play().catch(() => {});
       }
+      onEpisodeChange?.(s, e);
     },
-    [hasEpisodes, seasons, media.id, media.tmdbId]
+    [hasEpisodes, season, episode, persist, seasons, media, onEpisodeChange]
   );
+
+  // Episode selection from OUTSIDE the player (the Episodes rail below it on
+  // the watch page). The player owns season/episode while it is on screen, so
+  // only a NEW pair of initial props moves it: the parent echoing the player's
+  // own navigation back as those same props must not re-seek playback.
+  const propEpisode = useRef({
+    season: initialSeasonNumber ?? 1,
+    episode: initialEpisodeNumber ?? 1,
+  });
+  useEffect(() => {
+    const nextPropSeason = initialSeasonNumber ?? 1;
+    const nextPropEpisode = initialEpisodeNumber ?? 1;
+    const prev = propEpisode.current;
+    if (prev.season === nextPropSeason && prev.episode === nextPropEpisode) return;
+    propEpisode.current = { season: nextPropSeason, episode: nextPropEpisode };
+    gotoEpisode(nextPropSeason, nextPropEpisode);
+  }, [initialSeasonNumber, initialEpisodeNumber, gotoEpisode]);
 
   const onEnded = () => {
     flushTimeUi();

@@ -22,7 +22,6 @@ import {
 } from "@/lib/playback/manager";
 import {
   createProgressRecorder,
-  shouldRecordProgress,
   type ProgressRecorder,
 } from "@/lib/playback/progress";
 import type { PlaybackFailure, PlaybackPlan } from "@/lib/playback/types";
@@ -178,15 +177,27 @@ export default function PlaybackContainer({
   );
   const [season, setSeason] = useState(initialSeasonNumber ?? 1);
   const [episode, setEpisode] = useState(initialEpisodeNumber ?? 1);
+  // The coordinates the embed frame was LOADED with. A provider that reports its
+  // own episode change is already playing that episode, so the frame must not be
+  // re-keyed to it — that would reload the provider's player and restart
+  // playback. An explicit selection (the rail, autoplay, a provider switch) does
+  // update these and therefore reloads the frame at the chosen episode.
+  const [embedEpisode, setEmbedEpisode] = useState({
+    season: initialSeasonNumber ?? 1,
+    episode: initialEpisodeNumber ?? 1,
+  });
 
   // The season currently playing must always be loaded (episode titles,
-  // autoplay-next, the episodes rail).
+  // autoplay-next, the episodes rail), plus one season ahead so the finale can
+  // roll into the next season instead of stopping dead.
   useEffect(() => {
     if (!hasEpisodes) return;
-    if (!seasons.some((sn) => sn.seasonNumber === season)) return;
+    const index = seasons.findIndex((sn) => sn.seasonNumber === season);
+    if (index < 0) return;
     if (!episodesBySeason[season]) void loadSeasonEpisodes(season);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [season, hasEpisodes]);
+    const ahead = seasons[index + 1]?.seasonNumber;
+    if (ahead != null && !episodesBySeason[ahead]) void loadSeasonEpisodes(ahead);
+  }, [season, hasEpisodes, seasons, episodesBySeason, loadSeasonEpisodes]);
   const [failure, setFailure] = useState<PlaybackFailure | null>(null);
   // Providers that already failed in this chain — never retried automatically,
   // which is what stops fallback from looping.
@@ -240,10 +251,11 @@ export default function PlaybackContainer({
 
   const recorderRef = useRef<ProgressRecorder | null>(null);
   const surfaceKind = candidate?.surface.kind ?? null;
-  const recordEnabled =
-    candidate?.surface.kind === "embed" && provider
-      ? shouldRecordProgress(provider)
-      : false;
+  // Embeds are observed through messages they actually send: a provider's own
+  // documented adapter, or the namespaced Reelhouse bridge. Enabling the
+  // recorder only ever writes what arrived — a frame that reports nothing
+  // produces no progress.
+  const recordEnabled = candidate?.surface.kind === "embed" && provider !== null;
 
   useEffect(() => {
     // Handing the title to an external provider's player is the one thing
@@ -285,12 +297,16 @@ export default function PlaybackContainer({
     (nextId: string) => {
       if (nextId === selectedId) return;
       // The native player owns episode navigation while it is on screen; recover
-      // where the viewer actually is before handing over.
+      // where the viewer actually is before handing over. A new provider's frame
+      // must open at that episode, too.
+      const current = hasEpisodes
+        ? episodeFromUrl({ season, episode })
+        : { season, episode };
       if (hasEpisodes) {
-        const current = episodeFromUrl({ season, episode });
         setSeason(current.season);
         setEpisode(current.episode);
       }
+      setEmbedEpisode({ season: current.season, episode: current.episode });
       recorderRef.current?.flush();
       setSelectedId(nextId);
       setSwitched(true);
@@ -317,6 +333,8 @@ export default function PlaybackContainer({
         // Permitted only because the failing provider reports its own failures —
         // the manager enforces that, and the viewer is still told.
         setAttempted((prev) => [...prev, next.providerId]);
+        // The fallback frame opens where the viewer actually is.
+        setEmbedEpisode({ season, episode });
         setSelectedId(fallback.provider.id);
         setSwitched(true);
         setFailure(null);
@@ -325,7 +343,7 @@ export default function PlaybackContainer({
       }
       setFailure(next);
     },
-    [selectedId, provider, plan.candidates, type, attempted]
+    [selectedId, provider, plan.candidates, type, attempted, season, episode]
   );
 
   /** Next provider for the manual "switch" action in the error state. */
@@ -353,10 +371,61 @@ export default function PlaybackContainer({
       window.history.replaceState(
         null,
         "",
-        `/watch/tv/${media.tmdbId}?s=${nextSeason}&e=${nextEpisode}`
+        `/watch/${type}/${media.tmdbId}?s=${nextSeason}&e=${nextEpisode}`
       );
+      // An explicit choice reloads an embed frame at the chosen episode.
+      setEmbedEpisode({ season: nextSeason, episode: nextEpisode });
     },
-    [season, episode, media, seasons]
+    [season, episode, media, type, seasonsWithEpisodes]
+  );
+
+  /**
+   * The native player moved itself to another episode (Next, autoplay, the
+   * player's own episode drawer). Follow it, so the container's episode — and
+   * with it watch history, the URL and the embed URLs — describes what is
+   * actually playing instead of the episode the page was opened with.
+   */
+  const handlePlayerEpisodeChange = useCallback(
+    (nextSeason: number, nextEpisode: number) => {
+      setSeason(nextSeason);
+      setEpisode(nextEpisode);
+    },
+    []
+  );
+
+  /**
+   * A hosted provider's own player moved to another episode (documented bridge
+   * message). Reelhouse cannot see inside the frame, so this is the only signal
+   * that its Next button was used: follow it in history, the URL and the rail,
+   * but leave the frame where it is — the provider is already playing that
+   * episode, so re-keying the src would reload it and restart from 0.
+   */
+  const handleProviderEpisode = useCallback(
+    (nextSeason: number, nextEpisode: number) => {
+      if (!hasEpisodes || isLiveMediaType(type)) return;
+      if (nextSeason === season && nextEpisode === episode) return;
+      setSeason(nextSeason);
+      setEpisode(nextEpisode);
+      setFailure(null);
+      recorderRef.current?.retarget({
+        media,
+        episode: {
+          seasonNumber: nextSeason,
+          episodeNumber: nextEpisode,
+          title: episodeTitle(seasonsWithEpisodes, nextSeason, nextEpisode),
+        },
+      });
+      try {
+        window.history.replaceState(
+          null,
+          "",
+          `/watch/${type}/${media.tmdbId}?s=${nextSeason}&e=${nextEpisode}`
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [hasEpisodes, type, season, episode, media, seasonsWithEpisodes]
   );
 
   /** An embed provider reported the item finished. */
@@ -502,12 +571,16 @@ export default function PlaybackContainer({
                   media={media}
                   overview={overview}
                   runtime={runtime}
-                  seasons={seasons}
+                  // Loaded per season (the page ships metadata only), so the
+                  // player gets real episode titles, Next/autoplay and the
+                  // per-episode progress keys it needs.
+                  seasons={seasonsWithEpisodes}
                   servers={nativeSurface.servers}
                   initialSeasonNumber={season}
                   initialEpisodeNumber={episode}
                   initialSeconds={switched ? undefined : initialSeconds}
                   backHref={backHref}
+                  onEpisodeChange={handlePlayerEpisodeChange}
                 />
               ) : (
                 <>
@@ -516,6 +589,9 @@ export default function PlaybackContainer({
                       providerName={provider.displayName}
                       detail={failure.detail}
                       onRetry={() => {
+                        // Retry at the episode currently playing, not the one the
+                        // frame was originally opened with.
+                        setEmbedEpisode({ season, episode });
                         setFailure(null);
                         setReloadKey((k) => k + 1);
                       }}
@@ -535,7 +611,10 @@ export default function PlaybackContainer({
                           id: type === "anime" ? playAnilistId : media.tmdbId,
                           tmdbId: playTmdbId,
                           ...(hasEpisodes
-                            ? { season, episode }
+                            ? {
+                                season: embedEpisode.season,
+                                episode: embedEpisode.episode,
+                              }
                             : type === "anime"
                               ? { episode: 1 }
                               : {}),
@@ -547,6 +626,7 @@ export default function PlaybackContainer({
                       onProgress={(seconds, duration) =>
                         recorderRef.current?.report({ seconds, duration })
                       }
+                      onEpisode={handleProviderEpisode}
                       onEnded={handleEnded}
                       onFailure={handleFailure}
                     />
