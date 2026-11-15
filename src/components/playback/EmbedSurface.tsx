@@ -24,6 +24,33 @@ import { PlaybackLoading } from "./PlaybackStates";
 /** How long to wait for the frame's document to load before calling it failed. */
 const LOAD_TIMEOUT_MS = 15000;
 
+/**
+ * Origins an embed's messages may come from.
+ *
+ * The origin of the URL actually loaded is the base. A provider that canonicalizes
+ * to `www.` (Videasy redirects `vidy.st` → `www.vidy.st`) is still the SAME host,
+ * so its bare form is accepted too; no other domain ever is. The frame-window
+ * check in the listener still pins every accepted message to this exact frame.
+ */
+function messageOrigins(src: string, base: string): string[] {
+  const origins = new Set<string>();
+  try {
+    const url = new URL(src, base);
+    origins.add(url.origin);
+    const host = url.hostname.toLowerCase();
+    if (host.startsWith("www.")) {
+      url.hostname = host.slice(4);
+      origins.add(url.origin);
+    } else if (!host.startsWith("[")) {
+      url.hostname = `www.${host}`;
+      origins.add(url.origin);
+    }
+  } catch {
+    // Unparseable src — the caller listens to nothing.
+  }
+  return [...origins];
+}
+
 export default function EmbedSurface({
   provider,
   src,
@@ -90,6 +117,12 @@ export default function EmbedSurface({
           h.onReady?.();
           break;
         case "progress":
+          // A provider that names the episode in its progress report is telling
+          // us its own Next button moved on. Retarget history BEFORE the write so
+          // the position lands on the episode actually playing.
+          if (signal.season != null && signal.episode != null) {
+            h.onEpisode?.(signal.season, signal.episode);
+          }
           h.onProgress?.(signal.seconds, signal.duration);
           break;
         case "episode":
@@ -114,15 +147,11 @@ export default function EmbedSurface({
     const adapter = getMessageAdapter(providerId, src);
     if (!adapter) return; // No documented events → consume nothing.
 
-    let expectedOrigin: string;
-    try {
-      expectedOrigin = new URL(src, window.location.origin).origin;
-    } catch {
-      return;
-    }
+    const allowedOrigins = messageOrigins(src, window.location.origin);
+    if (!allowedOrigins.length) return;
 
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== expectedOrigin) return;
+      if (!allowedOrigins.includes(event.origin)) return;
       const frame = frameRef.current;
       if (frame && event.source !== frame.contentWindow) return;
       const signal = adapter(event.data);

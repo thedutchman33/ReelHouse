@@ -191,13 +191,13 @@ export default function VideoPlayer({
   // ---------------------------------------------------------------------------
   // Progress persistence (preserved from the original player).
   // ---------------------------------------------------------------------------
-  // The episode currently on screen, read at the moment of writing. Persistence
-  // runs from listeners and effect cleanups, where the episode captured at an
-  // older render is no longer the one the media element is showing — writing
-  // then put the NEW episode's 0s under the PREVIOUS episode's key, wiping the
-  // position just left behind.
-  const liveEpisodeRef = useRef<EpisodeRef | null>(episodeRef);
-  liveEpisodeRef.current = episodeRef;
+  // The episode the MEDIA ELEMENT is actually playing. This deliberately does
+  // not follow render state: a parent selecting an episode updates props and
+  // state before the sync effect seeks the element, so writing under `episodeRef`
+  // at that moment filed the OUTGOING position under the INCOMING episode's key
+  // (wiping its saved resume point). Only `gotoEpisode`, which moves playback
+  // itself, advances this ref.
+  const playingEpisodeRef = useRef<EpisodeRef | null>(episodeRef);
 
   const persist = useCallback(() => {
     const v = videoRef.current;
@@ -210,7 +210,7 @@ export default function VideoPlayer({
     const duration = liveDuration || durationRef.current;
     if (!duration) return;
     const position = v ? v.currentTime : currentTimeRef.current;
-    saveProgress({ media, episode: liveEpisodeRef.current, position, duration });
+    saveProgress({ media, episode: playingEpisodeRef.current, position, duration });
   }, [media]);
 
   const logEvent = useCallback(
@@ -499,6 +499,9 @@ export default function VideoPlayer({
         episodeNumber: e,
         title: epObj?.title ?? `Episode ${e}`,
       };
+      // Playback moves to this episode from here on. The outgoing flush above
+      // already wrote the old position under the old key.
+      playingEpisodeRef.current = ref;
       setSeason(s);
       setEpisode(e);
       setEnded(false);

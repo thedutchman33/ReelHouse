@@ -178,6 +178,24 @@ describe("createProgressRecorder", () => {
     );
   });
 
+  it("ignores provider reports after completion but before the retarget", () => {
+    const { recorder, save, advance } = setup();
+    recorder.report({ seconds: 99, duration: 100 });
+    recorder.ended();
+
+    // A hosted player keeps emitting timeupdate while the page waits for the
+    // provider's own autoplay (or for the grace period to elapse). Those reports
+    // must not arm the retarget's flush with a pre-credits position.
+    advance(5_000);
+    recorder.report({ seconds: 3, duration: 100 });
+    recorder.retarget({ media: MEDIA, episode: EPISODE });
+
+    const oldEpisodeWrites = save.mock.calls
+      .map(([input]) => input)
+      .filter((input) => input.episode === EPISODE);
+    expect(oldEpisodeWrites.at(-1)).toMatchObject({ position: 100 });
+  });
+
   it("flushes the old episode and starts a clean record on retarget", () => {
     const { recorder, save, advance } = setup();
     recorder.report({ seconds: 10, duration: 100 });

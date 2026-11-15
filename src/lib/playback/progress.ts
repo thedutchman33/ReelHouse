@@ -114,7 +114,7 @@ export function createProgressRecorder(options: {
     enabled,
 
     report(report) {
-      if (!enabled || !isUsable(report)) return;
+      if (!enabled || endedSent || !isUsable(report)) return;
       last = report;
       if (now() - lastSavedAt < saveIntervalMs) return;
       write(report);
@@ -131,7 +131,8 @@ export function createProgressRecorder(options: {
       // Record the completed position so "continue watching" clears the item.
       // `last` is advanced to completion as well, so a later flush/retarget (the
       // autoplay hand-off to the next episode does both) cannot write the
-      // pre-credits position back over it and resurrect a finished item.
+      // pre-credits position back over it and resurrect a finished item. Reports
+      // that arrive after completion are ignored for the same reason.
       if (last) {
         last = { seconds: last.duration, duration: last.duration };
         write(last);

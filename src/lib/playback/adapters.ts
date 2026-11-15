@@ -11,12 +11,11 @@ import type { PlaybackFailureReason } from "./types";
 // into the normalized signals below. Nothing else in the app parses provider
 // messages.
 //
-// IMPORTANT — nothing is assumed here. There is no adapter for any of the five
-// slots, because no provider documentation has been supplied. A slot with no
-// adapter simply produces no signals: its embed still plays (the provider owns
-// its player UI), Reelhouse just records no progress and performs no automatic
-// fallback for it. That is the correct conservative default, and it is exactly
-// what the `canReportProgress` / `canReportFailure` capability flags express.
+// IMPORTANT — nothing is assumed here. A provider only gets an adapter once its
+// actual, observed message contract is known (see Videasy below); a provider
+// whose payloads were never verified sends nothing Reelhouse will act on. A slot
+// with no adapter still plays (the provider owns its player UI), and the
+// namespaced Reelhouse bridge lets any host report state deliberately.
 //
 // To add one later, follow docs/video-provider-setup.md → "Provider events".
 // ---------------------------------------------------------------------------
@@ -24,7 +23,19 @@ import type { PlaybackFailureReason } from "./types";
 /** Normalized signal vocabulary. Providers are translated INTO this. */
 export type PlaybackSignal =
   | { kind: "ready" }
-  | { kind: "progress"; seconds: number; duration: number }
+  | {
+      kind: "progress";
+      seconds: number;
+      duration: number;
+      /**
+       * Present when the provider's progress report also names the episode it is
+       * playing. Hosted players that expose their own Next control advance
+       * without any separate navigation event, so this is how Reelhouse learns
+       * that the episode changed (and retargets history before writing).
+       */
+      season?: number;
+      episode?: number;
+    }
   | { kind: "episode"; season: number; episode: number }
   | { kind: "ended" }
   | { kind: "failure"; reason: PlaybackFailureReason; detail?: string };
@@ -141,6 +152,12 @@ function positiveInt(value: unknown): number | null {
     : null;
 }
 
+/** Videasy spells coordinates as numbers, but tolerate numeric strings too. */
+function coordinate(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value) : num(value);
+  return n != null && Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export const embedBridgeAdapter: ProviderMessageAdapter = (data) => {
   if (!data || typeof data !== "object") return null;
   const msg = data as EmbedBridgeMessage;
@@ -177,6 +194,91 @@ export const embedBridgeAdapter: ProviderMessageAdapter = (data) => {
   }
 };
 
+// ------------------------------- Videasy ------------------------------------
+//
+// Videasy (vidy.st) is the provider slot this deployment is configured with. Its
+// hosted player posts its own state to the parent window as JSON text:
+//
+//   { "type": "PLAYER_EVENT",
+//     "data": { "event": "timeupdate" | "play" | "pause" | "ended",
+//               "currentTime"?: 123.4, "timestamp"?: 123.4,
+//               "duration": 3444, "progress"?: 3.6,
+//               "type": "tv", "id": "84773",
+//               "season": 3, "episode": 4 } }
+//
+// Both position spellings occur in the wild (`currentTime` and `timestamp`), and
+// `progress` is a PERCENTAGE — never seconds, so it is deliberately never read as
+// a position. `season`/`episode` describe what the player is ACTUALLY playing,
+// which is what makes the provider's own Next Episode button visible to history.
+//
+// Recognizing the provider by URL host (not by slot id) keeps this working when
+// the operator configures it in a different slot, and survives the
+// `vidy.st` → `www.vidy.st` redirect the player performs.
+
+const VIDEASY_HOSTS = new Set(["vidy.st", "www.vidy.st"]);
+
+function safeJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+interface VideasyEvent {
+  event?: unknown;
+  currentTime?: unknown;
+  timestamp?: unknown;
+  duration?: unknown;
+  season?: unknown;
+  episode?: unknown;
+}
+
+export const videasyAdapter: ProviderMessageAdapter = (data) => {
+  const payload = typeof data === "string" ? safeJson(data) : data;
+  if (!payload || typeof payload !== "object") return null;
+  const message = payload as { type?: unknown; data?: unknown };
+  if (message.type !== "PLAYER_EVENT") return null;
+  if (!message.data || typeof message.data !== "object") return null;
+
+  const event = message.data as VideasyEvent;
+  if (event.event === "ended") return { kind: "ended" };
+  if (
+    event.event !== "timeupdate" &&
+    event.event !== "play" &&
+    event.event !== "pause"
+  ) {
+    return null;
+  }
+
+  // `progress` is a percentage, so it must never stand in for a position: a
+  // pause at 50% of a 44-minute episode is 1320s, not 50s.
+  const seconds = num(event.currentTime) ?? num(event.timestamp);
+  const duration = num(event.duration);
+  if (seconds == null || seconds < 0 || duration == null || duration <= 0) {
+    return null;
+  }
+
+  const season = coordinate(event.season);
+  const episode = coordinate(event.episode);
+  return {
+    kind: "progress",
+    seconds,
+    duration,
+    ...(season != null && episode != null ? { season, episode } : {}),
+  };
+};
+
+/** The origin(s) an embed may legitimately post from (see EmbedSurface). */
+export function hostOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url, "https://reelhouse.invalid").hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 // ------------------------------- adapter table ------------------------------
 
 /**
@@ -197,18 +299,24 @@ function isEmbedTestUrl(url: string | undefined): boolean {
 /**
  * The adapter for a provider, or null when it publishes no documented events.
  *
- * `src` is the URL actually loaded, and is used only to recognize the local embed
- * test fixture — a slot pointed at it during setup gets the fixture's adapter, so
- * progress and fallback can be verified without touching this table.
+ * `src` is the URL actually loaded. It selects the adapter in two cases:
+ *   - a real provider whose events are documented (Videasy, by host), and
+ *   - the local embed test fixture, so progress and fallback can be verified
+ *     without touching this table.
+ * A host check — not a slot number — is what makes a documented provider keep
+ * working when an operator moves it to another slot.
  */
 export function getMessageAdapter(
   providerId: string,
   src?: string
 ): ProviderMessageAdapter | null {
-  return (
-    ADAPTERS[providerId] ??
-    (isEmbedTestUrl(src) ? mockEmbedAdapter : embedBridgeAdapter)
-  );
+  const byProvider = ADAPTERS[providerId];
+  if (byProvider) return byProvider;
+
+  const host = hostOf(src);
+  if (host && VIDEASY_HOSTS.has(host)) return videasyAdapter;
+  if (isEmbedTestUrl(src)) return mockEmbedAdapter;
+  return embedBridgeAdapter;
 }
 
 /**

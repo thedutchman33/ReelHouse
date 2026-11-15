@@ -12,7 +12,7 @@ import WatchEpisodes from "@/components/playback/WatchEpisodes";
 import { RecommendationsSection, TrailerSection } from "@/components/playback/WatchExtras";
 import { formatRuntime, isLiveMediaType } from "@/lib/utils";
 import type { EpisodeRef } from "@/lib/library";
-import { markPlaybackStarted } from "@/lib/library";
+import { markPlaybackStarted, progressKey, readProgress } from "@/lib/library";
 import {
   expandTemplate,
   findCandidate,
@@ -24,12 +24,14 @@ import {
   createProgressRecorder,
   type ProgressRecorder,
 } from "@/lib/playback/progress";
+import { withResumePosition } from "@/lib/playback/resume";
 import type { PlaybackFailure, PlaybackPlan } from "@/lib/playback/types";
 import type { Episode, Media, MediaSummary, MediaType, Season } from "@/types";
 import EmbedSurface from "./EmbedSurface";
 import {
   FallbackNotice,
   PlaybackError,
+  PlaybackLoading,
   PlaybackUnavailable,
 } from "./PlaybackStates";
 import ProviderSelector from "./ProviderSelector";
@@ -61,6 +63,14 @@ function episodeTitle(seasons: Season[], s: number, e: number): string {
     season?.episodes?.find((x) => x.episodeNumber === e)?.title ?? `Episode ${e}`
   );
 }
+
+/**
+ * How long `ended` waits for a provider that names episodes to roll into the next
+ * one itself before Reelhouse advances by reloading the frame. Videasy's own
+ * auto-next is a viewer setting that is off by default, so the watch page's
+ * autoplay toggle must still have a path to the next episode.
+ */
+const PROVIDER_ADVANCE_GRACE_MS = 4000;
 
 /** Next episode within a season, rolling into the next season. */
 function nextEpisodeOf(
@@ -102,6 +112,16 @@ function episodeFromUrl(fallback: { season: number; episode: number }): {
     season: Number.isFinite(s) && s > 0 ? s : fallback.season,
     episode: Number.isFinite(e) && e > 0 ? e : fallback.episode,
   };
+}
+
+/**
+ * What an embed frame is loaded with, and where its player should begin.
+ * `startAt` is in seconds; null means "play from the beginning".
+ */
+interface EmbedTarget {
+  season: number;
+  episode: number;
+  startAt: number | null;
 }
 
 export default function PlaybackContainer({
@@ -177,15 +197,86 @@ export default function PlaybackContainer({
   );
   const [season, setSeason] = useState(initialSeasonNumber ?? 1);
   const [episode, setEpisode] = useState(initialEpisodeNumber ?? 1);
-  // The coordinates the embed frame was LOADED with. A provider that reports its
-  // own episode change is already playing that episode, so the frame must not be
-  // re-keyed to it — that would reload the provider's player and restart
-  // playback. An explicit selection (the rail, autoplay, a provider switch) does
-  // update these and therefore reloads the frame at the chosen episode.
-  const [embedEpisode, setEmbedEpisode] = useState({
+  // The coordinates an embed frame should be LOADED with, plus the position its
+  // player should start at. A provider that reports its own episode change is
+  // already playing that episode, so the frame is deliberately not re-pointed at
+  // it — that would reload the provider's player and restart playback. An
+  // explicit selection (the rail, autoplay, a provider switch) does update this
+  // and therefore reloads the frame at the chosen episode.
+  //
+  // Null until the client has read the library store: the resume position lives
+  // in localStorage, so the server cannot know it. Rendering the frame only after
+  // that read avoids a hydration mismatch AND a wasted first load at 0s that a
+  // second, corrected src would immediately replace.
+  const [embedTarget, setEmbedTarget] = useState<EmbedTarget | null>(null);
+
+  // The episode actually playing, updated as soon as a signal names a new one —
+  // not on the next render. Videasy emits `timeupdate` several times a second;
+  // without this, two messages arriving before React commits would both look
+  // like a change and retarget the recorder twice.
+  const playingEpisodeRef = useRef({
     season: initialSeasonNumber ?? 1,
     episode: initialEpisodeNumber ?? 1,
   });
+
+  // The episode the frame being REPLACED was playing. Reelhouse moves to another
+  // episode by reloading the frame, and the outgoing frame can post a last
+  // `timeupdate` while the new one is being created. Without this, that report
+  // looked like the provider changing episode and dragged the recorder back —
+  // overwriting the just-finished episode's completed position with the next
+  // frame's opening seconds.
+  const staleEpisodeRef = useRef<{ season: number; episode: number } | null>(null);
+  /** The progress report paired with an ignored stale episode, if any. */
+  const skipProgressRef = useRef(false);
+
+  // Whether the CURRENT frame has ever named the episode it is playing. If it
+  // has, a quick advance by the provider's own player must not be interrupted by
+  // a frame reload — that would restart the episode it is already opening. If it
+  // has NOT moved shortly after `ended`, Reelhouse's autoplay takes over (see
+  // handleEnded): Videasy's own auto-next is a viewer setting that is off by
+  // default, so the watch page's autoplay toggle still has to work.
+  const providerTracksEpisodes = useRef(false);
+  /** Pending Reelhouse autoplay-advance, cancelled if the provider moves first. */
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelAdvance = useCallback(() => {
+    if (advanceTimer.current != null) {
+      clearTimeout(advanceTimer.current);
+      advanceTimer.current = null;
+    }
+  }, []);
+
+  /**
+   * Where the provider's player should start for an episode.
+   *
+   * The library store is the single source of truth: a saved record for the
+   * exact media+episode is reused, unless the title was finished or the position
+   * is too close to either end to be worth resuming (mirrors the built-in
+   * player's own guard). Returns null when the player should begin at 0.
+   */
+  const savedStartAt = useCallback(
+    (nextSeason: number, nextEpisode: number): number | null => {
+      if (isLiveMediaType(type)) return null;
+      const saved = readProgress(
+        progressKey(
+          media.id,
+          hasEpisodes
+            ? {
+                seasonNumber: nextSeason,
+                episodeNumber: nextEpisode,
+                title: episodeTitle(seasonsWithEpisodes, nextSeason, nextEpisode),
+              }
+            : null
+        )
+      );
+      if (!saved || saved.completed || saved.duration <= 0) return null;
+      const endGuard = Math.min(15, saved.duration * 0.2);
+      if (saved.position <= 5 || saved.duration - saved.position <= endGuard) {
+        return null;
+      }
+      return Math.floor(saved.position);
+    },
+    [type, media.id, hasEpisodes, seasonsWithEpisodes]
+  );
 
   // The season currently playing must always be loaded (episode titles,
   // autoplay-next, the episodes rail), plus one season ahead so the finale can
@@ -240,6 +331,36 @@ export default function PlaybackContainer({
     [plan.candidates, type, selectedId]
   );
   const provider = candidate?.provider ?? null;
+
+  // Resolve the first embed target on the client, once the library store can be
+  // read. This is the only moment `?t=` applies: later episode selections resume
+  // from that episode's own saved position. Rendering the frame only after this
+  // effect avoids both a hydration mismatch and a wasted first load at 0s.
+  useEffect(() => {
+    if (candidate?.surface.kind !== "embed" || embedTarget) return;
+    const startAt =
+      initialSeconds != null && initialSeconds > 5
+        ? Math.floor(initialSeconds)
+        : savedStartAt(season, episode);
+    setEmbedTarget({ season, episode, startAt });
+  }, [
+    candidate?.surface.kind,
+    embedTarget,
+    season,
+    episode,
+    initialSeconds,
+    savedStartAt,
+  ]);
+
+  // Every load of a frame starts over: until that frame reports an episode, the
+  // container owns autoplay (reload at the next episode when `ended` arrives).
+  useEffect(() => {
+    providerTracksEpisodes.current = false;
+    cancelAdvance();
+  }, [selectedId, embedTarget?.season, embedTarget?.episode, cancelAdvance]);
+
+  // A pending advance must never fire after the player is gone.
+  useEffect(() => cancelAdvance, [cancelAdvance]);
 
   // ------------------------------- progress --------------------------------
   // One sink, keyed by media/episode, for every embed provider. The native
@@ -306,7 +427,14 @@ export default function PlaybackContainer({
         setSeason(current.season);
         setEpisode(current.episode);
       }
-      setEmbedEpisode({ season: current.season, episode: current.episode });
+      // The new frame opens at, and records, this episode.
+      playingEpisodeRef.current = current;
+      staleEpisodeRef.current = null;
+      setEmbedTarget({
+        season: current.season,
+        episode: current.episode,
+        startAt: savedStartAt(current.season, current.episode),
+      });
       recorderRef.current?.flush();
       setSelectedId(nextId);
       setSwitched(true);
@@ -315,7 +443,7 @@ export default function PlaybackContainer({
       // A deliberate choice starts a fresh chain.
       setAttempted([]);
     },
-    [selectedId, hasEpisodes, season, episode]
+    [selectedId, hasEpisodes, season, episode, savedStartAt]
   );
 
   const handleFailure = useCallback(
@@ -334,7 +462,7 @@ export default function PlaybackContainer({
         // the manager enforces that, and the viewer is still told.
         setAttempted((prev) => [...prev, next.providerId]);
         // The fallback frame opens where the viewer actually is.
-        setEmbedEpisode({ season, episode });
+        setEmbedTarget({ season, episode, startAt: savedStartAt(season, episode) });
         setSelectedId(fallback.provider.id);
         setSwitched(true);
         setFailure(null);
@@ -343,7 +471,7 @@ export default function PlaybackContainer({
       }
       setFailure(next);
     },
-    [selectedId, provider, plan.candidates, type, attempted, season, episode]
+    [selectedId, provider, plan.candidates, type, attempted, season, episode, savedStartAt]
   );
 
   /** Next provider for the manual "switch" action in the error state. */
@@ -355,6 +483,10 @@ export default function PlaybackContainer({
   const selectEpisode = useCallback(
     (nextSeason: number, nextEpisode: number) => {
       if (nextSeason === season && nextEpisode === episode) return;
+      // The frame currently mounted is now stale; anything it still posts must
+      // not be mistaken for where the viewer now is.
+      staleEpisodeRef.current = { season, episode };
+      playingEpisodeRef.current = { season: nextSeason, episode: nextEpisode };
       setSeason(nextSeason);
       setEpisode(nextEpisode);
       setFailure(null);
@@ -373,10 +505,15 @@ export default function PlaybackContainer({
         "",
         `/watch/${type}/${media.tmdbId}?s=${nextSeason}&e=${nextEpisode}`
       );
-      // An explicit choice reloads an embed frame at the chosen episode.
-      setEmbedEpisode({ season: nextSeason, episode: nextEpisode });
+      // An explicit choice reloads an embed frame at the chosen episode, from
+      // that episode's own saved position (never the outgoing one's).
+      setEmbedTarget({
+        season: nextSeason,
+        episode: nextEpisode,
+        startAt: savedStartAt(nextSeason, nextEpisode),
+      });
     },
-    [season, episode, media, type, seasonsWithEpisodes]
+    [season, episode, media, type, seasonsWithEpisodes, savedStartAt]
   );
 
   /**
@@ -387,6 +524,9 @@ export default function PlaybackContainer({
    */
   const handlePlayerEpisodeChange = useCallback(
     (nextSeason: number, nextEpisode: number) => {
+      // The native player moved playback itself; the URL and any later embed
+      // switch must agree with it.
+      playingEpisodeRef.current = { season: nextSeason, episode: nextEpisode };
       setSeason(nextSeason);
       setEpisode(nextEpisode);
     },
@@ -403,7 +543,29 @@ export default function PlaybackContainer({
   const handleProviderEpisode = useCallback(
     (nextSeason: number, nextEpisode: number) => {
       if (!hasEpisodes || isLiveMediaType(type)) return;
-      if (nextSeason === season && nextEpisode === episode) return;
+      // A report from the frame that a selection is replacing: it describes the
+      // episode just left, not a provider-driven change.
+      const stale = staleEpisodeRef.current;
+      if (stale && stale.season === nextSeason && stale.episode === nextEpisode) {
+        // Skip the position that travels with this episode report (EmbedSurface
+        // calls onEpisode immediately before onProgress), then let the next
+        // frame's reports through.
+        skipProgressRef.current = true;
+        queueMicrotask(() => {
+          skipProgressRef.current = false;
+        });
+        return;
+      }
+      staleEpisodeRef.current = null;
+      // Any report that names coordinates means the provider tracks episodes —
+      // including the first report for the episode already on screen, which is
+      // what lets `ended` give the provider first refusal on the next episode.
+      providerTracksEpisodes.current = true;
+      const playing = playingEpisodeRef.current;
+      if (playing.season === nextSeason && playing.episode === nextEpisode) return;
+      // It moved on its own: the graceful `ended` advance must not fire.
+      cancelAdvance();
+      playingEpisodeRef.current = { season: nextSeason, episode: nextEpisode };
       setSeason(nextSeason);
       setEpisode(nextEpisode);
       setFailure(null);
@@ -425,7 +587,7 @@ export default function PlaybackContainer({
         /* ignore */
       }
     },
-    [hasEpisodes, type, season, episode, media, seasonsWithEpisodes]
+    [hasEpisodes, type, media, seasonsWithEpisodes, cancelAdvance]
   );
 
   /** An embed provider reported the item finished. */
@@ -433,8 +595,34 @@ export default function PlaybackContainer({
     recorderRef.current?.ended();
     if (!autoplay || !hasEpisodes) return;
     const next = nextEpisodeOf(seasonsWithEpisodes, season, episode);
-    if (next) selectEpisode(next.season, next.episode);
-  }, [autoplay, hasEpisodes, seasons, season, episode, selectEpisode]);
+    if (!next) return;
+
+    // A provider that names episodes may roll into the next one itself. Give it
+    // a moment to do so (its report cancels this timer); only if it stays on the
+    // finished episode does Reelhouse reload the frame at the next one. Videasy's
+    // auto-next is a viewer setting and off by default, so the watch page's own
+    // autoplay toggle must still work.
+    if (!providerTracksEpisodes.current) {
+      selectEpisode(next.season, next.episode);
+      return;
+    }
+    cancelAdvance();
+    const from = playingEpisodeRef.current;
+    advanceTimer.current = setTimeout(() => {
+      advanceTimer.current = null;
+      const playing = playingEpisodeRef.current;
+      if (playing.season !== from.season || playing.episode !== from.episode) return;
+      selectEpisode(next.season, next.episode);
+    }, PROVIDER_ADVANCE_GRACE_MS);
+  }, [
+    autoplay,
+    hasEpisodes,
+    seasonsWithEpisodes,
+    season,
+    episode,
+    selectEpisode,
+    cancelAdvance,
+  ]);
 
   // -------------------------------- render ---------------------------------
 
@@ -491,6 +679,27 @@ export default function PlaybackContainer({
   const playAnilistId = playingSeason?.anilistId ?? media.tmdbId;
   const playTmdbId =
     playingSeason?.resolvedTmdbId ?? detail?.resolvedTmdbId ?? media.tmdbId;
+
+  // The URL the frame is loaded with. The episode is the target the frame was
+  // pointed at (not necessarily the provider's current one — it may have moved
+  // itself), and the start position is appended only for providers that document
+  // a resume parameter.
+  const embedSrc =
+    embedSurface && embedTarget
+      ? withResumePosition(
+          expandTemplate(embedSurface.urlTemplate, {
+            id: type === "anime" ? playAnilistId : media.tmdbId,
+            tmdbId: playTmdbId,
+            ...(hasEpisodes
+              ? { season: embedTarget.season, episode: embedTarget.episode }
+              : type === "anime"
+                ? { episode: 1 }
+                : {}),
+          }),
+          embedTarget.startAt
+        )
+      : null;
+
   const embedUrls: Record<string, string> = {};
   for (const c of plan.candidates) {
     if (c.surface.kind === "embed") {
@@ -590,8 +799,13 @@ export default function PlaybackContainer({
                       detail={failure.detail}
                       onRetry={() => {
                         // Retry at the episode currently playing, not the one the
-                        // frame was originally opened with.
-                        setEmbedEpisode({ season, episode });
+                        // frame was originally opened with — and at the position
+                        // already recorded for it.
+                        setEmbedTarget({
+                          season,
+                          episode,
+                          startAt: savedStartAt(season, episode),
+                        });
                         setFailure(null);
                         setReloadKey((k) => k + 1);
                       }}
@@ -602,34 +816,30 @@ export default function PlaybackContainer({
                       }
                       nextProviderName={manualAlternative?.provider.displayName}
                     />
-                  ) : (
+                  ) : embedTarget && embedSrc ? (
                     <EmbedSurface
                       provider={provider}
-                      src={expandTemplate(
-                        (embedSurface as { urlTemplate: string }).urlTemplate,
-                        {
-                          id: type === "anime" ? playAnilistId : media.tmdbId,
-                          tmdbId: playTmdbId,
-                          ...(hasEpisodes
-                            ? {
-                                season: embedEpisode.season,
-                                episode: embedEpisode.episode,
-                              }
-                            : type === "anime"
-                              ? { episode: 1 }
-                              : {}),
-                        }
-                      )}
+                      src={embedSrc}
                       title={`${provider.displayName} player — ${contextLabel}`}
                       reloadKey={reloadKey}
                       sandbox={embedSandbox}
-                      onProgress={(seconds, duration) =>
-                        recorderRef.current?.report({ seconds, duration })
-                      }
+                      onProgress={(seconds, duration) => {
+                        // Belongs to the frame an episode switch is replacing.
+                        if (skipProgressRef.current) {
+                          skipProgressRef.current = false;
+                          return;
+                        }
+                        recorderRef.current?.report({ seconds, duration });
+                      }}
                       onEpisode={handleProviderEpisode}
                       onEnded={handleEnded}
                       onFailure={handleFailure}
                     />
+                  ) : (
+                    // The saved position is read from the library store on the
+                    // client; the frame waits for that read so its very first
+                    // load already starts at the saved time.
+                    <PlaybackLoading providerName={provider.displayName} />
                   )}
                 </>
               )}

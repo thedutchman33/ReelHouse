@@ -131,6 +131,14 @@ async function mountPlayer(props: Partial<PlayerProps> = {}) {
 
   return {
     video,
+    root,
+    full,
+    /** Re-render the same player with new props (the page selecting an episode). */
+    async rerender(patch: Partial<PlayerProps>) {
+      await act(async () => {
+        root.render(createElement(VideoPlayer, { ...full, ...patch } as PlayerProps));
+      });
+    },
     async fire(type: string) {
       await act(async () => {
         video.dispatchEvent(new Event(type));
@@ -334,6 +342,43 @@ describe("VideoPlayer → watch history", () => {
       duration: 2700,
       completed: false,
     });
+  });
+
+  it("keeps both episodes' positions when the page selects a non-next episode", async () => {
+    // Episode 6 already has a saved position. Selecting it from the rail while
+    // episode 5 is playing must not overwrite ep6's resume point with ep5's
+    // playhead — nor lose the position reached in ep5.
+    saveProgress({
+      media: show,
+      episode: { seasonNumber: 2, episodeNumber: 6, title: "Hollow Season" },
+      position: 1200,
+      duration: 2700,
+    });
+    const player = await mountPlayer({
+      type: "tv",
+      media: show,
+      seasons,
+      initialSeasonNumber: 2,
+      initialEpisodeNumber: 5,
+      backHref: "/tv/1399",
+    });
+    fakeDuration = 2700;
+    await player.fire("loadedmetadata");
+    await player.play();
+
+    fakeTime = 300;
+    await player.fire("timeupdate");
+
+    // The watch page's episode rail moves the player through props.
+    await player.rerender({ initialSeasonNumber: 2, initialEpisodeNumber: 6 });
+
+    expect(readProgress("tv-1399:s2e5")).toMatchObject({ position: 300 });
+    expect(readProgress("tv-1399:s2e6")).toMatchObject({ position: 1200 });
+    // ...and playback actually resumes at ep6's saved point.
+    expect(fakeTime).toBe(1200);
+
+    await player.leave();
+    expect(readProgress("tv-1399:s2e6")).toMatchObject({ position: 1200 });
   });
 
   it("resumes a saved episode when the episode list is still loading", async () => {
