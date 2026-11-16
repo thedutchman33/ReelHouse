@@ -31,12 +31,91 @@ export interface ProgressEntry {
   completed: boolean;
 }
 
-interface LibraryState {
-  watchlist: MediaSummary[];
-  progress: Record<string, ProgressEntry>;
+export type TitleReaction = "like" | "dislike";
+
+export interface ReactionEntry {
+  value: TitleReaction;
+  updatedAt: number;
+  /** Snapshot so a reaction made on the watch page can be listed here. */
+  media: MediaSummary;
 }
 
-const EMPTY: LibraryState = { watchlist: [], progress: {} };
+export interface WatchedEntry {
+  watchedAt: number;
+  media: MediaSummary;
+}
+
+/** A series the viewer follows for new-episode alerts on the calendar. */
+export interface TrackedEntry {
+  trackedAt: number;
+  media: MediaSummary;
+}
+
+/**
+ * A user-created folder on My List. The reference ships a Watchlist plus a few
+ * starter catalogs; each catalog owns ordered title snapshots, so it renders
+ * without re-fetching anything.
+ */
+export interface Catalog {
+  id: string;
+  name: string;
+  items: MediaSummary[];
+  createdAt: number;
+  /** One of the starter folders a new library is seeded with. */
+  seeded?: boolean;
+}
+
+export interface TitleMarks {
+  watched: boolean;
+  reaction: TitleReaction | null;
+}
+
+/** Fields a server snapshot may carry — older callers omit the local-only ones. */
+interface LibrarySnapshot {
+  watchlist: MediaSummary[];
+  progress: Record<string, ProgressEntry>;
+  watched?: Record<string, WatchedEntry>;
+  reactions?: Record<string, ReactionEntry>;
+  catalogs?: Catalog[];
+  tracked?: Record<string, TrackedEntry>;
+}
+
+interface LibraryState extends LibrarySnapshot {
+  watchlist: MediaSummary[];
+  progress: Record<string, ProgressEntry>;
+  watched: Record<string, WatchedEntry>;
+  reactions: Record<string, ReactionEntry>;
+  catalogs: Catalog[];
+  tracked: Record<string, TrackedEntry>;
+}
+
+const EMPTY: LibraryState = {
+  watchlist: [],
+  progress: {},
+  watched: {},
+  reactions: {},
+  catalogs: [],
+  tracked: {},
+};
+
+/** The starter folders the reference shows on a brand-new My List. */
+function starterCatalogs(): Catalog[] {
+  return [
+    { id: "catalog-top-horror", name: "Top Horror Movies", items: [], createdAt: 0, seeded: true },
+    { id: "catalog-top-rated", name: "Top Rated", items: [], createdAt: 0, seeded: true },
+    { id: "catalog-lowest-rated", name: "Lowest Rated", items: [], createdAt: 0, seeded: true },
+  ];
+}
+
+const CATALOG_NAME_MAX = 40;
+
+function normalizeCatalogName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").slice(0, CATALOG_NAME_MAX);
+}
+
+function newCatalogId(): string {
+  return `catalog-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 let cache: LibraryState = EMPTY;
 let loaded = false;
@@ -52,9 +131,23 @@ function load(): void {
   }
   try {
     const raw = window.localStorage.getItem(KEY);
-    cache = raw ? { ...EMPTY, ...(JSON.parse(raw) as Partial<LibraryState>) } : EMPTY;
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<LibraryState>;
+      cache = {
+        watchlist: parsed.watchlist ?? [],
+        progress: parsed.progress ?? {},
+        watched: parsed.watched ?? {},
+        reactions: parsed.reactions ?? {},
+        tracked: parsed.tracked ?? {},
+        // A present-but-empty array means the viewer deleted every starter
+        // catalog — only a missing field (older storage version) reseeds.
+        catalogs: Array.isArray(parsed.catalogs) ? parsed.catalogs : starterCatalogs(),
+      };
+    } else {
+      cache = { ...EMPTY, catalogs: starterCatalogs() };
+    }
   } catch {
-    cache = EMPTY;
+    cache = { ...EMPTY, catalogs: starterCatalogs() };
   }
   loaded = true;
 }
@@ -219,6 +312,118 @@ export function clearHistory(): void {
   if (serverEnabled) void clearHistoryRemote();
 }
 
+/** Clear the local taste signals (history, watched marks and reactions). */
+export function resetWatchPreferences(): void {
+  ensureLoaded();
+  commit({ ...cache, progress: {}, watched: {}, reactions: {} });
+  if (serverEnabled) void clearHistoryRemote();
+}
+
+// --------------------------- watched / reactions ---------------------------
+
+export function setWatched(item: MediaSummary, watched: boolean): void {
+  ensureLoaded();
+  const next = { ...cache.watched };
+  if (watched) next[item.id] = { media: item, watchedAt: Date.now() };
+  else delete next[item.id];
+  commit({ ...cache, watched: next });
+}
+
+export function toggleWatched(item: MediaSummary): void {
+  ensureLoaded();
+  setWatched(item, cache.watched[item.id] === undefined);
+}
+
+/**
+ * Set or clear one thumbs reaction. Like and dislike are mutually exclusive;
+ * choosing the active one again clears it (the reference toggle behavior).
+ */
+export function toggleReaction(item: MediaSummary, reaction: TitleReaction): void {
+  ensureLoaded();
+  const current = cache.reactions[item.id]?.value;
+  const next = { ...cache.reactions };
+  if (current === reaction) delete next[item.id];
+  else next[item.id] = { value: reaction, updatedAt: Date.now(), media: item };
+  commit({ ...cache, reactions: next });
+}
+
+/** Follow/unfollow a series for the Release Calendar's Tracking tab. */
+export function setTracked(item: MediaSummary, tracked: boolean): void {
+  ensureLoaded();
+  const next = { ...cache.tracked };
+  if (tracked) next[item.id] = { media: item, trackedAt: Date.now() };
+  else delete next[item.id];
+  commit({ ...cache, tracked: next });
+}
+
+export function toggleTracked(item: MediaSummary): void {
+  ensureLoaded();
+  setTracked(item, cache.tracked[item.id] === undefined);
+}
+
+// -------------------------------- catalogs ---------------------------------
+
+export function createCatalog(name: string): string | null {
+  ensureLoaded();
+  const clean = normalizeCatalogName(name);
+  if (!clean) return null;
+  const id = newCatalogId();
+  const catalog: Catalog = { id, name: clean, items: [], createdAt: Date.now() };
+  commit({ ...cache, catalogs: [...cache.catalogs, catalog] });
+  return id;
+}
+
+export function renameCatalog(catalogId: string, name: string): void {
+  ensureLoaded();
+  const clean = normalizeCatalogName(name);
+  if (!clean) return;
+  const catalogs = cache.catalogs.map((catalog) =>
+    catalog.id === catalogId ? { ...catalog, name: clean } : catalog
+  );
+  commit({ ...cache, catalogs });
+}
+
+export function deleteCatalog(catalogId: string): void {
+  ensureLoaded();
+  const catalogs = cache.catalogs.filter((catalog) => catalog.id !== catalogId);
+  if (catalogs.length === cache.catalogs.length) return;
+  commit({ ...cache, catalogs });
+}
+
+export function addToCatalog(catalogId: string, item: MediaSummary): void {
+  ensureLoaded();
+  let changed = false;
+  const catalogs = cache.catalogs.map((catalog) => {
+    if (catalog.id !== catalogId || catalog.items.some((saved) => saved.id === item.id)) {
+      return catalog;
+    }
+    changed = true;
+    return { ...catalog, items: [item, ...catalog.items] };
+  });
+  if (changed) commit({ ...cache, catalogs });
+}
+
+export function removeFromCatalog(catalogId: string, mediaId: string): void {
+  ensureLoaded();
+  const catalogs = cache.catalogs.map((catalog) =>
+    catalog.id === catalogId
+      ? { ...catalog, items: catalog.items.filter((item) => item.id !== mediaId) }
+      : catalog
+  );
+  commit({ ...cache, catalogs });
+}
+
+export function toggleCatalogItem(catalogId: string, item: MediaSummary): void {
+  ensureLoaded();
+  const target = cache.catalogs.find((catalog) => catalog.id === catalogId);
+  if (!target) return;
+  if (target.items.some((saved) => saved.id === item.id)) {
+    removeFromCatalog(catalogId, item.id);
+  } else {
+    addToCatalog(catalogId, item);
+  }
+}
+
 export function readProgress(key: string): ProgressEntry | undefined {
   ensureLoaded();
   return cache.progress[key];
@@ -325,7 +530,7 @@ export function logPlaybackEvent(input: {
   });
 }
 
-async function fetchServerState(): Promise<LibraryState | null> {
+async function fetchServerState(): Promise<LibrarySnapshot | null> {
   try {
     const [wRes, hRes] = await Promise.all([
       fetch("/api/watchlist", { headers: { Accept: "application/json" } }),
@@ -366,8 +571,8 @@ export interface MergeResult {
  * the local-only / local-newer entries the caller must push up.
  */
 export function mergeLibrary(
-  local: LibraryState,
-  server: LibraryState,
+  local: LibrarySnapshot,
+  server: LibrarySnapshot,
   { localIsOurs }: { localIsOurs: boolean }
 ): MergeResult {
   const effectiveLocal = localIsOurs ? local : EMPTY;
@@ -410,13 +615,19 @@ export async function syncOnSignIn(userId: string): Promise<void> {
 
   const owner = getOwner();
   const localIsOurs = owner === null || owner === userId;
+  // Watched marks, reactions and catalogs are local-only today. Keep this
+  // viewer's copy when the mirror is theirs; on a shared browser, start fresh
+  // instead of surfacing the previous account's folders.
+  const base: LibraryState = localIsOurs
+    ? cache
+    : { ...EMPTY, catalogs: starterCatalogs() };
   const { watchlist, progress, localOnlyWatch, localNewer } = mergeLibrary(
-    cache,
+    base,
     server,
     { localIsOurs }
   );
 
-  commit({ watchlist, progress });
+  commit({ ...base, watchlist, progress });
   setOwner(userId);
 
   // One-time migration + offline catch-up: push local-only / local-newer up.
@@ -424,11 +635,18 @@ export async function syncOnSignIn(userId: string): Promise<void> {
   localNewer.forEach((e) => void pushProgress(e));
 }
 
-/** Disable server sync and clear the local mirror (data stays on the server). */
+/**
+ * Disable server sync and clear the server-mirrored watchlist/progress (data
+ * stays on the server). Catalogs, watched marks and reactions never leave this
+ * device, so a sign-out must not erase them.
+ */
 export function syncOnSignOut(): void {
+  // Sign-out can arrive before the first component has read the store. Load the
+  // local mirror first so catalogs/marks are preserved, not overwritten.
+  ensureLoaded();
   serverEnabled = false;
   setOwner(null);
-  commit(EMPTY);
+  commit({ ...cache, watchlist: [], progress: {} });
 }
 
 // --------------------------------- hooks -----------------------------------
@@ -439,6 +657,42 @@ function useLibrary(): LibraryState {
 
 export function useWatchlist(): MediaSummary[] {
   return useLibrary().watchlist;
+}
+
+export function useWatchedMap(): Record<string, WatchedEntry> {
+  return useLibrary().watched;
+}
+
+export function useReactionMap(): Record<string, ReactionEntry> {
+  return useLibrary().reactions;
+}
+
+export function useTracked(): TrackedEntry[] {
+  const { tracked } = useLibrary();
+  return useMemo(
+    () => Object.values(tracked).sort((a, b) => b.trackedAt - a.trackedAt),
+    [tracked]
+  );
+}
+
+export function useCatalogs(): Catalog[] {
+  return useLibrary().catalogs;
+}
+
+export function useTitleReaction(mediaId: string): TitleReaction | null {
+  const { reactions } = useLibrary();
+  return reactions[mediaId]?.value ?? null;
+}
+
+export function useTitleMarks(mediaId: string): TitleMarks {
+  const { watched, reactions } = useLibrary();
+  return useMemo(
+    () => ({
+      watched: watched[mediaId] !== undefined,
+      reaction: reactions[mediaId]?.value ?? null,
+    }),
+    [watched, reactions, mediaId]
+  );
 }
 
 export function useIsInWatchlist(id: string): boolean {

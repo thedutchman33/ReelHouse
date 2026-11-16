@@ -3,6 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { getBrowserSupabase } from "@/lib/supabase/client";
+import {
+  AUTH_ERROR_CLASS,
+  AUTH_INPUT_CLASS,
+  AUTH_LINK_CLASS,
+  AUTH_NOTICE_CLASS,
+  AUTH_PRIMARY_BUTTON_CLASS,
+} from "./auth-ui";
 
 // Step 1 of the reset flow: ask Supabase to mail a recovery link.
 //
@@ -13,8 +20,10 @@ import { getBrowserSupabase } from "@/lib/supabase/client";
 // failure, send-rate limit).
 export default function ForgotPasswordForm({
   linkExpired = false,
+  onBack,
 }: {
   linkExpired?: boolean;
+  onBack?: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,16 +75,13 @@ export default function ForgotPasswordForm({
 
   if (sentTo) {
     return (
-      <div className="flex flex-col gap-4">
-        <p
-          role="status"
-          className="rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2.5 text-sm text-text"
-        >
-          If <span className="font-medium">{sentTo}</span> has a Reelhouse
-          account, a reset link is on its way. The link expires shortly, so use
-          it soon.
+      <div className="flex flex-col gap-3">
+        <p role="status" className={AUTH_NOTICE_CLASS}>
+          If <span className="font-medium text-zinc-100">{sentTo}</span> has a
+          Reelhouse account, a reset link is on its way. The link expires shortly,
+          so use it soon.
         </p>
-        <p className="text-sm text-muted">
+        <p className="text-xs leading-relaxed text-zinc-500">
           Nothing in your inbox? Check the spam folder, or{" "}
           <button
             type="button"
@@ -83,65 +89,74 @@ export default function ForgotPasswordForm({
               setSentTo(null);
               setError(null);
             }}
-            className="font-medium text-accent hover:underline"
+            className={AUTH_LINK_CLASS}
           >
             try another address
           </button>
           .
         </p>
-        <Link href="/login" className="btn-ghost mt-1">
-          Back to sign in
-        </Link>
+        {onBack ? (
+          <button type="button" onClick={onBack} className={AUTH_LINK_CLASS}>
+            Back to sign in
+          </button>
+        ) : (
+          <Link href="/login" className={AUTH_LINK_CLASS}>
+            Back to sign in
+          </Link>
+        )}
       </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-3">
       {linkExpired && !error && (
-        <p
-          role="alert"
-          className="rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2 text-sm text-danger"
-        >
+        <p role="alert" className={AUTH_ERROR_CLASS}>
           That reset link is invalid or has expired. Request a new one below.
         </p>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="email" className="text-sm font-medium text-muted">
-          Email
-        </label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          required
-          autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded-xl border border-border bg-surface/80 px-3.5 py-2.5 text-text outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
-          placeholder="you@example.com"
-        />
-      </div>
+      <label htmlFor="email" className="block text-xs text-zinc-400">
+        Email
+      </label>
+      <input
+        id="email"
+        data-autofocus
+        type="email"
+        autoComplete="email"
+        required
+        autoFocus
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className={AUTH_INPUT_CLASS}
+        placeholder="you@example.com"
+      />
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2 text-sm text-danger"
-        >
+        <p role="alert" className={AUTH_ERROR_CLASS}>
           {error}
         </p>
       )}
 
-      <button type="submit" disabled={busy} className="btn-primary mt-1 disabled:opacity-60">
+      <button
+        type="submit"
+        disabled={busy}
+        className={AUTH_PRIMARY_BUTTON_CLASS}
+      >
         {busy ? "Sending…" : "Send reset link"}
       </button>
 
-      <p className="text-center text-sm text-muted">
+      <p className="text-center text-xs text-zinc-500">
         Remembered it?{" "}
-        <Link href="/login" className="font-medium text-accent hover:underline">
-          Back to sign in
-        </Link>
+        {onBack ? (
+          <button type="button" onClick={onBack} className={AUTH_LINK_CLASS}>
+            Back to sign in
+          </button>
+        ) : (
+          <Link href="/login" className={AUTH_LINK_CLASS}>
+            Back to sign in
+          </Link>
+        )}
       </p>
     </form>
   );

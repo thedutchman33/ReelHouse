@@ -34,6 +34,29 @@ export function confirmPasswordError(
 }
 
 /**
+ * Whether an email verification bounced back with an expired or already-used
+ * one-time link.
+ *
+ * Supabase sends this error to the project's Site URL, which is usually the
+ * homepage, and can put the parameters in either the query string or the URL
+ * hash. A server route cannot read the fragment, and the homepage has no reset
+ * UI, so the browser has to notice this before the visitor concludes that the
+ * link simply did nothing.
+ */
+export function isExpiredAuthLink(search: string, hash: string): boolean {
+  const query = new URLSearchParams(search);
+  const fragment = new URLSearchParams(hash.replace(/^#/, ""));
+  const code = query.get("error_code") ?? fragment.get("error_code");
+  if (code?.toLowerCase() === "otp_expired") return true;
+
+  const description =
+    query.get("error_description") ??
+    fragment.get("error_description") ??
+    "";
+  return /email link is invalid or has expired/i.test(description);
+}
+
+/**
  * The message to show when `signInWithPassword` fails.
  *
  * Sign-in leaks account existence in the same way signup did, through a second

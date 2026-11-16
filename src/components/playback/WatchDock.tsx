@@ -3,24 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import WatchlistButton from "@/components/media/WatchlistButton";
 import { NextEpisodeIcon } from "@/components/player/icons";
+import { toggleReaction, useTitleReaction, type TitleReaction } from "@/lib/library";
 import { isLiveMediaType } from "@/lib/utils";
 import type { MediaSummary } from "@/types";
 
 // Control dock joined under the player stage (reference anatomy, REA-verified):
 // Like (+Dislike reveal) · divider · Theater · Add · Download · More, with
 // Fullscreen pushed to the far right (ml-auto). 38px buttons (42px from sm),
-// rounded-[11px], muted-green icons, hover wash. Like state persists per title
-// in localStorage (a real per-viewer signal, the only backend Reelhouse has).
-
-const LIKES_KEY = "rh-title-likes";
-
-function loadLikes(): Record<string, 1 | -1> {
-  try {
-    return JSON.parse(localStorage.getItem(LIKES_KEY) ?? "{}") as Record<string, 1 | -1>;
-  } catch {
-    return {};
-  }
-}
+// rounded-[11px], muted-green icons, hover wash. Like state lives in the shared
+// library store, so a thumbs-up here lands in My List's Liked collection.
 
 const btnBase =
   "inline-flex h-[38px] w-[38px] sm:h-[42px] sm:w-[42px] shrink-0 items-center justify-center rounded-[11px] transition-colors hover:bg-white/[0.09] text-[hsl(150_3%_62%)] hover:text-foreground";
@@ -51,7 +42,7 @@ export default function WatchDock({
    */
   onNextEpisode?: () => void;
 }) {
-  const [reaction, setReaction] = useState<1 | -1 | 0>(0);
+  const reaction = useTitleReaction(media.id);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   // Live channels have no watchlist entry or downloadable title behind them,
@@ -65,10 +56,6 @@ export default function WatchDock({
         ? "/cricket"
         : `/${media.type}/${media.tmdbId}`;
 
-  useEffect(() => {
-    setReaction(loadLikes()[media.id] ?? 0);
-  }, [media.id]);
-
   // Close the More menu on any outside pointer.
   useEffect(() => {
     if (!moreOpen) return;
@@ -79,17 +66,8 @@ export default function WatchDock({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [moreOpen]);
 
-  const react = (value: 1 | -1) => {
-    const next = reaction === value ? 0 : value;
-    setReaction(next);
-    try {
-      const all = loadLikes();
-      if (next === 0) delete all[media.id];
-      else all[media.id] = next;
-      localStorage.setItem(LIKES_KEY, JSON.stringify(all));
-    } catch {
-      /* best-effort persistence */
-    }
+  const react = (value: TitleReaction) => {
+    toggleReaction(media, value);
   };
 
   return (
@@ -98,17 +76,17 @@ export default function WatchDock({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            aria-pressed={reaction === 1}
+            aria-pressed={reaction === "like"}
             aria-label="Like"
             title="Like"
-            onClick={() => react(1)}
+            onClick={() => react("like")}
             className={btnBase}
           >
             <svg
               width="18"
               height="18"
               viewBox="0 0 24 24"
-              fill={reaction === 1 ? "currentColor" : "none"}
+              fill={reaction === "like" ? "currentColor" : "none"}
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
@@ -123,19 +101,19 @@ export default function WatchDock({
           {/* Dislike reveals when the title is liked (reference pattern). */}
           <div
             className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              reaction === 1 ? "w-[38px] opacity-100 sm:w-[42px]" : "w-0 opacity-0"
+              reaction === "like" ? "w-[38px] opacity-100 sm:w-[42px]" : "w-0 opacity-0"
             }`}
           >
             <button
               type="button"
-              aria-pressed={reaction === -1}
+              aria-pressed={reaction === "dislike"}
               aria-label="Dislike"
               title="Dislike"
-              tabIndex={reaction === 1 ? 0 : -1}
-              onClick={() => react(-1)}
+              tabIndex={reaction === "like" ? 0 : -1}
+              onClick={() => react("dislike")}
               className={btnBase}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={reaction === -1 ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill={reaction === "dislike" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M17 14V2" />
                 <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
               </svg>

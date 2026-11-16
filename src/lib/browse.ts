@@ -21,7 +21,7 @@ export type BrowseType = "all" | Exclude<MediaType, "f1" | "cricket">;
 // "f1" and "cricket" are live-only, so the catalog never offers them as browse
 // filters.
 
-export type BrowseSort = "popularity" | "latest" | "rating" | "oldest";
+export type BrowseSort = "popularity" | "recent" | "rating" | "oldest";
 
 /**
  * Industry toggle (Movies / TV Shows header): which cinema the grid narrows to.
@@ -60,12 +60,18 @@ export const TYPE_OPTIONS: { value: BrowseType; label: string; href: string }[] 
 
 export const SORT_OPTIONS: { value: BrowseSort; label: string }[] = [
   { value: "popularity", label: "Popularity" },
-  { value: "latest", label: "Latest" },
+  { value: "recent", label: "Recent Releases" },
   { value: "rating", label: "Rating" },
   { value: "oldest", label: "Oldest" },
 ];
 
 export const DEFAULT_SORT: BrowseSort = "popularity";
+
+/**
+ * 7reels-style browse paging: one view loads eight TMDB pages (160 cards),
+ * so Next advances the page param from 1 to 9 rather than 1 to 2.
+ */
+export const BROWSE_PAGES_PER_VIEW = 8;
 
 /** Route that owns a given content type — the type pills navigate between these. */
 export function browsePathFor(type: BrowseType): string {
@@ -100,6 +106,9 @@ export function parseBrowseFilters(
   const yearRaw = Number(firstValue(searchParams.year));
   const pageRaw = Number(firstValue(searchParams.page));
   const sortRaw = firstValue(searchParams.sort);
+  // "latest" was the old name for the same date-descending order; keep
+  // existing links working while the UI and new URLs say recent.
+  const normalizedSort = sortRaw === "latest" ? "recent" : sortRaw;
   const industryRaw = firstValue(searchParams.industry);
 
   return {
@@ -107,7 +116,7 @@ export function parseBrowseFilters(
     genre: genreRaw ? genreRaw : null,
     provider: Number.isInteger(providerRaw) && providerRaw > 0 ? providerRaw : null,
     year: Number.isInteger(yearRaw) && yearRaw > 1800 ? yearRaw : null,
-    sort: isSort(sortRaw) ? sortRaw : DEFAULT_SORT,
+    sort: isSort(normalizedSort) ? normalizedSort : DEFAULT_SORT,
     industry: industryRaw === "bollywood" ? "bollywood" : DEFAULT_INDUSTRY,
     page: Number.isInteger(pageRaw) && pageRaw > 0 ? Math.min(pageRaw, 500) : 1,
   };

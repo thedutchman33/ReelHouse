@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation";
 import { SpinnerIcon } from "@/components/player/icons";
 import { PASSWORD_HINT, passwordRuleError } from "@/lib/auth";
 import { getBrowserSupabase } from "@/lib/supabase/client";
+import {
+  AUTH_ERROR_CLASS,
+  AUTH_INPUT_CLASS,
+  AUTH_LINK_CLASS,
+  AUTH_NOTICE_CLASS,
+  AUTH_PRIMARY_BUTTON_CLASS,
+} from "./auth-ui";
 
 // Step 2 of the reset flow: set the new password.
 //
@@ -23,8 +30,7 @@ import { getBrowserSupabase } from "@/lib/supabase/client";
 // boundary.
 type Stage = "checking" | "ready" | "expired" | "done";
 
-const inputClass =
-  "rounded-xl border border-border bg-surface/80 px-3.5 py-2.5 text-text outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
+const inputClass = AUTH_INPUT_CLASS;
 
 export default function ResetPasswordForm({
   recoveryVerified = false,
@@ -141,16 +147,16 @@ export default function ResetPasswordForm({
       <div className="flex flex-col gap-4">
         <p
           role="alert"
-          className="rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2.5 text-sm text-danger"
+          className={AUTH_ERROR_CLASS}
         >
           This reset link is invalid, already used, or expired. Reset links are
           single-use and short-lived.
         </p>
-        <Link href="/forgot-password" className="btn-primary">
+        <Link href="/forgot-password" className={AUTH_PRIMARY_BUTTON_CLASS}>
           Request a new link
         </Link>
-        <p className="text-center text-sm text-muted">
-          <Link href="/login" className="font-medium text-accent hover:underline">
+        <p className="text-center text-xs text-zinc-500">
+          <Link href="/login" className={AUTH_LINK_CLASS}>
             Back to sign in
           </Link>
         </p>
@@ -163,11 +169,11 @@ export default function ResetPasswordForm({
       <div className="flex flex-col gap-4">
         <p
           role="status"
-          className="rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2.5 text-sm text-text"
+          className={AUTH_NOTICE_CLASS}
         >
           Your password has been updated, and you’re signed in on this device.
         </p>
-        <Link href="/" className="btn-primary">
+        <Link href="/" className={AUTH_PRIMARY_BUTTON_CLASS}>
           Continue to Reelhouse
         </Link>
       </div>
@@ -178,7 +184,7 @@ export default function ResetPasswordForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-3">
-          <label htmlFor="new-password" className="text-sm font-medium text-muted">
+          <label htmlFor="new-password"          className="block text-xs text-zinc-400">
             New password
           </label>
           <button
@@ -186,7 +192,7 @@ export default function ResetPasswordForm({
             onClick={() => setReveal((v) => !v)}
             aria-pressed={reveal}
             aria-label={reveal ? "Hide passwords" : "Show passwords"}
-            className="text-sm font-medium text-accent hover:underline"
+            className={AUTH_LINK_CLASS}
           >
             {reveal ? "Hide" : "Show"}
           </button>
@@ -205,7 +211,7 @@ export default function ResetPasswordForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="confirm-password" className="text-sm font-medium text-muted">
+        <label htmlFor="confirm-password"          className="block text-xs text-zinc-400">
           Confirm new password
         </label>
         <input
@@ -223,18 +229,18 @@ export default function ResetPasswordForm({
       {error && (
         <p
           role="alert"
-          className="rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2 text-sm text-danger"
+          className={AUTH_ERROR_CLASS}
         >
           {error}
         </p>
       )}
 
-      <button type="submit" disabled={busy} className="btn-primary mt-1 disabled:opacity-60">
+      <button type="submit" disabled={busy} className={`mt-1 ${AUTH_PRIMARY_BUTTON_CLASS}`}>
         {busy ? "Updating…" : "Update password"}
       </button>
 
-      <p className="text-center text-sm text-muted">
-        <Link href="/login" className="font-medium text-accent hover:underline">
+      <p className="text-center text-xs text-zinc-500">
+        <Link href="/login" className={AUTH_LINK_CLASS}>
           Back to sign in
         </Link>
       </p>

@@ -28,6 +28,15 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+/** URL slug used by My List's catalog routes (/my-list/top-horror-movies). */
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /**
  * Live channel surfaces (`/watch/f1`, `/watch/cricket`) are not catalog titles:
  * there is no TMDB entry, no episode model and nothing resumable to put in

@@ -872,6 +872,11 @@
     --nm-hi: 0 0% 100%;
     --nm-lo: 150 3% 5%;
   }
+  /* Reference tab/segment press: colour and the raised shadow ease in,
+     extracted verbatim from their stylesheet. */
+  .nm-tab {
+    transition: color 0.18s, box-shadow 0.2s;
+  }
   .nm-raise-sm {
     box-shadow:
       -3px -3px 7px hsl(var(--nm-hi) / 0.025),
@@ -902,6 +907,21 @@
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     background: #1e201f;
+  }
+
+  /* The reference anchors Add to list to its card button on desktop and
+     switches to a full-width bottom sheet on phones. */
+  @media (max-width: 639.98px) {
+    .add-to-list-sheet {
+      top: auto !important;
+      left: 0.5rem !important;
+      right: 0.5rem !important;
+      bottom: calc(0.5rem + env(safe-area-inset-bottom)) !important;
+      width: auto !important;
+      max-width: none !important;
+      max-height: 72vh !important;
+      border-radius: 1rem !important;
+    }
   }
 
   /* Running-border "attention" pulse on the servers panel (reference

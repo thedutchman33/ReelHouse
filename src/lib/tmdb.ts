@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { BROWSE_PAGES_PER_VIEW } from "@/lib/browse";
 import type { BrowseFilters, BrowseSort, BrowseType } from "@/lib/browse";
 import { MOCK_MEDIA } from "@/lib/mock";
 import { mediaId } from "@/lib/utils";
@@ -319,7 +320,7 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
     // TMDB's region parameter on /movie/popular — a real India-specific ranking.
     tmdb("/movie/popular", { region: "IN", language: "en-US" }, 60 * 60),
     // Bollywood: one curated row mixing the best of Hindi cinema —
-    // most anticipated (upcoming, like Ramayana), latest 7+ rated releases,
+    // most anticipated upcoming releases, latest 7+ rated releases,
     // and box office superhits. Interleaved so the row reads fresh throughout.
     tmdb("/discover/movie", {
       with_original_language: "hi",
@@ -365,7 +366,7 @@ const liveHomeRows = cache(async (): Promise<MediaRow[]> => {
 
   // ---- Bollywood curation: one row mixing the best Hindi cinema has ----
   // Pull from the popularity-ranked Hindi pool and interleave three tiers:
-  //   1. Most anticipated (upcoming, massive buzz — e.g. Ramayana)
+  //   1. Most anticipated (upcoming, massive buzz)
   //   2. Latest quality releases (released in the last year, rating ≥ 7)
   //   3. Box office superhits (already popular + released — blockbusters)
   // Deduped and capped at 18 so the row is rich but scannable.
@@ -682,7 +683,7 @@ const SORT_FIELD: Record<BrowseSort, Record<MediaType, string>> = {
     f1: "",
     cricket: "",
   },
-  latest: {
+  recent: {
     movie: "primary_release_date.desc",
     tv: "first_air_date.desc",
     anime: "",
@@ -721,12 +722,13 @@ export interface BrowseOptions {
 function discoverParams(
   filters: BrowseFilters,
   type: MediaType,
-  today: string
+  today: string,
+  pageNumber = filters.page
 ): Record<string, string> {
   const params: Record<string, string> = {
     include_adult: "false",
     sort_by: SORT_FIELD[filters.sort][type],
-    page: String(filters.page),
+    page: String(pageNumber),
   };
 
   // Anime is Japanese animation across BOTH media types: Animation (16)
@@ -745,7 +747,11 @@ function discoverParams(
     // Bollywood genre option in the dropdown.
     if (filters.industry === "bollywood") {
       params.with_original_language = "hi|ta|te|kn|ml|mr|bn|pa|gu";
-    } else if (filters.industry === "hollywood") {
+    } else if (filters.industry === "hollywood" && filters.sort !== "recent") {
+      // 7reels' Recent Releases is a global date-descending feed (its language
+      // filter defaults to ALL), so the default view must not hide the newest
+      // Swedish, Indonesian, etc. titles. The industry toggle still applies to
+      // every other sort, and an explicit Bollywood pick still narrows Recent.
       params.with_original_language = "en";
     }
   }
@@ -761,10 +767,15 @@ function discoverParams(
     else params.first_air_date_year = String(filters.year);
   }
 
-  // Sort guards. Without these, "Latest" surfaces announced-but-unreleased
+  // Sort guards. Without these, "Recent Releases" surfaces announced-but-unreleased
   // entries and "Rating"/"Oldest" surface titles with a handful of votes.
   const dateField = type === "movie" ? "primary_release_date" : "first_air_date";
-  if (filters.sort === "latest") params[`${dateField}.lte`] = today;
+  if (filters.sort === "recent") {
+    params[`${dateField}.lte`] = today;
+    // 7reels' Recent Releases floor: without it, date-desc discover surfaces
+    // unreleased titles and entries with no meaningful audience yet.
+    params["vote_count.gte"] = "20";
+  }
   if (filters.sort === "rating") params["vote_count.gte"] = "200";
   if (filters.sort === "oldest") {
     params["vote_count.gte"] = "50";
@@ -784,6 +795,14 @@ function interleave<T>(a: T[], b: T[]): T[] {
   return out;
 }
 
+/** TMDB page numbers fetched for one browse view. Anime stays one page. */
+function requestedPages(filters: BrowseFilters): number[] {
+  const perView = filters.type === "anime" ? 1 : BROWSE_PAGES_PER_VIEW;
+  return Array.from({ length: perView }, (_, i) => filters.page + i).filter(
+    (page) => page >= 1 && page <= 500
+  );
+}
+
 async function liveBrowse(filters: BrowseFilters): Promise<BrowsePage | null> {
   const today = new Date().toISOString().slice(0, 10);
   const wanted: MediaType[] =
@@ -796,14 +815,36 @@ async function liveBrowse(filters: BrowseFilters): Promise<BrowsePage | null> {
   );
   if (targets.length === 0) return { items: [], page: filters.page, totalPages: 0 };
 
-  const responses = await Promise.all(
-    targets.map((type) =>
-      tmdb(`/discover/${type}`, discoverParams(filters, type, today), 60 * 30)
-    )
+  // 7reels loads eight TMDB pages per browse view, then interleaves/dedupes
+  // them into one grid. Fetch each page in parallel and keep TMDB's order.
+  const pages = requestedPages(filters);
+  const groups = await Promise.all(
+    targets.map(async (type) => ({
+      type,
+      responses: await Promise.all(
+        pages.map((pageNumber) =>
+          tmdb(
+            `/discover/${type}`,
+            discoverParams(filters, type, today, pageNumber),
+            60 * 30
+          )
+        )
+      ),
+    }))
   );
+  const responses = groups.flatMap((group) => group.responses);
   if (responses.every((r) => r === null)) return null;
 
-  const lists = responses.map((data, i) => liveList(data, targets[i]));
+  const lists = groups.map(({ type, responses: pageResponses }) => {
+    const seen = new Set<string>();
+    return pageResponses
+      .flatMap((data) => (data ? liveList(data, type) : []))
+      .filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+  });
   const totalPages = Math.min(
     500,
     Math.max(...responses.map((r: any) => r?.total_pages ?? 0), 0)
@@ -826,7 +867,7 @@ function sortByBrowse<T extends { rating?: number; releaseDate?: string }>(
 ): T[] {
   const list = [...items];
   if (sort === "rating") return list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
-  if (sort === "latest")
+  if (sort === "recent")
     return list.sort((a, b) => (b.releaseDate ?? "").localeCompare(a.releaseDate ?? ""));
   if (sort === "oldest")
     return list.sort((a, b) => (a.releaseDate ?? "").localeCompare(b.releaseDate ?? ""));
@@ -855,9 +896,13 @@ function mockBrowse(filters: BrowseFilters): BrowsePage {
   const sorted = sortByBrowse(matched, filters.sort);
 
   const totalPages = Math.ceil(sorted.length / MOCK_PAGE_SIZE);
-  const start = (filters.page - 1) * MOCK_PAGE_SIZE;
   return {
-    items: sorted.slice(start, start + MOCK_PAGE_SIZE).map(toSummary),
+    items: requestedPages(filters)
+      .flatMap((page) => {
+        const start = (page - 1) * MOCK_PAGE_SIZE;
+        return sorted.slice(start, start + MOCK_PAGE_SIZE);
+      })
+      .map(toSummary),
     page: filters.page,
     totalPages,
   };
@@ -967,58 +1012,26 @@ async function getCertification(
   return us?.rating || undefined;
 }
 
-/** The single Indian hero slot: pinned to Ramayana: Rise of a Legend
-    (TMDB 656908, India's most anticipated film). Falls back to the most
-    popular upcoming Hindi title if the lookup ever fails. */
-async function getIndianHero(): Promise<MediaSummary | null> {
-  // Pinned: Ramayana: Rise of a Legend (2026).
-  const ramayana = await tmdb("/movie/656908", { language: "en-US" }, 60 * 60);
-  const pinned = ramayana ? rawTitleSummary(ramayana, "movie") : null;
-  if (pinned?.posterUrl && pinned?.backdropUrl) return pinned;
-
-  // Fallback: most popular upcoming Hindi title with full artwork.
-  const data = await tmdb("/discover/movie", {
-    with_original_language: "hi",
-    sort_by: "popularity.desc",
-    language: "en-US",
-    include_adult: "false",
-    "vote_count.gte": "1",
-  }, 60 * 30);
-  const today = todayISO;
-  const list = liveList(data, "movie").filter(
-    (m) => m.posterUrl && m.backdropUrl
-  );
-  const upcoming = list.find((m) => (m.releaseDate ?? "") > today);
-  return upcoming ?? list[0] ?? null;
-}
-
 export async function getHeroItems(): Promise<MediaSummary[]> {
   if (USE_LIVE) {
     const today = todayISO;
-    const [trending, indian] = await Promise.all([
-      tmdb("/trending/movie/week", {
-        language: "en-US",
-        include_adult: "false",
-      }, 60 * 15),
-      getIndianHero(),
-    ]);
-
-    // Hollywood slots: trending this week, released, full artwork.
-    const released = liveList(trending, "movie").filter(
-      (m) =>
-        m.posterUrl &&
-        m.backdropUrl &&
-        m.releaseDate &&
-        m.releaseDate <= today
+    const trending = await tmdb(
+      "/trending/movie/week",
+      { language: "en-US", include_adult: "false" },
+      60 * 15
     );
-    // 1 Indian + 4 Hollywood, Indian first.
-    const picks: MediaSummary[] = [];
-    if (indian) picks.push(indian);
-    for (const m of released) {
-      if (picks.length >= 5) break;
-      if (indian && m.tmdbId === indian.tmdbId) continue;
-      picks.push(m);
-    }
+
+    // Five released trending films with full artwork, matching the reference
+    // hero's five-slide rotation.
+    const picks = liveList(trending, "movie")
+      .filter(
+        (m) =>
+          m.posterUrl &&
+          m.backdropUrl &&
+          m.releaseDate &&
+          m.releaseDate <= today
+      )
+      .slice(0, 5);
     if (picks.length >= 3) {
       return Promise.all(
         picks.map(async (item) => ({

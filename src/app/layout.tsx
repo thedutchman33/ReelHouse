@@ -7,6 +7,7 @@ import Footer from "@/components/common/Footer";
 import PageLoader from "@/components/common/PageLoader";
 import BootSplash from "@/components/common/BootSplash";
 import LibrarySync from "@/components/auth/LibrarySync";
+import AuthProvider from "@/components/auth/AuthProvider";
 import ResourceHints from "@/components/common/ResourceHints";
 
 // Reference design system: Inter for UI text, Bebas Neue (single weight,
@@ -99,17 +100,19 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${bebasNeue.variable}`}>
       <body className="flex min-h-screen flex-col font-sans">
-        <BootSplash />
-        <PageLoader />
-        <ResourceHints />
-        <LibrarySync />
-        <Navbar />
-        {/* The navbar is a fixed floating bar; content clears it via --rh-nav-h
-            (see globals.css). Pages that must slide beneath it (home hero,
-            watch page) cancel this offset with a matching negative margin. */}
-        <main className="flex-1 pt-[var(--rh-nav-h)]">{children}</main>
-        <Footer />
-         <Analytics />
+        <AuthProvider>
+          <BootSplash />
+          <PageLoader />
+          <ResourceHints />
+          <LibrarySync />
+          <Navbar />
+          {/* The navbar is a fixed floating bar; content clears it via --rh-nav-h
+              (see globals.css). Pages that must slide beneath it (home hero,
+              watch page) cancel this offset with a matching negative margin. */}
+          <main className="flex-1 pt-[var(--rh-nav-h)]">{children}</main>
+          <Footer />
+          <Analytics />
+        </AuthProvider>
       </body>
     </html>
   );

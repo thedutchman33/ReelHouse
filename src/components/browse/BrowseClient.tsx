@@ -7,6 +7,7 @@ import IndustryToggle from "@/components/browse/IndustryToggle";
 import MediaGrid from "@/components/media/MediaGrid";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from "@/components/player/icons";
 import {
+  BROWSE_PAGES_PER_VIEW,
   browseHref,
   parseBrowseFilters,
   type BrowseFilters,
@@ -33,6 +34,11 @@ import type { MediaSummary } from "@/types";
 type Paged = { items: MediaSummary[]; page: number; totalPages: number };
 
 const EMPTY_PAGE: Paged = { items: [], page: 1, totalPages: 0 };
+
+// Reference browse geometry: 48px desktop gutters inside an 1800px column,
+// with 7 poster columns at xl and 8 at 2xl.
+const CARD_GRID_CLASS =
+  "grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8";
 
 const SEARCH_PLACEHOLDER: Record<BrowseType, string> = {
   all: "Search movies & series…",
@@ -156,11 +162,15 @@ export default function BrowseClient({
     [change]
   );
 
+  // 7reels loads eight TMDB pages per view, so Next moves the page param by 8
+  // (1 -> 9 -> 17). Anime's AniList source stays one page at a time.
+  const pagesPerView = filters.type === "anime" ? 1 : BROWSE_PAGES_PER_VIEW;
+  const pageEnd = Math.min(page.page + pagesPerView - 1, page.totalPages);
   const hasPrev = !searching && page.page > 1;
-  const hasNext = !searching && page.totalPages > page.page;
+  const hasNext = !searching && page.totalPages > page.page + pagesPerView - 1;
 
   return (
-    <div className="container-rh py-8">
+    <div className="mx-auto w-full max-w-[1800px] px-4 py-8 sm:px-6 md:px-12">
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="eyebrow">Browse</p>
@@ -241,7 +251,7 @@ export default function BrowseClient({
         {loading && page.items.length === 0 ? (
           // First paint of this filter combination — placeholder cards.
           <div
-            className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+            className={CARD_GRID_CLASS}
             aria-hidden="true"
           >
             {Array.from({ length: 12 }).map((_, i) => (
@@ -284,7 +294,7 @@ export default function BrowseClient({
           <div
             className={`transition-opacity ${loading ? "pointer-events-none opacity-40" : ""}`}
           >
-            <MediaGrid items={page.items} />
+            <MediaGrid items={page.items} className={CARD_GRID_CLASS} />
           </div>
         )}
       </div>
@@ -294,7 +304,7 @@ export default function BrowseClient({
           {hasPrev ? (
             <button
               type="button"
-              onClick={() => change({ page: page.page - 1 })}
+              onClick={() => change({ page: Math.max(1, page.page - pagesPerView) })}
               className="btn-ghost h-9 cursor-pointer"
             >
               <ChevronLeftIcon size={16} />
@@ -308,13 +318,17 @@ export default function BrowseClient({
           )}
 
           <span className="text-sm text-muted">
-            {page.totalPages > 0 ? `${page.page}–${page.totalPages}` : `Page ${page.page}`}
+            {page.totalPages > 0
+              ? pagesPerView > 1
+                ? `${page.page}–${pageEnd} / ${page.totalPages}`
+                : `${page.page} / ${page.totalPages}`
+              : `Page ${page.page}`}
           </span>
 
           {hasNext ? (
             <button
               type="button"
-              onClick={() => change({ page: page.page + 1 })}
+              onClick={() => change({ page: page.page + pagesPerView })}
               className="btn-ghost h-9 cursor-pointer"
             >
               Next

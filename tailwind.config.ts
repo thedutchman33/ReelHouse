@@ -19,6 +19,11 @@ const config: Config = {
         "accent-strong": "rgb(var(--rh-accent-strong) / <alpha-value>)",
         "accent-ink": "rgb(var(--rh-accent-ink) / <alpha-value>)",
         danger: "rgb(var(--rh-danger) / <alpha-value>)",
+        // Reference (7reels) token names used by the account/settings views.
+        primary: "rgb(var(--rh-accent) / <alpha-value>)",
+        "primary-foreground": "rgb(var(--rh-accent-ink) / <alpha-value>)",
+        foreground: "rgb(var(--rh-text) / <alpha-value>)",
+        card: "rgb(var(--rh-surface) / <alpha-value>)",
       },
       fontFamily: {
         // Wired to next/font CSS variables set in src/app/layout.tsx.

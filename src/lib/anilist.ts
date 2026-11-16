@@ -346,7 +346,7 @@ export async function anilistBrowse(filters: BrowseFilters): Promise<AniListBrow
   const sortMap: Record<BrowseFilters["sort"], string> = {
     popularity: "POPULARITY_DESC",
     rating: "SCORE_DESC",
-    latest: "START_DATE_DESC",
+    recent: "START_DATE_DESC",
     oldest: "START_DATE_ASC",
   };
   const variables: Record<string, unknown> = {

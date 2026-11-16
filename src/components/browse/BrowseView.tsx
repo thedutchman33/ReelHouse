@@ -42,7 +42,7 @@ export default async function BrowseView({
           stays plain. */}
       {type !== "all" && <CinemaBackdrop />}
 
-      <div className="container-rh py-8">
+      <div>
         {/* useSearchParams inside the client component requires a Suspense
             boundary for the prerender — the shell itself renders immediately. */}
         <Suspense fallback={<div className="min-h-[60vh]" aria-hidden="true" />}>

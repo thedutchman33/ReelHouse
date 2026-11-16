@@ -52,6 +52,17 @@ const nextConfig = {
       "./src/lib/cricket/generated/player-names.json",
     ],
   },
+  // /login remains the stable sign-in URL; its page opens the account dialog on
+  // the home page instead of rendering a second, differently styled form.
+  async redirects() {
+    return [
+      {
+        source: "/login",
+        destination: "/?auth=login",
+        permanent: false,
+      },
+    ];
+  },
   // Security response headers, applied to every route (Phase 4 / M5–M6). All
   // are additive and app-safe. HSTS omits `preload` on purpose — `preload` is a
   // standing commitment to the browser preload list that should be an explicit

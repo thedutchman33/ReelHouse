@@ -65,6 +65,10 @@ describe("parseBrowseFilters", () => {
     expect(parseBrowseFilters({ sort: "alphabetical" }).sort).toBe(DEFAULT_SORT);
   });
 
+  it("normalizes the legacy latest sort to recent releases", () => {
+    expect(parseBrowseFilters({ sort: "latest" }).sort).toBe("recent");
+  });
+
   it("rejects nonsense years and blank genres", () => {
     expect(parseBrowseFilters({ year: "banana" }).year).toBeNull();
     expect(parseBrowseFilters({ year: "1200" }).year).toBeNull();
@@ -113,7 +117,7 @@ describe("browseHref", () => {
   it("emits only non-default filters", () => {
     expect(browseHref(base, { genre: "Action" })).toBe("/browse?genre=Action");
     expect(browseHref(base, { year: 2024 })).toBe("/browse?year=2024");
-    expect(browseHref(base, { sort: "latest" })).toBe("/browse?sort=latest");
+    expect(browseHref(base, { sort: "recent" })).toBe("/browse?sort=recent");
     expect(browseHref(base, { sort: DEFAULT_SORT })).toBe("/browse");
   });
 
