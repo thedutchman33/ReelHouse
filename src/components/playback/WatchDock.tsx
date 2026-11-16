@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import WatchlistButton from "@/components/media/WatchlistButton";
+import { NextEpisodeIcon } from "@/components/player/icons";
 import { isLiveMediaType } from "@/lib/utils";
 import type { MediaSummary } from "@/types";
 
@@ -32,6 +33,7 @@ export default function WatchDock({
   onToggleTheater,
   onFullscreen,
   onNotPlaying,
+  onNextEpisode,
 }: {
   media: MediaSummary;
   theater: boolean;
@@ -41,6 +43,13 @@ export default function WatchDock({
   onFullscreen: () => void;
   onToggleTheater: () => void;
   onNotPlaying: () => void;
+  /**
+   * Next episode, for surfaces where the provider owns the picture. A hosted
+   * player's own Next button is inside a cross-origin frame: when it announces
+   * its episode Reelhouse follows it, and when it stays silent this is the
+   * control that still keeps the URL, history and episode rail in step.
+   */
+  onNextEpisode?: () => void;
 }) {
   const [reaction, setReaction] = useState<1 | -1 | 0>(0);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -225,6 +234,19 @@ export default function WatchDock({
             </div>
           )}
         </div>
+
+        {/* Next episode — present only when there is one to move to. */}
+        {onNextEpisode && (
+          <button
+            type="button"
+            aria-label="Next episode"
+            title="Next episode"
+            onClick={onNextEpisode}
+            className={btnBase}
+          >
+            <NextEpisodeIcon size={17} />
+          </button>
+        )}
 
         {/* Fullscreen — far right (reference: ml-auto maximize2). */}
         <button

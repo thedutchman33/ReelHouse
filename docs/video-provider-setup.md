@@ -115,6 +115,24 @@ VIDEO_PROVIDER_1_TV_URL=https://player.example.com/embed?type=tv&id={id}&s={seas
 
 A slot can serve movies only, TV only, or both — just set the URLs you have.
 
+**Provider-side Next Episode.** Some players hide their own Next control unless
+the TV template asks for it. Those are ordinary URL options, so add whatever the
+provider documents to the template. Examples observed in the field (verify
+against the provider's current docs before copying):
+
+```bash
+# Videasy — next button, autoplay the next episode, episode selector
+VIDEO_PROVIDER_1_TV_URL=https://vidy.st/tv/{id}/{season}/{episode}?autoplay=true&nextEpisode=true&autoplayNextEpisode=true&episodeSelector=true
+
+# VidFast — next button + auto advance
+VIDEO_PROVIDER_9_TV_URL=https://vidfast.vc/tv/{id}/{season}/{episode}?autoPlay=true&nextButton=true&autoNext=true
+```
+
+When the viewer uses that control, Reelhouse follows the season/episode the
+player reports and updates the page URL, watch history, Continue Watching and the
+episodes rail without reloading the frame. If a provider ignores these options,
+Reelhouse's own **Next Episode** button in the control dock is the fallback.
+
 ---
 
 ## 5. How media / TMDB ids are mapped
@@ -215,10 +233,12 @@ VIDEO_PROVIDER_1_REPORTS_PROGRESS=1   # provider documents progress events
 VIDEO_PROVIDER_1_REPORTS_FAILURE=1    # provider documents a reliable failure signal
 ```
 
-- `REPORTS_PROGRESS` off → Reelhouse records **no** position from that provider.
-  It does not guess: a fabricated position is worse than none, because it corrupts
-  "Continue watching". Watchlist, history and previously-saved positions are
-  unaffected.
+- A position is only ever recorded from what the framed player actually posts —
+  through the bridge, or an adapter verified against the provider's own contract.
+  A provider that posts nothing records nothing: a fabricated position is worse
+  than none, because it corrupts "Continue watching". When a provider reports the
+  episode it is playing, the page URL and Continue Watching move to that episode
+  too, which is what keeps the URL in step with a player's own Next Episode.
 - `REPORTS_FAILURE` off → **automatic fallback is off for that provider.** A
   failure surfaces as a retry / switch prompt instead. This is deliberate: an
   embed that loaded but is blank is indistinguishable from a working one, so
@@ -226,19 +246,21 @@ VIDEO_PROVIDER_1_REPORTS_FAILURE=1    # provider documents a reliable failure si
 
 ### Provider events (only if documented)
 
-Setting `REPORTS_PROGRESS=1` declares that a provider's *own* event stream is
-documented and trusted for progress recording. Translating it also needs a small
-**adapter** — the function that turns that provider's message payload into
-Reelhouse's normalized signals. Adapters live in
-`src/lib/playback/adapters.ts` and are keyed by provider id
-(`provider-1` … `provider-15`).
+Reelhouse reads only what a framed player actually posts. Every embed accepts the
+namespaced bridge below plus the documented player contracts (see the end of this
+section). A provider with a different private payload needs a small **adapter** —
+the function that turns that provider's message payload into Reelhouse's
+normalized signals. Adapters live in `src/lib/playback/adapters.ts` and are keyed
+by provider id (`provider-1` … `provider-15`).
 
 #### Reelhouse embed bridge (works with any provider)
 
 Every embed also accepts one documented, namespaced message schema, so a player —
 or a small relay page you control in front of it — can report state without a
 provider-specific adapter. Messages are only read when they carry the bridge's own
-`source`, and the existing origin + frame-window checks still apply:
+`source` and come from the framed player's own window. Origin equality is not
+required, because providers redirect to sibling hosts (`vidfast.vc` →
+`vidfast.pro`) and post from the redirect target:
 
 ```js
 // Inside the framed player: one message per event.
@@ -266,9 +288,17 @@ observation posted by the frame, never inferred. Only the auto-fallback gate sta
 opt-in (`REPORTS_FAILURE=1`), because switching providers on an ambiguous signal
 is guesswork.
 
-Anything that is not this schema — including a provider's private messages — is
-ignored. To support such a provider properly, add one adapter function keyed by
-its provider id.
+Most of the players used in the slots also publish the documented `PLAYER_EVENT`
+contract (`{ type: "PLAYER_EVENT", data: { event, currentTime, duration, season,
+episode } }`), the `MEDIA_DATA` record a player's own Next Episode produces
+(`last_season_watched`, `last_episode_watched`, `last_updated`, `show_progress`),
+or a bare `{ season, episode }` pair. A payload in one of those exact shapes is
+read from any embed, which is how a player's own Next Episode reaches the page
+URL, watch history and the episodes rail.
+
+Anything that is not one of those schemas — including a provider's private
+messages — is ignored. To support such a provider properly, add one adapter
+function keyed by its provider id.
 
 ---
 
@@ -439,8 +469,9 @@ Work down this list; it is ordered by how often each one is the cause.
   requires `https://`.
 
 **Progress is not being recorded**
-- Expected unless `REPORTS_PROGRESS=1` **and** an adapter exists for that provider
-  (§9). This is by design.
+- Only what the provider posts can be recorded: an adapter for its message
+  contract, or the Reelhouse bridge (§9). A player that posts nothing records
+  nothing — this is by design.
 - Reelhouse's own built-in player surface records progress through the existing
   player, which is unrelated to this setting.
 

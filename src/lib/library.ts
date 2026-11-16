@@ -455,13 +455,18 @@ export function useContinueWatching(): ProgressEntry[] {
     // show watched across episodes would fill the rail with duplicate cards.
     // Per-episode records stay in storage/history — only the display dedupes,
     // so resuming an older episode still picks up its saved position.
+    //
+    // Finished titles stay in the rail: the card advances to the next aired
+    // episode (or sits on the finished one when nothing else has aired). The
+    // reference keeps completed entries too and caps the store at 20 titles.
     const byMedia = new Map<string, ProgressEntry>();
     for (const p of Object.values(progress)) {
-      if (p.completed) continue;
       const prev = byMedia.get(p.media.id);
       if (!prev || p.updatedAt > prev.updatedAt) byMedia.set(p.media.id, p);
     }
-    return [...byMedia.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+    return [...byMedia.values()]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 20);
   }, [progress]);
 }
 

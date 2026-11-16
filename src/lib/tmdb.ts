@@ -4,7 +4,7 @@ import { cache } from "react";
 import type { BrowseFilters, BrowseSort, BrowseType } from "@/lib/browse";
 import { MOCK_MEDIA } from "@/lib/mock";
 import { mediaId } from "@/lib/utils";
-import type { Episode, Media, MediaRow, MediaSummary, MediaType } from "@/types";
+import type { Episode, Media, MediaRow, MediaSummary, MediaType, Season } from "@/types";
 import { ANILIST_GENRES, anilistBrowse, anilistDetail, anilistSearch, anilistTrending } from "@/lib/anilist";
 
 // ---------------------------------------------------------------------------
@@ -1144,6 +1144,41 @@ export async function getMediaDetail(
   const local = MOCK_MEDIA.find((m) => m.type === type && m.tmdbId === tmdbId);
   if (!local) return null;
   return { ...local, recommendations: mockRecommendations(local) };
+}
+
+/**
+ * Season metadata for one series — numbers, names and counts only.
+ *
+ * Continue Watching needs this to roll a finished finale into the next season.
+ * Deliberately lighter than getMediaDetail: that payload also fetches credits,
+ * recommendations, videos, certification and logo artwork, which a card list
+ * has no use for.
+ */
+export async function getSeriesSeasons(tmdbId: number): Promise<Season[]> {
+  if (USE_LIVE) {
+    const data = await tmdb(`/tv/${tmdbId}`, {}, 60 * 60 * 24);
+    if (Array.isArray(data?.seasons)) {
+      return data.seasons
+        .filter((s: any) => s.season_number > 0)
+        .map((s: any) => ({
+          seasonNumber: s.season_number as number,
+          name: (s.name as string) ?? `Season ${s.season_number}`,
+          episodeCount: (s.episode_count as number) ?? 0,
+        }));
+    }
+  }
+  const local = MOCK_MEDIA.find((m) => m.type === "tv" && m.tmdbId === tmdbId);
+  return (local?.seasons ?? []).map(({ episodes: _episodes, ...season }) => season);
+}
+
+/**
+ * Season metadata for one AniList anime, including its inline episode stubs.
+ * Continue Watching only needs coordinates; the TMDB logo/chain enrichment in
+ * getMediaDetail would add several network calls per card.
+ */
+export async function getAnimeSeasons(anilistId: number): Promise<Season[]> {
+  const anime = await anilistDetail(anilistId);
+  return anime?.seasons ?? [];
 }
 
 /** Episodes of ONE season — the lazy half of the season model above. */

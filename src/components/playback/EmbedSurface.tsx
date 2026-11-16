@@ -15,41 +15,16 @@ import { PlaybackLoading } from "./PlaybackStates";
 // and are deliberately not reproduced here.
 //
 // Everything Reelhouse learns from the provider arrives as a postMessage, and is
-// accepted only when it comes from the frame's own origin AND from that frame's
-// window — one embed must not be able to speak for another. The payload is then
-// translated by that provider's adapter; a provider with no documented events has
-// no adapter, so its messages are ignored entirely rather than guessed at.
+// accepted only when it comes from THIS frame's window — one embed must not be
+// able to speak for another. Origin equality is deliberately not required:
+// providers redirect to sibling hosts (`vidfast.vc` → `vidfast.pro`) and post
+// from the redirect target. The payload is then translated by that provider's
+// adapter; a provider with no documented events has no adapter, so its messages
+// are ignored entirely rather than guessed at.
 // ---------------------------------------------------------------------------
 
 /** How long to wait for the frame's document to load before calling it failed. */
 const LOAD_TIMEOUT_MS = 15000;
-
-/**
- * Origins an embed's messages may come from.
- *
- * The origin of the URL actually loaded is the base. A provider that canonicalizes
- * to `www.` (Videasy redirects `vidy.st` → `www.vidy.st`) is still the SAME host,
- * so its bare form is accepted too; no other domain ever is. The frame-window
- * check in the listener still pins every accepted message to this exact frame.
- */
-function messageOrigins(src: string, base: string): string[] {
-  const origins = new Set<string>();
-  try {
-    const url = new URL(src, base);
-    origins.add(url.origin);
-    const host = url.hostname.toLowerCase();
-    if (host.startsWith("www.")) {
-      url.hostname = host.slice(4);
-      origins.add(url.origin);
-    } else if (!host.startsWith("[")) {
-      url.hostname = `www.${host}`;
-      origins.add(url.origin);
-    }
-  } catch {
-    // Unparseable src — the caller listens to nothing.
-  }
-  return [...origins];
-}
 
 export default function EmbedSurface({
   provider,
@@ -57,6 +32,8 @@ export default function EmbedSurface({
   title,
   reloadKey = 0,
   sandbox,
+  mediaIds,
+  mediaType,
   onReady,
   onProgress,
   onEpisode,
@@ -77,6 +54,10 @@ export default function EmbedSurface({
    * top navigation, but a real origin so encrypted streams can use EME.
    */
   sandbox?: string;
+  /** TMDB id(s) the frame addresses — lets a keyed message find its title. */
+  mediaIds?: number[];
+  /** The endpoint's media type (anime players use the TV endpoints). */
+  mediaType?: "movie" | "tv";
   onReady?: () => void;
   onProgress?: (seconds: number, duration: number) => void;
   /** The provider's own player advanced to another episode. */
@@ -85,6 +66,9 @@ export default function EmbedSurface({
   onFailure?: (failure: PlaybackFailure) => void;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  // When the current document was mounted. MEDIA_DATA older than this describes
+  // an earlier session, not the playback this frame is here to report.
+  const mountedAtRef = useRef(Date.now());
   const [loading, setLoading] = useState(true);
   // Whether the current attempt got as far as a loaded document — read by the
   // load-timeout, which must not fire for a frame that is already up.
@@ -92,8 +76,20 @@ export default function EmbedSurface({
 
   // Callbacks live in a ref so the message listener is installed once per
   // provider/src rather than on every parent render.
-  const handlers = useRef({ onReady, onProgress, onEpisode, onEnded, onFailure });
-  handlers.current = { onReady, onProgress, onEpisode, onEnded, onFailure };
+  const handlers = useRef({
+    onReady,
+    onProgress,
+    onEpisode,
+    onEnded,
+    onFailure,
+  });
+  handlers.current = {
+    onReady,
+    onProgress,
+    onEpisode,
+    onEnded,
+    onFailure,
+  };
 
   const providerId = provider.id;
 
@@ -105,6 +101,7 @@ export default function EmbedSurface({
   // Reset the loading state whenever the frame is (re)pointed or retried.
   useEffect(() => {
     loadedRef.current = false;
+    mountedAtRef.current = Date.now();
     setLoading(true);
   }, [src, reloadKey]);
 
@@ -147,20 +144,26 @@ export default function EmbedSurface({
     const adapter = getMessageAdapter(providerId, src);
     if (!adapter) return; // No documented events → consume nothing.
 
-    const allowedOrigins = messageOrigins(src, window.location.origin);
-    if (!allowedOrigins.length) return;
-
     const onMessage = (event: MessageEvent) => {
-      if (!allowedOrigins.includes(event.origin)) return;
+      // Pin every message to THIS frame's window. A provider routinely redirects
+      // to a sibling host (`vidfast.vc` → `vidfast.pro`, `vidy.st` → `videasy.to`)
+      // and posts from the redirect target, so origin equality would drop the
+      // very messages this surface exists for. The window identity is the
+      // stronger check: one embed can never speak for another, and an unrelated
+      // page/tab cannot speak for this frame at all.
       const frame = frameRef.current;
-      if (frame && event.source !== frame.contentWindow) return;
-      const signal = adapter(event.data);
+      if (!frame || event.source !== frame.contentWindow) return;
+      const signal = adapter(event.data, {
+        mediaIds,
+        mediaType,
+        mountedAt: mountedAtRef.current,
+      });
       if (signal) applySignal(signal);
     };
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [providerId, src, applySignal]);
+  }, [providerId, src, mediaIds, mediaType, applySignal]);
 
   // A frame whose document never loads is a real failure; the manager still
   // decides whether that may switch providers automatically.

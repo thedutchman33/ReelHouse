@@ -80,16 +80,32 @@ function nextEpisodeOf(
 ): { season: number; episode: number } | null {
   const si = seasons.findIndex((x) => x.seasonNumber === s);
   if (si < 0) return null;
-  const episodes = seasons[si].episodes ?? [];
+  const season = seasons[si];
+  const episodes = season.episodes ?? [];
   const ei = episodes.findIndex((x) => x.episodeNumber === e);
-  if (ei >= 0 && ei < episodes.length - 1) {
-    const n = episodes[ei + 1];
-    return { season: n.seasonNumber, episode: n.episodeNumber };
+
+  // A loaded episode list is the exact answer: follow it, including the roll
+  // into the next season's first episode.
+  if (ei >= 0) {
+    const next = episodes[ei + 1];
+    if (next) return { season: next.seasonNumber, episode: next.episodeNumber };
+    const after = seasons[si + 1]?.episodes?.[0];
+    return after
+      ? { season: after.seasonNumber, episode: after.episodeNumber }
+      : null;
   }
-  // Rolling into the next season needs that season's episodes loaded; when
-  // they aren't (lazy seasons), autoplay simply stops at the finale.
-  const next = seasons[si + 1]?.episodes?.[0];
-  return next ? { season: next.seasonNumber, episode: next.episodeNumber } : null;
+
+  // The watch page ships season METADATA only — a season's episodes arrive from
+  // /api/seasons after mount, and can still be in flight (or have failed) when
+  // the viewer's player moves on. The episode count is metadata, so the episode
+  // after this one is simply the next number. Without this, a provider's own
+  // Next Episode left the URL and history on the episode it had just left.
+  const count = season.episodeCount || 0;
+  if (count && e >= count) {
+    const after = seasons[si + 1];
+    return after ? { season: after.seasonNumber, episode: 1 } : null;
+  }
+  return { season: s, episode: e + 1 };
 }
 
 /**
@@ -197,6 +213,19 @@ export default function PlaybackContainer({
   );
   const [season, setSeason] = useState(initialSeasonNumber ?? 1);
   const [episode, setEpisode] = useState(initialEpisodeNumber ?? 1);
+
+  // The TMDB id(s) an embed's messages may key their payload by. Anime players
+  // mostly use the resolved TMDB twin, while a provider that keys by the slot's
+  // own id uses the root id — both are passed, and stable across renders.
+  const playingSeasonInfo = detail?.seasons?.find(
+    (s) => s.seasonNumber === season
+  );
+  const embedTmdbId =
+    playingSeasonInfo?.resolvedTmdbId ?? detail?.resolvedTmdbId ?? media.tmdbId;
+  const embedMediaIds = useMemo(
+    () => Array.from(new Set([media.tmdbId, embedTmdbId])),
+    [media.tmdbId, embedTmdbId]
+  );
   // The coordinates an embed frame should be LOADED with, plus the position its
   // player should start at. A provider that reports its own episode change is
   // already playing that episode, so the frame is deliberately not re-pointed at
@@ -373,9 +402,11 @@ export default function PlaybackContainer({
   const recorderRef = useRef<ProgressRecorder | null>(null);
   const surfaceKind = candidate?.surface.kind ?? null;
   // Embeds are observed through messages they actually send: a provider's own
-  // documented adapter, or the namespaced Reelhouse bridge. Enabling the
-  // recorder only ever writes what arrived — a frame that reports nothing
-  // produces no progress.
+  // documented adapter, or the namespaced Reelhouse bridge. Recording is on for
+  // every embed because only what ARRIVED is ever written — a frame that reports
+  // nothing produces no progress, while one that does (Videasy, VidLink,
+  // VidNest, VidRift, the bridge) keeps the saved position real instead of
+  // leaving every episode stuck at 0:00.
   const recordEnabled = candidate?.surface.kind === "embed" && provider !== null;
 
   useEffect(() => {
@@ -534,6 +565,42 @@ export default function PlaybackContainer({
   );
 
   /**
+   * Follow an episode change the PROVIDER made: history, the URL and the rail
+   * move with it, but the frame is left alone — the provider is already playing
+   * that episode, so re-keying the src would reload it and restart from 0.
+   */
+  const followProviderEpisode = useCallback(
+    (nextSeason: number, nextEpisode: number) => {
+      const playing = playingEpisodeRef.current;
+      if (playing.season === nextSeason && playing.episode === nextEpisode) return;
+      // It moved on its own: the graceful `ended` advance must not fire.
+      cancelAdvance();
+      playingEpisodeRef.current = { season: nextSeason, episode: nextEpisode };
+      setSeason(nextSeason);
+      setEpisode(nextEpisode);
+      setFailure(null);
+      recorderRef.current?.retarget({
+        media,
+        episode: {
+          seasonNumber: nextSeason,
+          episodeNumber: nextEpisode,
+          title: episodeTitle(seasonsWithEpisodes, nextSeason, nextEpisode),
+        },
+      });
+      try {
+        window.history.replaceState(
+          null,
+          "",
+          `/watch/${type}/${media.tmdbId}?s=${nextSeason}&e=${nextEpisode}`
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [media, type, seasonsWithEpisodes, cancelAdvance]
+  );
+
+  /**
    * A hosted provider's own player moved to another episode (documented bridge
    * message). Reelhouse cannot see inside the frame, so this is the only signal
    * that its Next button was used: follow it in history, the URL and the rail,
@@ -561,33 +628,9 @@ export default function PlaybackContainer({
       // including the first report for the episode already on screen, which is
       // what lets `ended` give the provider first refusal on the next episode.
       providerTracksEpisodes.current = true;
-      const playing = playingEpisodeRef.current;
-      if (playing.season === nextSeason && playing.episode === nextEpisode) return;
-      // It moved on its own: the graceful `ended` advance must not fire.
-      cancelAdvance();
-      playingEpisodeRef.current = { season: nextSeason, episode: nextEpisode };
-      setSeason(nextSeason);
-      setEpisode(nextEpisode);
-      setFailure(null);
-      recorderRef.current?.retarget({
-        media,
-        episode: {
-          seasonNumber: nextSeason,
-          episodeNumber: nextEpisode,
-          title: episodeTitle(seasonsWithEpisodes, nextSeason, nextEpisode),
-        },
-      });
-      try {
-        window.history.replaceState(
-          null,
-          "",
-          `/watch/${type}/${media.tmdbId}?s=${nextSeason}&e=${nextEpisode}`
-        );
-      } catch {
-        /* ignore */
-      }
+      followProviderEpisode(nextSeason, nextEpisode);
     },
-    [hasEpisodes, type, media, seasonsWithEpisodes, cancelAdvance]
+    [hasEpisodes, type, followProviderEpisode]
   );
 
   /** An embed provider reported the item finished. */
@@ -658,6 +701,13 @@ export default function PlaybackContainer({
   const contextLabel = hasEpisodes
     ? `${media.title} · S${season}:E${episode}`
     : media.title;
+  // The episode after this one, when there is one. Drives the dock's own Next
+  // control — the only way to move a silent hosted player on while keeping the
+  // URL, watch history and the episode rail together.
+  const nextUp =
+    hasEpisodes && !isLiveChannel
+      ? nextEpisodeOf(seasonsWithEpisodes, season, episode)
+      : null;
 
   const noticeNode = notice ? (
     <div className="fixed left-1/2 top-16 z-[70] -translate-x-1/2">
@@ -675,10 +725,8 @@ export default function PlaybackContainer({
   // Anime chains: the season being played aggregates its own AniList entry,
   // so {anilistId} templates address that entry (vidy.st's path is per-entry
   // and episode-numbered within it).
-  const playingSeason = detail?.seasons?.find((s) => s.seasonNumber === season);
-  const playAnilistId = playingSeason?.anilistId ?? media.tmdbId;
-  const playTmdbId =
-    playingSeason?.resolvedTmdbId ?? detail?.resolvedTmdbId ?? media.tmdbId;
+  const playAnilistId = playingSeasonInfo?.anilistId ?? media.tmdbId;
+  const playTmdbId = embedTmdbId;
 
   // The URL the frame is loaded with. The episode is the target the frame was
   // pointed at (not necessarily the provider's current one — it may have moved
@@ -823,6 +871,8 @@ export default function PlaybackContainer({
                       title={`${provider.displayName} player — ${contextLabel}`}
                       reloadKey={reloadKey}
                       sandbox={embedSandbox}
+                      mediaIds={embedMediaIds}
+                      mediaType={type === "movie" ? "movie" : "tv"}
                       onProgress={(seconds, duration) => {
                         // Belongs to the frame an episode switch is replacing.
                         if (skipProgressRef.current) {
@@ -855,6 +905,11 @@ export default function PlaybackContainer({
                 onToggleTheater={() => setTheater((v) => !v)}
                 onFullscreen={toggleStageFullscreen}
                 onNotPlaying={focusServerPanel}
+                onNextEpisode={
+                  !isNative && nextUp
+                    ? () => selectEpisode(nextUp.season, nextUp.episode)
+                    : undefined
+                }
               />
               {/* "Not playing? Switch server" — its own right-aligned row under
                   the dock (reference: mt-3 justify-end, amber). */}

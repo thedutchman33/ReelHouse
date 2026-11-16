@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   EMBED_BRIDGE_SOURCE,
   EMBED_TEST_PATH,
+  embedAdapter,
   embedBridgeAdapter,
   getMessageAdapter,
   mockEmbedAdapter,
@@ -77,9 +78,18 @@ describe("embedBridgeAdapter", () => {
 
 describe("getMessageAdapter", () => {
   it("uses the bridge for a configured provider with no provider-specific adapter", () => {
-    expect(getMessageAdapter("provider-4", "https://player.example/embed/1399/3/1")).toBe(
-      embedBridgeAdapter
-    );
+    const adapter = getMessageAdapter("provider-4", "https://player.example/embed/1399/3/1");
+    expect(adapter).toBe(embedAdapter);
+    // Which is the bridge contract, plus the documented PLAYER_EVENT shape that
+    // most hosted players publish.
+    expect(
+      adapter?.({
+        source: EMBED_BRIDGE_SOURCE,
+        type: "progress",
+        currentTime: 12,
+        duration: 100,
+      })
+    ).toMatchObject({ kind: "progress", seconds: 12 });
   });
 
   it("keeps the local fixture on its own documented contract", () => {

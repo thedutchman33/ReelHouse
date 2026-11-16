@@ -33,6 +33,12 @@ export default function WatchEpisodes({
   const [selectedSeason, setSelectedSeason] = useState(season);
   const railRef = useRef<HTMLDivElement>(null);
   const current = seasons.find((s) => s.seasonNumber === selectedSeason);
+  // The container owns the episode actually playing. A provider's own Next
+  // Episode can cross a season boundary, and the rail must show that season
+  // rather than staying on the one the viewer happened to pick last.
+  useEffect(() => {
+    setSelectedSeason(season);
+  }, [season]);
   // Seasons are metadata until their episodes load — pull the selected one.
   useEffect(() => {
     if (current && !(current.episodes ?? []).length) {

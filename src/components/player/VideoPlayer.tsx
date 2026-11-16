@@ -507,7 +507,7 @@ export default function VideoPlayer({
       setEnded(false);
       setEpisodesOpen(false);
       try {
-        window.history.replaceState(null, "", `/watch/tv/${media.tmdbId}?s=${s}&e=${e}`);
+        window.history.replaceState(null, "", `/watch/${media.type}/${media.tmdbId}?s=${s}&e=${e}`);
       } catch {
         /* ignore */
       }

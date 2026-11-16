@@ -151,18 +151,20 @@ describe("markPlaybackStarted — a started title is in the library immediately"
 });
 
 describe("completed titles", () => {
-  it("stays completed (and out of Continue Watching) when playback is re-started", async () => {
+  it("stays completed in Continue Watching when playback is re-started", async () => {
     saveProgress({ media: movie, position: 96, duration: 100 });
     expect((await history())[0].completed).toBe(true);
-    expect(await continueWatching()).toEqual([]);
+    // Finished titles stay on the rail so the card can advance to the next
+    // aired episode; a movie simply sits on its finished record.
+    expect((await continueWatching()).map((e) => e.key)).toEqual(["movie-550"]);
 
-    // Re-opening a finished title must not resurrect it as continue-watching.
+    // Re-opening a finished title must not rewind it or duplicate the card.
     markPlaybackStarted({ media: movie });
 
     const entries = await history();
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ position: 96, duration: 100, completed: true });
-    expect(await continueWatching()).toEqual([]);
+    expect((await continueWatching()).map((e) => e.key)).toEqual(["movie-550"]);
   });
 
   it("still records a finished title in Watch History", async () => {
@@ -200,6 +202,21 @@ describe("provider independence", () => {
       "movie-550",
     ]);
     now.mockRestore();
+  });
+
+  it("caps the rail at 20 titles, like the reference store", async () => {
+    for (let i = 1; i <= 25; i++) {
+      markPlaybackStarted({
+        media: {
+          ...movie,
+          id: `movie-${i}`,
+          tmdbId: i,
+          title: `Film ${i}`,
+        },
+      });
+    }
+
+    expect(await continueWatching()).toHaveLength(20);
   });
 });
 

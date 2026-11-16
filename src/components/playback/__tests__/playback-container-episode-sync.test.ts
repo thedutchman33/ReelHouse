@@ -216,7 +216,11 @@ const videasyPlan: PlaybackPlan = {
 type ContainerProps = Parameters<typeof PlaybackContainer>[0];
 
 async function mount(
-  options: { plan?: PlaybackPlan; initialEpisodeNumber?: number } = {}
+  options: {
+    plan?: PlaybackPlan;
+    initialEpisodeNumber?: number;
+    seasons?: Season[];
+  } = {}
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -227,7 +231,7 @@ async function mount(
     detail: null,
     overview: "",
     runtime: 45,
-    seasons,
+    seasons: options.seasons ?? seasons,
     plan: options.plan ?? plan,
     initialSeasonNumber: 1,
     initialEpisodeNumber: options.initialEpisodeNumber ?? 1,
@@ -419,6 +423,64 @@ describe("PlaybackContainer episode sync", () => {
     expect(el("embed-src").textContent).toBe(
       "https://player.test/watch/1399/1/2"
     );
+
+    await act(async () => root.unmount());
+  });
+
+  it("advances from season metadata while the episode list is still loading", async () => {
+    // The live watch page ships season metadata only: episodes come from
+    // /api/seasons after mount, and that request can still be in flight — or
+    // have failed — when an episode ends. The episode count is metadata, so the
+    // page must still step to the next episode.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ json: async () => ({}) }))
+    );
+    const { root } = await mount({
+      seasons: [{ seasonNumber: 1, name: "Season 1", episodeCount: 3 }],
+    });
+
+    await click("provider-ended");
+
+    expect(window.location.search).toBe("?s=1&e=2");
+    expect(readProgress("tv-1399:s1e2")?.episode).toMatchObject({
+      seasonNumber: 1,
+      episodeNumber: 2,
+    });
+
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it("does not step past the last episode of a season", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ json: async () => ({}) }))
+    );
+    const { root } = await mount({
+      seasons: [{ seasonNumber: 1, name: "Season 1", episodeCount: 3 }],
+      initialEpisodeNumber: 3,
+    });
+
+    await click("provider-ended");
+
+    expect(window.location.search).toBe("");
+
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it("saves the position a provider actually reports", async () => {
+    // The provider's own capability flag is off in this plan; a position it
+    // posted is still a real observation, so history keeps it.
+    const { root } = await mount();
+
+    await click("provider-same");
+
+    expect(readProgress("tv-1399:s1e1")).toMatchObject({
+      position: 4_000,
+      duration: 4_264,
+    });
 
     await act(async () => root.unmount());
   });
