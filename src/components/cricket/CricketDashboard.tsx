@@ -48,6 +48,7 @@ function asEnded(match: CricketMatch): CricketMatch {
     status: "completed",
     statusLabel: "Result",
     live: false,
+    dayBreak: false,
     result: stillChasing || !match.result ? "Match ended" : match.result,
   };
 }

@@ -41,7 +41,9 @@ route every 60 seconds; scorecards and player facts are fetched on demand.
 `/watch/cricket` is the cricket counterpart of `/watch/f1`: same stage, dock and
 Servers panel, no episodes, no watchlist and no resumable history. The hero's
 **Watch Live** button opens it during the channel's live window (15 minutes
-before the scheduled start through the session end).
+before the scheduled start through the session end). A Test keeps its `live`
+status overnight, so BCCI's `Stumps` status closes the button at the end of each
+day's play and reopens it when the feed reports the next day's play.
 
 Servers are environment-backed, up to ten slots:
 

@@ -88,6 +88,35 @@ describe("normalizeBcciMatch", () => {
     expect(result?.result).toBe("India are 141 for 3");
   });
 
+  it("flags a Test at stumps as a day break, but not other formats or results", () => {
+    const test = normalizeBcciMatch(
+      match({
+        formatLabel: "Test",
+        status: "live",
+        statusLabel: "Stumps",
+        subStatusLabel: "stumps",
+        startDateTimeUtc: "2026-11-18T22:00:00Z",
+        endDate: "2026-11-23",
+      }),
+      "men"
+    );
+    expect(test?.status).toBe("live");
+    expect(test?.dayBreak).toBe(true);
+
+    const t20 = normalizeBcciMatch(
+      match({ status: "live", statusLabel: "Stumps" }),
+      "men"
+    );
+    expect(t20?.dayBreak).toBe(false);
+
+    const result = normalizeBcciMatch(
+      match({ formatLabel: "Test", status: "results", statusLabel: "Stumps" }),
+      "men"
+    );
+    expect(result?.status).toBe("completed");
+    expect(result?.dayBreak).toBe(false);
+  });
+
   it("accepts a women's format label and rejects a match without the India side", () => {
     const women = normalizeBcciMatch(
       match({

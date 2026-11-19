@@ -177,6 +177,37 @@ describe("cricketLiveWindow", () => {
     expect(windowIsLive(window, START - 3 * 60 * MIN)).toBe(true);
   });
 
+  it("closes a Test at stumps until the next day's feed reopens it", () => {
+    const stumps = match({
+      format: "Test",
+      formatLabel: "Test",
+      status: "live",
+      live: true,
+      statusLabel: "Stumps",
+      dayBreak: true,
+      endDate: "2026-11-02",
+    });
+    const atStumps = START + 60 * MIN;
+    const window = cricketLiveWindow(dashboard({ fixtures: [stumps] }), atStumps)!;
+    expect(window.dayBreak).toBe(true);
+    expect(window.isLive).toBe(false);
+    // Even though the nominal three-hour window has not elapsed, stumps wins.
+    expect(windowIsLive(window, atStumps)).toBe(false);
+    expect(windowIsLive(window, atStumps + 24 * 60 * MIN)).toBe(false);
+
+    const nextDay = {
+      ...stumps,
+      statusLabel: "Live",
+      dayBreak: false,
+    };
+    const reopened = cricketLiveWindow(
+      dashboard({ fixtures: [nextDay] }),
+      atStumps + 24 * 60 * MIN
+    )!;
+    expect(reopened.isLive).toBe(true);
+    expect(windowIsLive(reopened, atStumps + 24 * 60 * MIN)).toBe(true);
+  });
+
   it("unlocks an upcoming fixture 15 minutes early and closes three hours in", () => {
     const window = cricketLiveWindow(dashboard({ fixtures: [match()] }), START - 60 * MIN)!;
     expect(window.liveFrom).toBe(new Date(START - 15 * MIN).toISOString());

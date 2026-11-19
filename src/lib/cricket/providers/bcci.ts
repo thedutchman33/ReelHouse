@@ -12,6 +12,7 @@ import type {
   ScorecardInnings,
   ScorecardTeam,
 } from "../types";
+import { isTestDayBreak } from "../watch-window";
 
 // ---------------------------------------------------------------------------
 // BCCI's public web feeds.
@@ -220,6 +221,13 @@ export function normalizeBcciMatch(
     result: raw.resultString || null,
     teams: raw.teams.map(mapTeam),
     live: status === "live",
+    dayBreak: isTestDayBreak(
+      format,
+      status,
+      raw.statusLabel,
+      raw.liveStatusName,
+      raw.subStatusLabel
+    ),
   };
 }
 

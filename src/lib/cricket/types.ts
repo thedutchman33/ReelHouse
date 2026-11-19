@@ -56,6 +56,12 @@ export interface CricketMatch {
   teams: CricketTeam[];
   /** True when the BCCI feed is showing an active live score. */
   live: boolean;
+  /**
+   * A multi-day match that is still live overall but whose day's play has
+   * ended ("Stumps"). The Watch Live window closes until the feed reports the
+   * next day's play, because there is no overnight broadcast to watch.
+   */
+  dayBreak?: boolean;
 }
 
 export interface CricketPlayer {

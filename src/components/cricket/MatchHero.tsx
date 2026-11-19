@@ -66,6 +66,7 @@ export default function MatchHero({
   const india = indiaTeam(match);
   const opponent = opponentTeam(match);
   const live = match.status === "live";
+  const dayBreak = live && Boolean(match.dayBreak);
   const completed = match.status === "completed";
   const hasScore = Boolean(india.score || opponent.score);
   const showCity = Boolean(match.city) && !match.venue.toLowerCase().includes(match.city!.toLowerCase());
@@ -81,8 +82,8 @@ export default function MatchHero({
                 live ? "bg-[#1d509e]/20 text-[#b9d7ff]" : "bg-[#1d509e]/15 text-[#8fb4ec]"
               }`}
             >
-              {live ? <span aria-hidden="true">◆ </span> : null}
-              {live ? "Live" : completed ? "Result" : "Next match"}
+              {live && !dayBreak ? <span aria-hidden="true">◆ </span> : null}
+              {dayBreak ? "Stumps" : live ? "Live" : completed ? "Result" : "Next match"}
             </span>
             <TeamFlag team={opponent} size="md" />
             <span className="text-[13px] font-medium uppercase tracking-[0.18em] text-white/60">
@@ -116,7 +117,8 @@ export default function MatchHero({
                 targetISO={match.date}
                 endISO={watchEndISO}
                 sessionName={match.title}
-                isLive={match.status === "live"}
+                isLive={live && !dayBreak}
+                dayBreak={dayBreak}
                 watchHref="/watch/cricket"
               />
             </div>
@@ -140,7 +142,7 @@ export default function MatchHero({
             {hasScore ? (
               <>
                 <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.22em] text-white/50">
-                  {live ? "Live score" : "Final score"}
+                  {dayBreak ? "Score" : live ? "Live score" : "Final score"}
                 </p>
                 <ScoreStrip match={match} />
               </>

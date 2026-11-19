@@ -14,8 +14,9 @@ import type { F1Round, F1Schedule, F1Session } from "@/lib/f1";
 // unlocked, so the navbar LIVE badge and the home hero poster can never drift
 // from the button itself: 15 minutes before the scheduled start through the
 // session end plus the 30-minute post-session watch grace (cricket applies the
-// grace from the match's real end when the feed publishes it). The rules mirror
-// WatchLiveButton / MatchHero.
+// grace from the match's real end when the feed publishes it). A Test remains
+// live overnight but its window closes at stumps and reopens with the next
+// day's play. The rules mirror WatchLiveButton / MatchHero.
 //
 // The type-only imports above are erased at build time; this module is safe to
 // import from a client component even though the F1 and cricket data layers are
@@ -38,6 +39,12 @@ export interface LiveWindow {
   endsAt: string;
   /** The source is reporting an event in progress (overrides the clock). */
   isLive: boolean;
+  /**
+   * A multi-day match whose current day's play has ended. The watch window is
+   * closed even though the match itself is still live; the next day's feed
+   * state reopens it.
+   */
+  dayBreak?: boolean;
   title: string;
   subtitle: string;
   details: string[];
@@ -159,6 +166,7 @@ export function cricketLiveWindow(
   const start = Date.parse(match.date);
   if (!Number.isFinite(start)) return null;
   const endedAt = match.endedAt ? Date.parse(match.endedAt) : NaN;
+  const dayBreak = match.status === "live" && Boolean(match.dayBreak);
 
   const india = match.teams.find((team) => team.abbreviation === "IND") ?? match.teams[1];
   const opponent = match.teams.find((team) => team.id !== india?.id) ?? match.teams[0];
@@ -171,7 +179,8 @@ export function cricketLiveWindow(
     endsAt: new Date(
       Number.isFinite(endedAt) ? endedAt + MATCH_WATCH_GRACE_MS : start + CRICKET_DEFAULT_MS
     ).toISOString(),
-    isLive: match.status === "live",
+    isLive: match.status === "live" && !dayBreak,
+    dayBreak,
     title: `${opponent.shortName} vs ${india.shortName}`,
     subtitle: `${match.series} · ${match.title}`,
     details: [
@@ -191,6 +200,9 @@ export function cricketLiveWindow(
 
 /** True while the section's Watch Live button is unlocked. */
 export function windowIsLive(window: LiveWindow, now: number): boolean {
+  // A Test at stumps keeps its match row live, but there is nothing to watch
+  // overnight: the next day's feed state reopens the window.
+  if (window.dayBreak) return false;
   if (window.isLive) return true;
   const from = Date.parse(window.liveFrom);
   const end = Date.parse(window.endsAt);

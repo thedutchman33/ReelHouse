@@ -119,6 +119,7 @@ export default function WatchLiveButton({
   sessionName = null,
   demoSeconds,
   isLive = false,
+  dayBreak = false,
   watchHref = "/watch/f1",
 }: {
   /** Shared page clock, so every countdown ticks on the same instant. */
@@ -132,6 +133,11 @@ export default function WatchLiveButton({
   sessionName?: string | null;
   /** A genuinely live source overrides the scheduled three-hour window. */
   isLive?: boolean;
+  /**
+   * A multi-day match's day has ended (stumps) while the match itself stays
+   * live. The control locks until the feed reports the next day's play.
+   */
+  dayBreak?: boolean;
   /** Debug helper: pretend the session starts this many seconds out. The live
       state still begins 15 minutes before that, so values under 900 start live. */
   demoSeconds?: number;
@@ -174,9 +180,18 @@ export default function WatchLiveButton({
   // The whole control runs 15 minutes ahead of the scheduled start: the
   // countdown ends there and the live CTA takes over.
   const liveFrom = target - WATCH_LEAD_MS;
-  const phase: Phase = isLive ? "live" : known ? watchLivePhase(now, liveFrom, endMs) : "locked";
-  const live = isLive || phase === "live";
-  const ended = !isLive && phase === "ended";
+  // Stumps wins over the clock: a Test's row stays live through the night, but
+  // the stream is closed until the next day's play.
+  const paused = !isLive && dayBreak;
+  const phase: Phase = isLive
+    ? "live"
+    : paused
+      ? "locked"
+      : known
+        ? watchLivePhase(now, liveFrom, endMs)
+        : "locked";
+  const live = phase === "live";
+  const ended = phase === "ended";
 
   // Warm the channel's watch page while the button is live, so the click is a
   // client navigation rather than a cold server round trip.
@@ -208,13 +223,15 @@ export default function WatchLiveButton({
   const what = sessionName ? `${sessionName}: ` : "";
   const label = isLive
     ? `${what}Watch live now — opens the ReelHouse watch page`
-    : !known
-      ? `${what}Watch live`
-      : live
-        ? `${what}Watch live now — opens the ReelHouse watch page`
-        : ended
-          ? `${what}Session ended`
-          : `${what}Watch live in ${coarse(parts)}`;
+    : paused
+      ? `${what}Day ended — live coverage resumes next day`
+      : !known
+        ? `${what}Watch live`
+        : live
+          ? `${what}Watch live now — opens the ReelHouse watch page`
+          : ended
+            ? `${what}Session ended`
+            : `${what}Watch live in ${coarse(parts)}`;
 
   const open = () => {
     if (!live) return;
@@ -232,7 +249,15 @@ export default function WatchLiveButton({
       aria-live="polite"
       aria-disabled={!live}
       aria-label={label}
-      title={live ? "Live now — watch on ReelHouse" : ended ? "This session has finished" : "Unlocks 15 minutes before the session starts"}
+      title={
+        live
+          ? "Live now — watch on ReelHouse"
+          : paused
+            ? "Today's play has ended — live coverage resumes next day"
+            : ended
+              ? "This session has finished"
+              : "Unlocks 15 minutes before the session starts"
+      }
       onClick={open}
       className={`f1-watch group relative grid min-h-[116px] w-full max-w-[360px] grid-cols-1 items-center overflow-hidden rounded-[20px] py-[14px] pl-4 pr-5 text-left transition-[transform,box-shadow,background] duration-[450ms] ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-white sm:w-[360px] ${
         live
@@ -267,9 +292,13 @@ export default function WatchLiveButton({
           <LockIcon />
         </span>
         <span className="col-start-2 row-start-1 text-[12px] font-semibold uppercase leading-none tracking-[0.2em] text-[#8d8d9b]">
-          {ended ? "Session ended" : "Live in"}
+          {paused ? "Day ended" : ended ? "Session ended" : "Live in"}
         </span>
-        {ended ? (
+        {paused ? (
+          <span className="col-start-2 row-start-2 font-f1 text-[15px] font-bold uppercase leading-none tracking-[0.06em] text-white/60">
+            Resumes next day
+          </span>
+        ) : ended ? (
           <span className="col-start-2 row-start-2 font-f1 text-[15px] font-bold uppercase leading-none tracking-[0.06em] text-white/60">
             Nothing scheduled
           </span>

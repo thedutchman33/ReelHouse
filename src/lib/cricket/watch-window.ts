@@ -1,4 +1,4 @@
-import type { CricketMatch } from "./types";
+import type { CricketMatch, MatchFormat, MatchStatus } from "./types";
 
 /**
  * The live stream stays available for this long after the match actually
@@ -6,6 +6,23 @@ import type { CricketMatch } from "./types";
  * final ball is bowled.
  */
 export const MATCH_WATCH_GRACE_MS = 30 * 60_000;
+
+/**
+ * True when BCCI reports stumps: a Test is still live overall, but the
+ * current day's play is over. The Watch Live window must close for the night
+ * and reopen when the feed reports the next day's play, even though the match
+ * row itself keeps `status: "live"` throughout the five days.
+ */
+export function isTestDayBreak(
+  format: MatchFormat,
+  status: MatchStatus,
+  ...labels: (string | null | undefined)[]
+): boolean {
+  if (format !== "Test" || status !== "live") return false;
+  return labels.some(
+    (label) => typeof label === "string" && /\bstumps?\b|\bend of day\b/i.test(label)
+  );
+}
 
 const STORAGE_KEY = "reelhouse.cricket.ended-at.v1";
 const STORAGE_MAX_AGE_MS = 24 * 60 * 60_000;
