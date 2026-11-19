@@ -362,6 +362,7 @@ export default function MatchCentre({
   }, [requested, matches]);
 
   const selected = matches.find((match) => match.gid === gid) ?? filtered[0] ?? null;
+  const selectedDayBreak = selected?.status === "live" && Boolean(selected.dayBreak);
 
   useEffect(() => {
     if (!gid) {
@@ -470,9 +471,20 @@ export default function MatchCentre({
                 }))}
               />
               {selected && selected.status === "live" && (
-                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#8fb4ec]">
-                  <span aria-hidden="true" className="ck-live-dot" />
-                  Live
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] ${
+                    selectedDayBreak ? "text-[#d9af6b]" : "text-[#8fb4ec]"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={
+                      selectedDayBreak
+                        ? "h-1.5 w-1.5 rounded-full bg-[#d9af6b]"
+                        : "ck-live-dot"
+                    }
+                  />
+                  {selectedDayBreak ? "Stumps" : "Live"}
                 </span>
               )}
               {selected && isAwayMatch(selected) && (

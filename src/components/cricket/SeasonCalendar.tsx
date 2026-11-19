@@ -251,6 +251,7 @@ function CalendarCard({
           >
             {group.matches.map((match, index) => {
               const live = match.status === "live";
+              const dayBreak = live && Boolean(match.dayBreak);
               const done = match.status === "completed";
               const isNext = match.gid === next?.gid;
               const opponent = opponentTeam(match);
@@ -297,17 +298,19 @@ function CalendarCard({
                       <span
                         aria-hidden="true"
                         className={`h-2 w-2 shrink-0 rounded-full ${
-                          isNext
-                            ? "bg-[#8fb4ec] shadow-[0_0_7px_rgb(143_180_236/0.9)]"
-                            : live
-                              ? "bg-[#3f78d8] shadow-[0_0_7px_rgb(63_120_216/0.9)]"
-                              : "bg-white/20"
+                          dayBreak
+                            ? "bg-[#d9af6b] shadow-[0_0_7px_rgb(217_175_107/0.8)]"
+                            : isNext
+                              ? "bg-[#8fb4ec] shadow-[0_0_7px_rgb(143_180_236/0.9)]"
+                              : live
+                                ? "bg-[#3f78d8] shadow-[0_0_7px_rgb(63_120_216/0.9)]"
+                                : "bg-white/20"
                         }`}
                       />
                     )}
                     {isNext ? (
                       <span className="rounded-sm bg-[#1d509e] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.13em] text-white">
-                        {live ? "Live" : "Next"}
+                        {dayBreak ? "Stumps" : live ? "Live" : "Next"}
                       </span>
                     ) : done ? (
                       <span className="rounded-sm border border-[#3f78d8]/35 bg-[#3f78d8]/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.13em] text-[#b9d7ff]">
@@ -343,9 +346,20 @@ function CalendarCard({
                     </time>
                     <div className="mt-1 flex items-center justify-between gap-1 text-[11.5px]">
                       {live ? (
-                        <span className="flex items-center gap-1 font-bold text-[#b9d7ff]">
-                          <span aria-hidden="true" className="h-1 w-1 animate-pulse rounded-full bg-[#8fb4ec]" />
-                          Live
+                        <span
+                          className={`flex items-center gap-1 font-bold ${
+                            dayBreak ? "text-[#d9af6b]" : "text-[#b9d7ff]"
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={
+                              dayBreak
+                                ? "h-1 w-1 rounded-full bg-[#d9af6b]"
+                                : "h-1 w-1 animate-pulse rounded-full bg-[#8fb4ec]"
+                            }
+                          />
+                          {dayBreak ? "Stumps" : "Live"}
                         </span>
                       ) : done ? (
                         <span className="truncate text-white/30">{result || "Result"}</span>
