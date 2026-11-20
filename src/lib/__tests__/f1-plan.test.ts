@@ -52,8 +52,8 @@ describe("F1 playback plan", () => {
     );
   });
 
-  it("defaults to WestreamF1 as the first playable server", () => {
-    expect(getF1PlaybackPlan().candidates[0]?.provider.id).toBe("westreamf1-st");
+  it("defaults to Trend8 as the first playable server", () => {
+    expect(getF1PlaybackPlan().candidates[0]?.provider.id).toBe("trend8-sky-f1");
   });
 
   it("marks F1 capabilities on every entry", () => {
@@ -111,6 +111,6 @@ describe("F1 playback plan", () => {
   });
 
   it("preconnects to the first enabled absolute server only", () => {
-    expect(getF1PreconnectOrigin()).toBe("https://westreamf1.st");
+    expect(getF1PreconnectOrigin()).toBe("https://trend8.st");
   });
 });

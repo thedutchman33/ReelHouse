@@ -32,6 +32,15 @@ export interface F1ServerConfig {
 export const F1_SERVERS: readonly F1ServerConfig[] = [
   // --- Primary ------------------------------------------------------------
   {
+    id: "trend8-sky-f1",
+    name: "Trend8 (Sky F1)",
+    // Default server. The event page frames Trendy48 → Gistero → Ehgembxe,
+    // which resolves the live Sky Sports F1 token inside the frame; framing
+    // the inner Trendy48 URL directly is refused outside Trend8's own pages.
+    url: "https://trend8.st/event/m-f1-las-vegas-gp",
+    priority: 90,
+  },
+  {
     id: "westreamf1-st",
     name: "WestreamF1",
     url: "https://westreamf1.st/westreamf1.php",
@@ -108,6 +117,17 @@ export const F1_SERVERS: readonly F1ServerConfig[] = [
     name: "DaddyLive F1 (Player 7)",
     url: "https://thedaddy.li/hub/stream-60.php",
     priority: 147,
+  },
+
+  // --- RushStreams --------------------------------------------------------
+  // RushStreams frames this same Taifood feed; use the player URL directly so
+  // the embed does not carry RushStreams' page chrome or popunder wrapper.
+  {
+    id: "rushstreams-sky-f1",
+    name: "RushStreams (Sky F1)",
+    // HD Sky Sports F1 source from RushStreams event 32435's server list.
+    url: "https://taifood-blog.asia/embed/f1/2026/las-vegas/fp2",
+    priority: 149,
   },
 
   // --- Multi-host embeds --------------------------------------------------
