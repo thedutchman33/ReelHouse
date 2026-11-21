@@ -23,6 +23,9 @@ export interface AniListBrowsePage {
 // ---------------------------------------------------------------------------
 
 const AL_ENDPOINT = "https://graphql.anilist.co";
+// One AniList request's network budget. Undici's connect timeout is 10s; a
+// dead or blocked CDN should cost the page about half that.
+const AL_TIMEOUT_MS = 5000;
 
 /** AniList's genre vocabulary — the anime page's Genre dropdown. */
 export const ANILIST_GENRES = [
@@ -106,10 +109,21 @@ async function al<T>(
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(AL_TIMEOUT_MS),
       ...opts,
     });
+  const startedAt = Date.now();
   try {
-    let res = await post({ next: { revalidate } });
+    let res: Response;
+    try {
+      res = await post({ next: { revalidate } });
+    } catch {
+      // One retry for network-level failures (DNS, connect/TLS timeouts), but
+      // only when the first attempt failed fast. A request that already burned
+      // the full timeout will not recover and would double the page's wait.
+      if (Date.now() - startedAt >= AL_TIMEOUT_MS - 500) return null;
+      res = await post({ next: { revalidate } });
+    }
     // AniList rate-limits (30 req/min). One bounded retry covers cold passes
     // where the chain walk fires several uncached queries back to back.
     if (res.status === 429) {

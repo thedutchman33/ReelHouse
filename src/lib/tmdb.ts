@@ -151,6 +151,10 @@ const TMDB_GENRES: Record<number, string> = {
   10765: "Sci-Fi", 10766: "Soap", 10767: "Talk", 10768: "War & Politics",
 };
 
+// Network timeout for one TMDB request. Undici's connect timeout is 10s; a
+// dead or blocked CDN should cost the page about half that.
+const TMDB_TIMEOUT_MS = 5000;
+
 async function tmdb<T = any>(
   path: string,
   params: Record<string, string> = {},
@@ -165,9 +169,31 @@ async function tmdb<T = any>(
   if (TMDB_KEY.includes(".")) headers.authorization = `Bearer ${TMDB_KEY}`;
   else url.searchParams.set("api_key", TMDB_KEY);
 
+  const request = () =>
+    fetch(url, {
+      headers,
+      next: { revalidate },
+      signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
+    });
+
+  const startedAt = Date.now();
+  let res: Response;
   try {
-    const res = await fetch(url, { headers, next: { revalidate } });
-    if (!res.ok) return null;
+    res = await request();
+  } catch {
+    // One retry for network-level failures (DNS, connect/TLS timeouts), but
+    // only when the first attempt failed fast. A request that already burned
+    // the full timeout will not recover and would double the page's wait.
+    if (Date.now() - startedAt >= TMDB_TIMEOUT_MS - 500) return null;
+    try {
+      res = await request();
+    } catch {
+      return null;
+    }
+  }
+
+  if (!res.ok) return null;
+  try {
     return (await res.json()) as T;
   } catch {
     return null;
