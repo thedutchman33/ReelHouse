@@ -307,7 +307,9 @@ export default function AddToListDialog({
           width: PANEL_WIDTH,
           visibility: position ? "visible" : "hidden",
         }}
-        className="add-to-list-sheet nm-glass fixed z-[300] flex max-h-[min(340px,72vh)] animate-fade-in flex-col overflow-hidden rounded-[12px]"
+        // Portaled to <body>, so the page's red-accent scope cannot reach it —
+        // carry the scope on the panel itself.
+        className="red-accent add-to-list-sheet nm-glass fixed z-[300] flex max-h-[min(340px,72vh)] animate-fade-in flex-col overflow-hidden rounded-[12px]"
       >
         <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-2.5">
           <div className="min-w-0">

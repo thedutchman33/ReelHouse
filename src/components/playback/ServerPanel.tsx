@@ -121,7 +121,7 @@ export default function ServerPanel({
   return (
     <div
       id="server-list"
-      className="nm-glass relative overflow-hidden rounded-2xl"
+      className="green-accent nm-glass relative overflow-hidden rounded-2xl"
     >
       {/* Header (reference anatomy) */}
       <div className="flex items-center gap-2.5 px-4 pt-2">
@@ -132,7 +132,7 @@ export default function ServerPanel({
           {selected?.displayName ?? "Select a server"}
         </p>
         <div className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-foreground/45">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-strong" />
           <span className="tabular-nums text-foreground/70">
             {mbps !== null ? `${mbps} Mbps` : "— Mbps"}
           </span>

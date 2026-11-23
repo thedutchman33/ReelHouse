@@ -46,6 +46,15 @@
   --rh-accent-ink: 26 20 2;       /* warm near-black for text on gold */
 }
 
+/* Green accent scope — the servers panel keeps the site's original emerald
+   even when it sits inside a red-accent page (watch, F1, cricket), so the
+   availability dots, Test/FAQ links and active server chip read green. */
+.green-accent {
+  --rh-accent: 16 185 129;        /* #10b981 */
+  --rh-accent-strong: 52 211 153; /* #34d399 */
+  --rh-accent-ink: 4 18 12;
+}
+
 /* Broadcast LIVE stamp used by the navbar and the hero's live posters. A hard
    on/off blink, like a TV tally light — not a soft pulse. */
 @keyframes rh-live-blink {

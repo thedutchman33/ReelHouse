@@ -7,10 +7,10 @@ export const AUTH_INPUT_CLASS =
   "nm-inset w-full rounded-lg px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-primary/40";
 
 export const AUTH_PRIMARY_BUTTON_CLASS =
-  "w-full rounded-lg bg-[#10b981] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#34d399] disabled:opacity-50";
+  "w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-50";
 
 export const AUTH_LINK_CLASS =
-  "text-xs font-medium text-primary transition hover:text-emerald-300";
+  "text-xs font-medium text-primary transition hover:text-accent-strong";
 
 export const AUTH_ERROR_CLASS =
   "rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs leading-relaxed text-rose-300";

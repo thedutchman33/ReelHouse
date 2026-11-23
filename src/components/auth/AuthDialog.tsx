@@ -257,7 +257,7 @@ export default function AuthDialog({
       <div
         ref={panelRef}
         onClick={(event) => event.stopPropagation()}
-        className="nm-glass max-h-[calc(100svh-2rem)] w-full max-w-sm overflow-y-auto rounded-[16px] p-6 text-zinc-100 shadow-2xl"
+        className="red-accent nm-glass max-h-[calc(100svh-2rem)] w-full max-w-sm overflow-y-auto rounded-[16px] p-6 text-zinc-100 shadow-2xl"
       >
         <div className="mb-3 flex items-start justify-between">
           <div>
