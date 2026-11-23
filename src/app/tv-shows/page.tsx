@@ -8,5 +8,5 @@ export const revalidate = 3600;
 export const metadata: Metadata = { title: "TV Shows" };
 
 export default function TvShowsPage() {
-  return <BrowseView type="tv" title="TV Shows" subtitle="Series only — filter by genre, year and sort order." />;
+  return <BrowseView type="tv" title="TV Shows" subtitle="Series only - filter by genre, year and sort order." />;
 }

@@ -40,5 +40,9 @@ export default async function TvPage({ params }: { params: Promise<{ id: string 
   const media = await getMediaDetail("tv", tmdbId);
   if (!media) notFound();
 
-  return <DetailContent media={media} />;
+  return (
+    <div className="red-accent">
+      <DetailContent media={media} />
+    </div>
+  );
 }

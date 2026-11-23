@@ -33,10 +33,12 @@ export default async function MyListCollectionPage({
   ]);
 
   return (
-    <MyListHub
-      key={collection}
-      activeCollection={collection}
-      weekCount={weekCount}
-    />
+    <div className="red-accent">
+      <MyListHub
+        key={collection}
+        activeCollection={collection}
+        weekCount={weekCount}
+      />
+    </div>
   );
 }

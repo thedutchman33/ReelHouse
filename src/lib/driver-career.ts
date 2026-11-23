@@ -13,6 +13,8 @@ import championSeasons from "./f1-champions.json";
 // ---------------------------------------------------------------------------
 
 const BASE = process.env.JOLPICA_BASE ?? "https://api.jolpi.ca/ergast/f1";
+/** Jolpica 403s Node's default `node` user agent; the feed wants a caller id. */
+const UA = "ReelHouseF1/1.0 (+https://reelhouse.co)";
 const TITLE_YEARS = championSeasons as Record<string, number[]>;
 const TTL = 60 * 60_000;
 
@@ -40,7 +42,7 @@ async function getJson(path: string): Promise<any> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(`${BASE}${path}`, {
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", "User-Agent": UA },
         signal: AbortSignal.timeout(12000),
         next: { revalidate: 60 * 60 },
       });

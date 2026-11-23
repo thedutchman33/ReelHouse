@@ -8,5 +8,10 @@ export const metadata: Metadata = {
 };
 
 export default function SettingsPage() {
-  return <SettingsView />;
+  // Settings doubles as the account/profile area, which reads red.
+  return (
+    <div className="red-accent">
+      <SettingsView />
+    </div>
+  );
 }

@@ -94,7 +94,7 @@ export default function ContinueWatching() {
     <section id="continue" className="group/row relative mb-8 scroll-mt-24">
       {/* Same editorial header as every other home row: uppercase eyebrow
           over the display-face heading; Clear all aligns to the heading. */}
-      <div className="mx-auto mb-3 flex w-full max-w-[1480px] items-end justify-between gap-4 px-5 sm:px-6 md:px-16">
+      <div className="mb-3 flex w-full items-end justify-between gap-4 px-6 md:px-16">
         <div>
           <p className="eyebrow mb-1">Pick up where you left off</p>
           <h2 className="font-display text-3xl uppercase tracking-wide text-text sm:text-4xl">
@@ -112,7 +112,14 @@ export default function ContinueWatching() {
           Clear all
         </button>
       </div>
-      <div ref={scroller} className="row-scroll px-5 sm:px-6 md:px-16">
+      {/* The rail sits flush under its heading (no hover-scale here, so it does
+          not need the row's tall top padding). */}
+      {/* Same content column as the heading, so the cards start on the same
+          left edge as every other section. */}
+      <div
+        ref={scroller}
+        className="row-scroll pt-1 px-6 md:px-16"
+      >
         {entries.map((entry) => {
           const { media, episode } = entry;
           const base = `/watch/${media.type}/${media.tmdbId}`;

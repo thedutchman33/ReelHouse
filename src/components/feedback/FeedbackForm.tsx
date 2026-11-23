@@ -215,7 +215,7 @@ export default function FeedbackForm({
       {success && (
         <div
           role="status"
-          className="mt-4 flex items-start gap-2.5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm leading-relaxed text-emerald-200"
+          className="mt-4 flex items-start gap-2.5 rounded-xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm leading-relaxed text-accent"
         >
           <CheckIcon />
           <span>{success}</span>
@@ -235,7 +235,7 @@ export default function FeedbackForm({
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#10b981] px-5 text-sm font-semibold text-white transition hover:bg-[#34d399] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-accent px-5 text-sm font-semibold text-accent-ink transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting && (
             <span

@@ -87,7 +87,7 @@ interface WinnerRow {
 async function seasonWinners(season: number): Promise<WinnerRow[]> {
   try {
     const response = await fetch(`${JOLPICA_BASE}/${season}/results/1.json?limit=100`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "User-Agent": UA },
       next: { revalidate: 60 * 60 * 12 },
       signal: AbortSignal.timeout(8000),
     });

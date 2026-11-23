@@ -153,6 +153,21 @@ export const CheckCircleIcon = (p: IconProps) => (
   </Svg>
 );
 
+// Circled lowercase "i" — the More Info affordance.
+export const InfoIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5.2" />
+    <path d="M12 7.9v.1" />
+  </Svg>
+);
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 9l6 6 6-6" />
+  </Svg>
+);
+
 export const ChevronRightIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M9 6l6 6-6 6" />

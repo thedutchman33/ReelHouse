@@ -48,7 +48,7 @@ export default function SearchClient({ initialQuery }: { initialQuery: string })
   }, [query]);
 
   return (
-    <div className="container-rh py-8">
+    <div className="red-accent container-rh py-8">
       <p className="eyebrow">Search</p>
       <h1 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide text-text sm:text-5xl">
         Search

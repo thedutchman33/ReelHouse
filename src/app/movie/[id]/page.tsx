@@ -42,5 +42,9 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
   const media = await getMediaDetail("movie", tmdbId);
   if (!media) notFound();
 
-  return <DetailContent media={media} />;
+  return (
+    <div className="red-accent">
+      <DetailContent media={media} />
+    </div>
+  );
 }

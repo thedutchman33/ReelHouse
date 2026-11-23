@@ -25,7 +25,10 @@ export default function SafetyNotice() {
         role="status"
         className="flex items-center gap-3 rounded-xl border border-white/10 bg-surface/70 px-4 py-2.5 text-sm text-text/80 backdrop-blur"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="shrink-0 text-accent">
+        {/* Fixed emerald, not text-accent: the notice sits inside the home
+            page's red accent scope, and the safety shield is the one mark that
+            stays green there. */}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="shrink-0 text-[#10b981]">
           <path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z" strokeLinejoin="round" />
           <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

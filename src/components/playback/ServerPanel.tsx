@@ -207,7 +207,7 @@ export default function ServerPanel({
                   title={online ? "Online" : "Offline"}
                   aria-label={`Server status: ${online ? "Online" : "Offline"}`}
                   className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_0_3px_rgba(52,211,153,0.14)] ${
-                    online ? "bg-emerald-400" : "bg-rose-500/60"
+                    online ? "bg-accent-strong" : "bg-rose-500/60"
                   }`}
                 />
                 <span className="whitespace-nowrap tracking-[-0.01em]">{p.displayName}</span>

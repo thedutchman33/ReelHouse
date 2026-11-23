@@ -69,10 +69,12 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
           {providers.map((p) => (
             <Link
               key={p.id}
-              href={`/providers/${p.id}`}
-              // Provider catalogs are dynamic (they read ?page/?q), so every
-              // prefetch here was a full server render for a page most visitors
-              // never open. See MediaCard for the measured prefetch count.
+              // Clicking a provider opens the catalog with that provider already
+              // selected in Browse's Source filter (?provider=<tmdb id>), instead
+              // of a separate provider page.
+              href={`/browse?provider=${p.id}`}
+              // The browse grid is fetched client-side from /api/browse, so an
+              // automatic prefetch of the next page buys nothing here.
               prefetch={false}
               aria-label={`Browse titles on ${p.name}`}
               className="group flex h-[80px] w-[164px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-white/[0.06] bg-surface transition-transform duration-200 hover:-translate-y-0.5"

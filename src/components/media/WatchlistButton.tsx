@@ -72,7 +72,7 @@ export default function WatchlistButton({
   }
 
   if (variant === "hero") {
-    // Hero row: 48px dark circle matching the Watch Now / More Info height.
+    // Hero row: the square add-to-list control next to Watch Now / More Info.
     return (
       <>
         <button
@@ -82,10 +82,10 @@ export default function WatchlistButton({
           aria-expanded={open}
           aria-label={label}
           title="Add to List"
-          className={`grid h-11 w-11 place-items-center rounded-lg border backdrop-blur transition sm:h-12 sm:w-12 ${
+          className={`grid h-11 w-11 place-items-center rounded-[10px] border backdrop-blur transition sm:h-[54px] sm:w-[54px] ${
             inList
               ? "border-accent bg-accent text-accent-ink"
-              : "border-white/15 bg-black/25 text-white hover:border-white/40"
+              : "border-white/25 bg-white/[0.04] text-white hover:border-white/45 hover:bg-white/10"
           }`}
         >
           {inList ? <CheckIcon /> : <PlusIcon />}

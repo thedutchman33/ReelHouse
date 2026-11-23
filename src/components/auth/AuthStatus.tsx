@@ -79,7 +79,7 @@ export default function AuthStatus() {
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="red-accent relative">
       <button
         ref={triggerRef}
         type="button"
@@ -107,7 +107,7 @@ export default function AuthStatus() {
               className="h-7 w-7 rounded-full object-cover ring-1 ring-inset ring-white/20"
             />
           ) : (
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-[#10b981] text-[11px] font-bold text-white ring-1 ring-inset ring-white/15">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-accent text-[11px] font-bold text-white ring-1 ring-inset ring-white/15">
               {initial}
             </span>
           )
@@ -179,7 +179,7 @@ export default function AuthStatus() {
                         className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-inset ring-white/15"
                       />
                     ) : (
-                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#10b981] text-base font-bold text-white">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent text-base font-bold text-white">
                         {initial}
                       </span>
                     )}

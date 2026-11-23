@@ -22,6 +22,20 @@
   --rh-danger: 229 100 90;
 }
 
+/* Red accent scope — the catalog, the home page, the footer, search and the
+   profile/settings area read red instead of the site's emerald. Scoped to a
+   wrapper, so every `accent` utility inside it — chips, focus rings, badges,
+   buttons, the title's full stop — picks it up, and nothing outside those
+   areas changes.
+
+   --rh-accent-ink flips to white because white text sits on solid red here. */
+.browse-accent,
+.red-accent {
+  --rh-accent: 225 29 42;         /* #e11d2a */
+  --rh-accent-strong: 244 63 74;  /* hover */
+  --rh-accent-ink: 255 255 255;
+}
+
 /* Arcade section accent — /games reads yellow instead of the site's emerald.
    Scoped to the page wrapper, so every `accent` utility inside it (buttons,
    chips, labels, focus rings) picks up the gold palette and nothing outside
@@ -105,10 +119,12 @@
 }
 
 @layer components {
-  /* Page content column — reference uses 24px mobile / 64px desktop gutters
-     with content capped at ~1480px. */
+  /* Page content column — 7reels' measured geometry: 24px gutters on phones,
+     64px from 768px up, and NO max-width cap (their content runs edge to edge;
+     measured 64px left/right at 768, 1024, 1280, 1440, 1600, 1792 and 1920).
+     Every page uses this one column so the left and right margins match. */
   .container-rh {
-    @apply mx-auto w-full max-w-[1480px] px-5 sm:px-6 md:px-16;
+    @apply w-full px-6 md:px-16;
   }
 
   /* Full-bleed horizontal media rail (reference row anatomy): tight gaps,
@@ -833,6 +849,73 @@
     .circuit-3d-scene:hover .circuit-3d-tilt {
       transition: none;
     }
+  }
+  /* Shared hero plate column — /f1 and /cricket must render hero cards with
+     identical dimensions. The right-hand model occupies one fixed box on both
+     pages (the cricket ground's measured heights), so neither hero grows or
+     shrinks past the other. */
+  .hero-plate-col {
+    height: 248px;
+    justify-content: center;
+  }
+  @media (min-width: 640px) {
+    .hero-plate-col {
+      height: 283px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .hero-plate-col {
+      height: 318px;
+    }
+  }
+  @media (min-width: 1280px) {
+    .hero-plate-col {
+      height: 353px;
+    }
+  }
+
+  /* The circuit model is different for every track, so inside the F1 hero it
+     is scaled to the cricket ground's box instead of its own aspect ratio and
+     letterboxed there. */
+  .f1-hero-plate {
+    display: flex;
+    width: 86%;
+    height: 160px;
+    align-items: center;
+    justify-content: center;
+  }
+  @media (min-width: 640px) {
+    .f1-hero-plate {
+      height: 195px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .f1-hero-plate {
+      height: 230px;
+    }
+  }
+  @media (min-width: 1280px) {
+    .f1-hero-plate {
+      height: 265px;
+    }
+  }
+  .f1-hero-plate .circuit-3d-scene {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+  }
+  .f1-hero-plate .circuit-3d-svg {
+    width: 100%;
+    height: 100%;
+  }
+  /* Caption block: matches the cricket hero's venue + boundary lines (88px
+     including its margin), so both columns total the same height. */
+  .f1-hero-caption {
+    display: flex;
+    height: 84px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
   .text-balance {
     text-wrap: balance;

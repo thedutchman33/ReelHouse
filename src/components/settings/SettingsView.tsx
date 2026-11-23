@@ -34,7 +34,7 @@ import { usePopover } from "@/lib/use-popover";
 import AccountPanel from "./AccountPanel";
 
 const GREEN_BUTTON =
-  "rounded-lg bg-[#10b981] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#34d399] disabled:opacity-50";
+  "rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition hover:bg-accent-strong disabled:opacity-50";
 const RED_BUTTON =
   "rounded-lg bg-rose-800 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-50";
 const QUIET_BUTTON =
@@ -105,7 +105,7 @@ function Toggle({
       aria-label={label}
       aria-pressed={value}
       className={`relative h-6 w-11 rounded-full transition-colors ${
-        value ? "bg-[#10b981]" : "bg-white/15"
+        value ? "bg-accent" : "bg-white/15"
       }`}
     >
       <span
@@ -305,7 +305,7 @@ export default function SettingsView() {
 
   if (!ready) {
     return (
-      <div className="mx-auto w-full max-w-[1104px] px-5 pt-[52px] sm:px-6">
+      <div className="w-full max-w-[1104px] px-6 pt-[52px] md:px-16">
         <h1 className="font-display text-3xl uppercase tracking-tight text-foreground">
           Settings
         </h1>
@@ -315,7 +315,7 @@ export default function SettingsView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1104px] px-5 pb-20 pt-[52px] sm:px-6">
+    <div className="w-full max-w-[1104px] px-6 pb-20 pt-[52px] md:px-16">
       <h1 className="font-display text-3xl uppercase tracking-tight text-foreground">
         Settings
       </h1>

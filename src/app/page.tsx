@@ -49,12 +49,13 @@ export default async function HomePage() {
   return (
     <>
       {/* The hero slides beneath the floating navbar (reference pattern) and
-          the content below starts after a tall gap, like the reference. */}
-      <div className="-mt-[var(--rh-nav-h)]">
+          Continue Watching sits directly under it — the reference shows the
+          heading and the top of the rail already on the first screen. */}
+      <div className="red-accent -mt-[var(--rh-nav-h)]">
         <Hero items={hero} />
       </div>
 
-      <div className="relative z-10 mt-16 pb-10 sm:mt-20">
+      <div className="red-accent relative z-10 mt-7 pb-10 sm:mt-8">
         <ContinueWatching />
 
         <ProvidersRow providers={providers} />

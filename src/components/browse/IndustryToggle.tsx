@@ -20,12 +20,12 @@ export default function IndustryToggle({
     <div
       role="group"
       aria-label="Industry"
-      className="relative flex w-[220px] shrink-0 rounded-full border border-white/10 bg-surface/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      className="relative flex h-10 w-full shrink-0 items-center rounded-xl border border-white/10 bg-white/[0.04] p-1 sm:w-[212px]"
     >
       {/* Sliding thumb — exactly one segment wide, glides to the active side. */}
       <span
         aria-hidden="true"
-        className={`absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full bg-accent transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-lg bg-white shadow-[0_1px_2px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-out ${
           bollywood ? "translate-x-full" : "translate-x-0"
         }`}
       />
@@ -37,8 +37,8 @@ export default function IndustryToggle({
             type="button"
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
-            className={`relative z-10 flex-1 cursor-pointer rounded-full py-1.5 text-center text-xs font-semibold transition-colors duration-300 ${
-              active ? "text-accent-ink" : "text-muted hover:text-text"
+            className={`relative z-10 flex-1 cursor-pointer rounded-lg py-1.5 text-center text-[13px] font-semibold transition-colors duration-300 ${
+              active ? "text-black" : "text-muted hover:text-text"
             }`}
           >
             {opt.label}

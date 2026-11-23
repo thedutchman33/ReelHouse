@@ -46,8 +46,12 @@ export default function DetailHero({ media }: { media: Media }) {
     .join(" · ");
 
   return (
-    <section className="relative">
-      <div className="absolute inset-x-0 top-0 h-[58svh] min-h-[380px] overflow-hidden">
+    // Cancels the layout's navbar offset so the backdrop runs under the floating
+    // bar instead of leaving a blank band above it (same trick as the home
+    // hero). The backdrop and the copy padding grow by the bar's height, so
+    // nothing inside the page actually moves.
+    <section className="relative -mt-[var(--rh-nav-h)]">
+      <div className="absolute inset-x-0 top-0 h-[calc(58svh_+_var(--rh-nav-h))] min-h-[calc(380px_+_var(--rh-nav-h))] overflow-hidden">
         <PosterImage
           src={media.backdropUrl}
           title={media.title}
@@ -64,7 +68,7 @@ export default function DetailHero({ media }: { media: Media }) {
         <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/40 to-transparent" />
       </div>
 
-      <div className="container-rh relative pb-8 pt-[26svh] sm:pt-[30svh]">
+      <div className="container-rh relative pb-8 pt-[calc(26svh_+_var(--rh-nav-h))] sm:pt-[calc(30svh_+_var(--rh-nav-h))]">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end">
           {/* Fixed 2:3 frame: a poster whose real ratio differs is trimmed evenly
               on both edges instead of losing its top. */}

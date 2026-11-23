@@ -342,7 +342,7 @@ function NextRaceCard({
           {/* "Mexico City" on the first line, "Grand Prix" red beneath it —
               the F1 Bold two-line lockup. */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-            <h2 className="font-f1 text-4xl font-bold uppercase leading-[0.95] tracking-wide text-white sm:text-6xl">
+            <h2 className="min-w-0 flex-1 font-f1 text-4xl font-bold uppercase leading-[0.95] tracking-wide text-white sm:text-6xl">
               {m.meeting_name.replace(/ Grand Prix$/i, "")}
               <span className="block text-[#e10600]">{" "}Grand Prix</span>
             </h2>
@@ -374,21 +374,25 @@ function NextRaceCard({
         </div>
 
         {/* Circuit map — the calendar sheet's sector plate, with its HUD */}
-        <div className="flex w-[230px] shrink-0 flex-col items-center sm:w-[280px] lg:w-[330px] xl:w-[380px]">
-          <CircuitMap3D
-            variant="sectors"
-            circuitInfoUrl={m.circuit_info_url}
-            circuitImage={m.circuit_image}
-            name={m.circuit_short_name ?? m.location}
-          />
-          <p className="mt-1 text-center">
+        {/* Same plate column as the cricket hero — shared fixed heights keep
+            the two pages' hero cards identical on every breakpoint. */}
+        <div className="hero-plate-col flex w-[230px] shrink-0 flex-col items-center sm:w-[280px] lg:w-[330px] xl:w-[380px]">
+          <div className="f1-hero-plate">
+            <CircuitMap3D
+              variant="sectors"
+              circuitInfoUrl={m.circuit_info_url}
+              circuitImage={m.circuit_image}
+              name={m.circuit_short_name ?? m.location}
+            />
+          </div>
+          <div className="f1-hero-caption mt-1 text-center">
             <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
               Circuit
             </span>
             <span className="mt-0.5 block font-display text-lg uppercase tracking-wide text-white">
               {m.circuit_short_name ?? m.location}
             </span>
-          </p>
+          </div>
         </div>
       </div>
     </section>

@@ -229,7 +229,7 @@ function WatchlistHub({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] px-5 pb-8 pt-24 sm:px-6 md:px-12">
+    <div className="w-full px-6 pb-8 pt-24 md:px-16">
       <h1 className="mb-2 font-display text-4xl uppercase leading-none tracking-wider text-text md:text-5xl">
         My List
       </h1>
@@ -435,7 +435,7 @@ function CollectionDetail({ collection }: { collection: DetailCollection }) {
   }, [collection, watched, reactions]);
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] px-5 pb-8 pt-24 sm:px-6 md:px-12">
+    <div className="w-full px-6 pb-8 pt-24 md:px-16">
       <Link
         href="/my-list"
         className="nm-raise-sm inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-muted transition hover:text-text"

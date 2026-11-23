@@ -8,5 +8,5 @@ export const revalidate = 3600;
 export const metadata: Metadata = { title: "Movies" };
 
 export default function MoviesPage() {
-  return <BrowseView type="movie" title="Movies" subtitle="Films only — filter by genre, year and sort order." />;
+  return <BrowseView type="movie" title="Movies" subtitle="Films only - filter by genre, year and sort order." />;
 }

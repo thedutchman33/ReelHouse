@@ -21,7 +21,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 const INPUT =
   "nm-inset w-full rounded-lg border border-white/10 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted/60 focus:border-primary/40 focus:ring-2 focus:ring-primary/20";
 const GREEN =
-  "rounded-lg bg-[#10b981] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#34d399] disabled:opacity-50";
+  "rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition hover:bg-accent-strong disabled:opacity-50";
 const RED =
   "rounded-lg bg-rose-800 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-50";
 const QUIET =
@@ -224,7 +224,7 @@ export default function AccountPanel() {
                   className="h-28 w-28 rounded-2xl object-cover ring-2 ring-white/10"
                 />
               ) : (
-                <div className="grid h-28 w-28 place-items-center rounded-2xl bg-[#10b981] text-4xl font-bold text-white ring-2 ring-white/10">
+                <div className="grid h-28 w-28 place-items-center rounded-2xl bg-accent text-4xl font-bold text-white ring-2 ring-white/10">
                   {initial}
                 </div>
               )}

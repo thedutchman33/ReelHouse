@@ -177,7 +177,7 @@ export default function SearchOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-[60] animate-fade-in overflow-y-auto bg-black/50"
+      className="red-accent fixed inset-0 z-[60] animate-fade-in overflow-y-auto bg-black/50"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

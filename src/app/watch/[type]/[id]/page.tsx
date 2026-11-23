@@ -92,7 +92,8 @@ export default async function WatchPage({
   const initialSeconds = Number.isFinite(t) && t > 0 ? t : undefined;
 
   return (
-    <PlaybackContainer
+    <div className="red-accent">
+      <PlaybackContainer
       type={type}
       media={summary}
       detail={media}
@@ -103,7 +104,8 @@ export default async function WatchPage({
       initialSeasonNumber={seasonNum}
       initialEpisodeNumber={epNum}
       initialSeconds={initialSeconds}
-      backHref={`/${type}/${tmdbId}`}
-    />
+        backHref={`/${type}/${tmdbId}`}
+      />
+    </div>
   );
 }

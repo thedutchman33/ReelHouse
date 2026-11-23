@@ -12,7 +12,7 @@ export default function BrowsePage() {
     <BrowseView
       type="all"
       title="Browse"
-      subtitle="Films and series together — filter by type, genre, year and sort order."
+      subtitle="Films and series together - filter by type, genre, year and sort order."
     />
   );
 }

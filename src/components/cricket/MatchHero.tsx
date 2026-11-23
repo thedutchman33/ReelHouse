@@ -157,7 +157,7 @@ export default function MatchHero({
           </div>
         </div>
 
-        <div className="flex w-[230px] shrink-0 flex-col items-center sm:w-[280px] lg:w-[330px] xl:w-[380px]">
+        <div className="hero-plate-col flex w-[230px] shrink-0 flex-col items-center sm:w-[280px] lg:w-[330px] xl:w-[380px]">
           <StadiumPlot
             venueName={match.venue}
             city={match.city}

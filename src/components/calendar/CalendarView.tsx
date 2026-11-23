@@ -334,7 +334,7 @@ export default function CalendarView({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1880px] px-5 pb-8 pt-24 sm:px-6 md:px-16">
+    <div className="red-accent w-full px-6 pb-8 pt-24 md:px-16">
       <CalendarHeader mode="calendar" monthOffset={monthOffset} />
 
       <div className="mb-4 mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -583,7 +583,7 @@ function TrackingView({ monthOffset }: { monthOffset: number }) {
   const tracked = useTracked();
 
   return (
-    <div className="mx-auto w-full max-w-[1880px] px-5 pb-8 pt-24 sm:px-6 md:px-16">
+    <div className="red-accent w-full px-6 pb-8 pt-24 md:px-16">
       <CalendarHeader mode="tracking" monthOffset={monthOffset} />
 
       <p className="mt-6 max-w-3xl text-sm leading-relaxed text-muted">

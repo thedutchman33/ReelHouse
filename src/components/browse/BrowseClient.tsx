@@ -33,19 +33,11 @@ import type { MediaSummary } from "@/types";
 
 type Paged = { items: MediaSummary[]; page: number; totalPages: number };
 
-const EMPTY_PAGE: Paged = { items: [], page: 1, totalPages: 0 };
-
-// Reference browse geometry: 48px desktop gutters inside an 1800px column,
-// with 7 poster columns at xl and 8 at 2xl.
+// Browse geometry: 2 poster columns on phones, up to 8 on a wide display.
 const CARD_GRID_CLASS =
   "grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8";
 
-const SEARCH_PLACEHOLDER: Record<BrowseType, string> = {
-  all: "Search movies & series…",
-  movie: "Search movies…",
-  tv: "Search series…",
-  anime: "Search anime…",
-};
+const EMPTY_PAGE: Paged = { items: [], page: 1, totalPages: 0 };
 
 export default function BrowseClient({
   type: pinnedType,
@@ -79,6 +71,27 @@ export default function BrowseClient({
   const [page, setPage] = useState<Paged>(EMPTY_PAGE);
   const [loading, setLoading] = useState(true);
   const reqId = useRef(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" jumps to the catalog search, unless the viewer is already typing
+  // somewhere (the page-level input, a filter, another field).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/") return;
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const change = useCallback((patch: Partial<BrowseFilters>) => {
     setFilters((f) => ({ ...f, ...patch }));
@@ -170,14 +183,16 @@ export default function BrowseClient({
   const hasNext = !searching && page.totalPages > page.page + pagesPerView - 1;
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] px-4 py-8 sm:px-6 md:px-12">
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="eyebrow">Browse</p>
-          <h1 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide text-text sm:text-5xl">
+    <div className="browse-accent w-full px-6 py-8 md:px-16">
+      <header className="flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          {/* Catalog chrome: one display-face title with the accent full stop —
+              no eyebrow repeating the same word above it. */}
+          <h1 className="font-display text-[clamp(56px,9vw,92px)] uppercase leading-[0.9] text-text">
             {title}
+            <span className="text-accent">.</span>
           </h1>
-          <p className="mt-2 text-sm text-muted">{subtitle}</p>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">{subtitle}</p>
         </div>
         {/* The industry slide is a Movies/Series control; the anime page is
             already language-scoped (Japanese) by its query. */}
@@ -189,71 +204,65 @@ export default function BrowseClient({
         )}
       </header>
 
-      {/* Page-level search lives inside the filter bar's toolbar row (scoped
-          to this page's catalog — the anime page searches AniList). While it's
-          active the filters de-emphasize and a results line takes over. */}
-      <FilterBar
-        filters={filters}
-        onChange={change}
-        genres={genres}
-        years={years}
-        providers={providers}
-        searchSlot={
-          <div className="relative min-w-0 flex-1 sm:w-80 sm:flex-none">
-            <SearchIcon
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-            />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setSearch("");
-              }}
-              placeholder={SEARCH_PLACEHOLDER[filters.type]}
-              aria-label={SEARCH_PLACEHOLDER[filters.type].replace(/…$/, "")}
-              className="field h-9 w-full pl-9 pr-9 text-sm placeholder:text-muted/60"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted transition hover:text-text"
-              >
-                <CloseIcon size={14} />
-              </button>
-            )}
-          </div>
-        }
-        dimmed={searching}
-      />
+      {/* One toolbar row: search on the left, the three dropdowns on the right,
+          all 46px tall and visually separate. "/" focuses the search. */}
+      <div className="mt-6">
+        <FilterBar
+          filters={filters}
+          onChange={change}
+          genres={genres}
+          years={years}
+          providers={providers}
+          searchSlot={
+            <div className="relative">
+              <SearchIcon
+                size={18}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+              />
+              <input
+                ref={searchRef}
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearch("");
+                }}
+                placeholder="Search movies and series"
+                aria-label="Search this catalog"
+                className="h-[46px] w-full rounded-[14px] border border-white/10 bg-surface pl-12 pr-12 text-sm text-text outline-none transition placeholder:text-muted/70 focus:border-accent/70 focus:ring-4 focus:ring-accent/15"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-white/10 hover:text-text"
+                >
+                  <CloseIcon size={15} />
+                </button>
+              ) : (
+                <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+                  /
+                </kbd>
+              )}
+            </div>
+          }
+          dimmed={searching}
+        />
+      </div>
 
-      {searching && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            {loading && page.items.length === 0
-              ? "Searching…"
-              : `${page.items.length} result${page.items.length === 1 ? "" : "s"} for “${query}”`}
-          </p>
-          <button
-            type="button"
-            onClick={() => setSearch("")}
-            className="btn-ghost h-8 cursor-pointer px-3 text-xs"
-          >
-            Back to browsing
-          </button>
-        </div>
-      )}
+      <p className="mt-6 text-[13px] text-muted" aria-live="polite">
+        {searching
+          ? loading && page.items.length === 0
+            ? "Searching…"
+            : `${page.items.length} result${page.items.length === 1 ? "" : "s"} for “${query}”`
+          : `${page.items.length} title${page.items.length === 1 ? "" : "s"}`}
+      </p>
 
-      <div className={searching ? "mt-4" : "mt-6"}>
+      <div className="mt-4">
         {loading && page.items.length === 0 ? (
           // First paint of this filter combination — placeholder cards.
-          <div
-            className={CARD_GRID_CLASS}
-            aria-hidden="true"
-          >
+          <div className={CARD_GRID_CLASS} aria-hidden="true">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="aspect-[2/3] animate-pulse rounded-xl bg-surface/60" />
             ))}
@@ -261,7 +270,7 @@ export default function BrowseClient({
         ) : page.items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface/40 px-6 py-16 text-center">
             <p className="text-lg font-semibold text-text">
-              {searching ? "Nothing found" : "No titles match these filters"}
+              {searching ? "No matches" : "No titles match these filters"}
             </p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
               {searching

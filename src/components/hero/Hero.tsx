@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import PosterImage from "@/components/media/PosterImage";
 import WatchlistButton from "@/components/media/WatchlistButton";
-import { PlayIcon, StarIcon } from "@/components/player/icons";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  InfoIcon,
+  PlayIcon,
+} from "@/components/player/icons";
 import { useLiveWindows } from "@/components/live/use-live-windows";
 import { flagCodeFor } from "@/components/cricket/TeamFlag";
 import { windowIsLive, type LiveWindow } from "@/lib/live-windows";
@@ -58,29 +63,63 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
   // opacity to transition from, so it would pop in instead of fading), so from
   // the first manual interaction every slide is mounted exactly as before.
   const [allMounted, setAllMounted] = useState(false);
+  // Hotstar previews on hover, so the rotation has to stop while the cursor is
+  // in the strip — otherwise the timer yanks the preview away mid-hover.
+  const [hoveringStrip, setHoveringStrip] = useState(false);
+  // The strip is a window over the slide list. It follows the active slide so
+  // live slides (which can push the count past the window) never strand the
+  // current pick off-screen.
+  const THUMB_WINDOW = 6;
+  const [stripStart, setStripStart] = useState(0);
+  const hoverTimer = useRef<number | null>(null);
   const count = slides.length;
+  // The list can shrink between a live poster disappearing and the reset
+  // effect running; clamp instead of rendering a blank hero for a frame.
+  const currentIndex = count ? Math.min(active, count - 1) : 0;
+  const current = slides[currentIndex];
 
   // A live poster takes over the hero as it appears, and the normal rotation
   // resumes when it locks again. Keyed on which sections are live, not on the
-  // five-second clock, so this never fights the auto-advance.
+  // rotation clock, so this never fights the auto-advance.
   useEffect(() => {
     setSlide({ active: 0, prev: null });
+    setStripStart(0);
   }, [liveKey]);
 
   useEffect(() => {
-    if (count <= 1) return;
+    if (count <= 1 || hoveringStrip) return;
     const id = window.setInterval(
       () => setSlide((s) => ({ active: (s.active + 1) % count, prev: s.active })),
       7000
     );
     return () => window.clearInterval(id);
-  }, [count]);
+  }, [count, active, hoveringStrip]);
+
+  // Keep the active slide inside the visible window. Hover previews only move
+  // within the window, so this never slides the strip out from under the
+  // cursor; it only follows auto-advance and the chevron.
+  useEffect(() => {
+    setStripStart((start) => {
+      if (currentIndex < start) return currentIndex;
+      if (currentIndex >= start + THUMB_WINDOW) {
+        return Math.min(
+          currentIndex - THUMB_WINDOW + 1,
+          Math.max(0, count - THUMB_WINDOW)
+        );
+      }
+      return start;
+    });
+  }, [currentIndex, count]);
+
+  // The hover-intent timer must not fire after unmount.
+  useEffect(
+    () => () => {
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    },
+    []
+  );
 
   if (!count) return null;
-  // The list can shrink between a live poster disappearing and the reset effect
-  // running; clamp instead of rendering a blank hero for a frame.
-  const currentIndex = Math.min(active, count - 1);
-  const current = slides[currentIndex];
 
   // Only the outgoing, the current and the incoming slide need to exist. The
   // stack sits inside the viewport, so `loading="lazy"` defers nothing for the
@@ -91,14 +130,41 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
   const isMounted = (i: number) =>
     allMounted || i === currentIndex || i === incoming || i === prev;
 
+  const selectSlide = (i: number) => {
+    // Jumping to a non-adjacent slide needs every slide mounted, or the new
+    // slide pops in instead of crossfading. Same rule the dots used.
+    setAllMounted(true);
+    setSlide((s) => (s.active === i ? s : { active: i, prev: s.active }));
+  };
+
+  const cancelHover = () => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  };
+
+  // Hovering a thumbnail previews that slide, then crossfades into it — the
+  // reference's cursor behaviour. A short intent delay keeps a cursor passing
+  // across the strip from firing every thumb on the way.
+  const previewSlide = (i: number) => {
+    cancelHover();
+    hoverTimer.current = window.setTimeout(() => {
+      hoverTimer.current = null;
+      selectSlide(i);
+    }, 120);
+  };
+
+  const stripSlides = slides.slice(stripStart, stripStart + THUMB_WINDOW);
+
   return (
     <section className="relative">
-      <div className="relative h-[80svh] min-h-[600px] max-h-[880px] w-full overflow-hidden">
+      <div className="relative h-[82svh] min-h-[560px] max-h-[860px] w-full overflow-hidden">
         {slides.map((slide, i) =>
           isMounted(i) ? (
             <div
               key={slide.key}
-              className={`absolute inset-0 transition-opacity duration-1000 ${i === currentIndex ? "opacity-100" : "opacity-0"}`}
+              className={`absolute inset-0 transition-opacity duration-700 ${i === currentIndex ? "opacity-100" : "opacity-0"}`}
               aria-hidden={i !== currentIndex}
             >
               {slide.kind === "live" ? (
@@ -122,13 +188,24 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
           ) : null
         )}
 
-        {/* Legibility scrims: vertical fade into the page, plus a left-side wash
-            under the copy. Kept subtle enough to leave the artwork readable. */}
+        {/* Legibility scrims: a top wash for the nav, a vertical fade into the
+            page, and a left-side wash under the copy. Kept subtle enough to
+            leave the artwork readable. */}
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/75 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/40 to-transparent sm:via-bg/20" />
 
-        <div className="container-rh absolute inset-x-0 bottom-0">
-          <div key={current.key} className="max-w-[42rem] animate-fade-up pb-12 sm:pb-14">
+        {/* The copy, the thumbnail strip and the dots all sit on the page's one
+            content column, so the hero's left edge lines up with every section
+            below it (reference: one container, one gutter). */}
+        <div className="container-rh absolute inset-x-0 bottom-0 z-10">
+          {/* The copy and the thumbnail strip share one baseline: the strip is
+              pinned to the same 28px inset, so its bottom edge lines up with
+              the CTA row (reference hero anatomy). */}
+          <div
+            key={current.key}
+            className="max-w-[36rem] animate-fade-up pb-14 min-[1400px]:pb-7"
+          >
             {current.kind === "live" ? (
               <LiveCopy live={current.live} />
             ) : (
@@ -138,38 +215,109 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
         </div>
 
         {count > 1 && (
-          // Slide indicators: small dots, active drawn as an elongated pill.
-          // Each button keeps a 24px-tall touch target (WCAG 2.2 Target Size)
-          // with the dot centred inside it.
-          <div className="absolute bottom-6 right-6 z-20 flex items-center gap-2 md:bottom-8 md:right-16">
-            {slides.map((slide, i) => (
+          <>
+            {/* Desktop: Hotstar's thumbnail carousel in the lower-right. Each
+                thumb is a real slide picker; the arrows step the rotation. */}
+            <div
+              className="absolute bottom-7 right-16 z-20 hidden items-center gap-1.5 min-[1400px]:flex"
+              // The rotation pauses while the cursor is in the strip — otherwise
+              // the timer pulls the previewed slide away mid-hover. Leaving also
+              // drops a pending preview so a quick pass across the thumbs does
+              // not swap the hero on the way out.
+              onPointerEnter={() => setHoveringStrip(true)}
+              onPointerLeave={() => {
+                setHoveringStrip(false);
+                cancelHover();
+              }}
+            >
               <button
-                key={slide.key}
                 type="button"
-                // Pointer-down and focus both land before activation, so every
-                // slide is mounted (and fading normally) by the time the jump
-                // itself happens.
                 onPointerDown={() => setAllMounted(true)}
                 onFocus={() => setAllMounted(true)}
-                onClick={() =>
-                  setSlide((s) => (s.active === i ? s : { active: i, prev: s.active }))
-                }
-                aria-label={`Show ${
-                  slide.kind === "live" ? slide.live.title : slide.item.title
-                }`}
-                aria-current={i === currentIndex}
-                className="group grid h-6 place-items-center px-1"
+                onClick={() => selectSlide((currentIndex - 1 + count) % count)}
+                aria-label="Previous featured title"
+                className="grid h-8 w-8 place-items-center rounded-full bg-black/45 text-white/85 ring-1 ring-white/20 backdrop-blur transition hover:bg-white/15 hover:text-white"
               >
-                <span
-                  className={`rounded-full transition-all ${
-                    i === currentIndex
-                      ? "h-2 w-6 bg-white"
-                      : "h-2 w-2 bg-white/40 group-hover:bg-white/70"
-                  }`}
-                />
+                <ChevronLeftIcon size={22} />
               </button>
-            ))}
-          </div>
+
+              <div className="flex items-center gap-2">
+                {stripSlides.map((slide, offset) => {
+                  const i = stripStart + offset;
+                  const label =
+                    slide.kind === "live" ? slide.live.title : slide.item.title;
+                  return (
+                    <button
+                      key={slide.key}
+                      type="button"
+                      onPointerDown={() => setAllMounted(true)}
+                      onFocus={() => setAllMounted(true)}
+                      onClick={() => selectSlide(i)}
+                      onPointerEnter={() => previewSlide(i)}
+                      aria-label={`Show ${label}`}
+                      aria-current={i === currentIndex}
+                      className={`relative aspect-video w-[78px] shrink-0 overflow-hidden rounded-[4px] bg-surface-2 transition duration-200 ${
+                        i === currentIndex
+                          ? "opacity-100 outline outline-2 outline-offset-2 outline-white"
+                          : "opacity-60 outline outline-1 outline-offset-2 outline-transparent hover:opacity-100 hover:outline-white/50"
+                      }`}
+                    >
+                      {slide.kind === "live" ? (
+                        <LiveThumb live={slide.live} />
+                      ) : (
+                        <PosterImage
+                          src={slide.item.backdropUrl}
+                          title={slide.item.title}
+                          type={slide.item.type}
+                          variant="backdrop"
+                          sizes="78px"
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onPointerDown={() => setAllMounted(true)}
+                onFocus={() => setAllMounted(true)}
+                onClick={() => selectSlide((currentIndex + 1) % count)}
+                aria-label="Next featured title"
+                className="grid h-8 w-8 place-items-center rounded-full bg-black/45 text-white/85 ring-1 ring-white/20 backdrop-blur transition hover:bg-white/15 hover:text-white"
+              >
+                <ChevronRightIcon size={22} />
+              </button>
+            </div>
+
+            {/* Mobile/tablet: compact dots (the strip needs desktop room). */}
+            <div className="absolute bottom-4 right-6 z-20 flex items-center gap-1.5 min-[1400px]:hidden md:bottom-5 md:right-16">
+              {slides.map((slide, i) => (
+                <button
+                  key={slide.key}
+                  type="button"
+                  onPointerDown={() => setAllMounted(true)}
+                  onFocus={() => setAllMounted(true)}
+                  onClick={() => selectSlide(i)}
+                  aria-label={`Show ${
+                    slide.kind === "live" ? slide.live.title : slide.item.title
+                  }`}
+                  aria-current={i === currentIndex}
+                  className="group grid h-6 place-items-center px-1"
+                >
+                  <span
+                    className={`rounded-full transition-all ${
+                      i === currentIndex
+                        ? "h-2 w-6 bg-white"
+                        : "h-2 w-2 bg-white/40 group-hover:bg-white/70"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </section>
@@ -181,53 +329,75 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
 function MediaCopy({ item }: { item: MediaSummary }) {
   const rating = formatRating(item.rating);
   const year = yearOf(item.releaseDate);
-  const genres = item.genres.slice(0, 3).join(" · ");
+  const meta = [
+    year,
+    item.certification,
+    item.type === "tv" ? "Series" : "Film",
+  ].filter(Boolean);
+  const genres = item.genres.slice(0, 4);
+  const detailHref = `/${item.type}/${item.tmdbId}`;
 
   return (
     <>
-      {/* Reference pattern: show the title's official logo artwork when
-          TMDB has one; fall back to the text title otherwise. The h1
-          stays (sr-only behind the img) for accessibility. */}
-      {item.logoUrl ? (
-        <TitleLogo src={item.logoUrl} title={item.title} />
-      ) : (
-        // Display size is capped so two-line titles never push the copy
-        // block past the hero's top edge (overflow-hidden would clip it).
-        <h1 className="text-balance font-display text-[2.6rem] uppercase leading-[0.95] tracking-wide text-white sm:text-6xl lg:text-7xl">
-          {item.title}
-        </h1>
-      )}
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+      {/* Hotstar hero anatomy: the title art itself links to the detail page,
+          so the hero still exposes "more info" without a second CTA. The h1
+          stays in the logo case (sr-only) for accessibility. */}
+      <Link
+        href={detailHref}
+        className="inline-block max-w-full transition-opacity hover:opacity-90"
+      >
+        {item.logoUrl ? (
+          <TitleLogo src={item.logoUrl} title={item.title} />
+        ) : (
+          <h1 className="text-balance font-sans text-[2.6rem] font-extrabold leading-[1.03] tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl">
+            {item.title}
+          </h1>
+        )}
+      </Link>
+
+      <div className="mt-2 space-y-1 text-sm font-semibold">
         {rating && (
-          <span className="flex items-center gap-1.5 font-semibold text-amber-400">
-            <StarIcon /> {rating}
-          </span>
+          <p className="text-[#4da6ff]">IMDb {rating}</p>
         )}
-        {year && <span className="text-white/70">{year}</span>}
-        {item.certification && (
-          <span className="rounded-md border border-white/25 bg-black/30 px-2 py-0.5 text-xs font-semibold text-white/90">
-            {item.certification}
-          </span>
+        {meta.length > 0 && (
+          <p className="text-white/90">{meta.join(" • ")}</p>
         )}
-        {genres && <span className="text-muted">{genres}</span>}
       </div>
+
       {item.overview && (
-        <p className="mt-4 line-clamp-2 max-w-xl text-sm leading-relaxed text-white/75 sm:text-[0.95rem]">
+        <p className="mt-2 line-clamp-2 max-w-xl text-sm leading-relaxed text-white/85 sm:text-[0.95rem]">
           {item.overview}
         </p>
       )}
-      <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:mt-7">
+
+      {genres.length > 0 && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold text-white/90">
+          {genres.map((genre, i) => (
+            <span key={genre} className="flex items-center gap-2.5">
+              {i > 0 && (
+                <span aria-hidden="true" className="text-white/35">
+                  |
+                </span>
+              )}
+              {genre}
+            </span>
+          ))}
+        </p>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center gap-2.5 sm:mt-6 sm:gap-3">
+        {/* CTA row: solid white Watch Now, outlined More Info, square add-to-list. */}
         <Link
           href={`/watch/${item.type}/${item.tmdbId}`}
-          className="btn-primary h-11 px-6 text-sm sm:h-12 sm:px-8 sm:text-base"
+          className="inline-flex h-11 items-center justify-center gap-2.5 rounded-[10px] bg-white px-7 text-sm font-bold text-black transition hover:bg-white/90 active:scale-[0.99] sm:h-[54px] sm:px-8 sm:text-[17px]"
         >
           <PlayIcon size={20} /> Watch Now
         </Link>
         <Link
-          href={`/${item.type}/${item.tmdbId}`}
-          className="btn-ghost h-11 gap-2.5 px-5 text-sm sm:h-12 sm:px-6 sm:text-base"
+          href={detailHref}
+          className="inline-flex h-11 items-center justify-center gap-2.5 rounded-[10px] border border-white/25 bg-white/[0.04] px-6 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10 sm:h-[54px] sm:px-7 sm:text-base"
         >
-          <InfoMark /> More Info
+          <InfoIcon size={22} /> More Info
         </Link>
         <WatchlistButton item={item} variant="hero" />
       </div>
@@ -247,7 +417,7 @@ function LiveCopy({ live }: { live: LiveWindow }) {
         />
         Live · {live.kind === "f1" ? "Formula 1" : "Cricket"}
       </p>
-      <h1 className="text-balance font-display text-[2.6rem] uppercase leading-[0.95] tracking-wide text-white sm:text-6xl lg:text-7xl">
+      <h1 className="text-balance font-sans text-[2.6rem] font-extrabold leading-[1.03] tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl">
         {live.title}
       </h1>
       <p className="mt-4 text-sm font-medium text-white/75 sm:text-base">{live.subtitle}</p>
@@ -256,7 +426,7 @@ function LiveCopy({ live }: { live: LiveWindow }) {
           {live.details.join(" · ")}
         </p>
       )}
-      <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:mt-7">
+      <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:mt-8">
         <Link
           href={live.href}
           className="inline-flex h-11 items-center gap-2 rounded-md bg-[#e10600] px-6 text-sm font-bold uppercase tracking-wide text-white shadow-[0_10px_30px_-10px_rgba(225,6,0,0.85)] transition hover:bg-[#ff2421] active:scale-[0.99] sm:h-12 sm:px-8 sm:text-base"
@@ -400,7 +570,7 @@ function CricketPoster({ teams }: { teams: NonNullable<LiveWindow["teams"]> }) {
 // documented w500 src before the text title.
 const TMDB_LOGO = /^https:\/\/image\.tmdb\.org\/t\/p\/(?:w\d+|original)(\/.+)$/;
 const LOGO_SIZES =
-  "(min-width: 1024px) 520px, (min-width: 640px) 420px, 300px";
+  "(min-width: 1024px) 560px, (min-width: 640px) 460px, 340px";
 
 function logoSrcSet(src: string): string | undefined {
   const path = TMDB_LOGO.exec(src)?.[1];
@@ -421,7 +591,7 @@ function TitleLogo({ src, title }: { src: string; title: string }) {
 
   if (failed) {
     return (
-      <h1 className="text-balance font-display text-[2.6rem] uppercase leading-[0.95] tracking-wide text-white sm:text-6xl lg:text-7xl">
+      <h1 className="text-balance font-sans text-[2.6rem] font-extrabold leading-[1.03] tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl">
         {title}
       </h1>
     );
@@ -430,7 +600,10 @@ function TitleLogo({ src, title }: { src: string; title: string }) {
   const srcSet = plain ? undefined : logoSrcSet(src);
 
   return (
-    <div className="relative mb-2 h-20 sm:h-24 lg:h-32">
+    // No fixed box height: the artwork keeps its own ratio and the metadata
+    // follows directly beneath it. A fixed tall box left a dead gap under wide
+    // wordmarks (e.g. THE HUNGER GAMES), pushing the title to the hero's top.
+    <div className="relative mb-1">
       <h1 className="sr-only">{title}</h1>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -439,19 +612,36 @@ function TitleLogo({ src, title }: { src: string; title: string }) {
         onError={() => (srcSet ? setPlain(true) : setFailed(true))}
         srcSet={srcSet}
         sizes={srcSet ? LOGO_SIZES : undefined}
-        className="max-h-full w-auto max-w-[300px] object-contain object-left drop-shadow-[0_4px_28px_rgba(0,0,0,0.85)] sm:max-w-[420px] lg:max-w-[520px]"
+        className="block max-h-[92px] w-auto max-w-[340px] object-contain object-left drop-shadow-[0_4px_28px_rgba(0,0,0,0.85)] sm:max-h-[124px] sm:max-w-[460px] lg:max-h-[150px] lg:max-w-[560px]"
         draggable={false}
       />
     </div>
   );
 }
 
-function InfoMark() {
+/** Tiny artwork for the hero strip. Live slides may have no poster, so the
+ *  section's broadcast colour stands in. */
+function LiveThumb({ live }: { live: LiveWindow }) {
+  if (live.posterUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={live.posterUrl}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5" strokeLinecap="round" />
-      <circle cx="12" cy="8" r="0.5" fill="currentColor" stroke="none" />
-    </svg>
+    <span
+      aria-hidden="true"
+      className={`block h-full w-full ${
+        live.kind === "f1"
+          ? "bg-[radial-gradient(circle_at_30%_20%,#8c150c,#3a0b07_70%)]"
+          : "bg-[radial-gradient(circle_at_30%_20%,#174a96,#0c2347_70%)]"
+      }`}
+    />
   );
 }

@@ -54,5 +54,9 @@ export default async function AnimeDetailPage({
   const media = await getMediaDetail("anime", anilistId);
   if (!media) notFound();
 
-  return <DetailContent media={media} />;
+  return (
+    <div className="red-accent">
+      <DetailContent media={media} />
+    </div>
+  );
 }

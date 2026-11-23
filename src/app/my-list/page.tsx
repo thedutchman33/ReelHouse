@@ -6,10 +6,12 @@ export const revalidate = 1800;
 export default async function MyListPage() {
   const weekCount = await getReleaseWeekCount();
   return (
-    <MyListHub
-      key="watchlist"
-      activeCollection="watchlist"
-      weekCount={weekCount}
-    />
+    <div className="red-accent">
+      <MyListHub
+        key="watchlist"
+        activeCollection="watchlist"
+        weekCount={weekCount}
+      />
+    </div>
   );
 }
