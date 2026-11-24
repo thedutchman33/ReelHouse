@@ -147,7 +147,7 @@ const nextConfig = {
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://media.moctale.in https://images.icc-cricket.com https://www.bcci.tv https://raw.githubusercontent.com",
+      "img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://i.ytimg.com https://*.ytimg.com https://yt3.googleusercontent.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://media.moctale.in https://images.icc-cricket.com https://www.bcci.tv https://raw.githubusercontent.com https://archive.org https://*.archive.org",
       "font-src 'self'",
       "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co",
       "media-src 'self' blob:",
