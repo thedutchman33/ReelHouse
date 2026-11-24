@@ -155,9 +155,20 @@ reported instead of invented.
 
 ## 7. What works without Spotify OAuth
 
+Spotify credentials are optional. The backend starts normally when
+`SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI` or
+`MUSIC_TOKEN_ENCRYPTION_KEY` is absent; `/v1/health` reports
+`"spotify": false`. InnerTubeX, lyrics, MusicBrainz, Supabase and existing
+library features are unaffected.
+
 - ZIP preview and import: yes, for any signed-in Reelhouse user.
 - Imported playlists, liked songs, saved albums/artists, history, searches and
   taste data: yes.
+- Spotify OAuth connect/callback and live Spotify API sync: no. Those endpoints
+  return HTTP 503 with `spotify_not_configured` and a clear message instead of
+  failing at startup.
+- The Spotify status endpoint still returns `{"connected":false}` so the import
+  UI continues to load, and previously imported data remains available.
 - Track matching and manual matching: yes, using InnerTubeX search.
 - Personalized home recommendations: generated from imported listening data.
 - Live Spotify playlist/Liked Songs sync, refresh and disconnect: only after OAuth.

@@ -150,10 +150,12 @@ class MusicRoutes(
         }
 
         router.post("/v1/spotify/connect") { request ->
+            spotify.requireConfigured()
             val user = requireUser(request)
             HttpResponse.json(mapOf("url" to spotify.authorizationUrl(user.id)), cacheControl = "no-store")
         }
         router.get("/v1/spotify/callback") { request ->
+            spotify.requireConfigured()
             HttpResponse.redirect(
                 spotify.handleCallback(
                     code = request.query("code"),

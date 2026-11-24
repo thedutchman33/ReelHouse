@@ -33,7 +33,7 @@ class SpotifyService(
         get() = config.spotifyConfigured && supabase.enabled
 
     fun authorizationUrl(userId: String): String {
-        ensureEnabled()
+        requireConfigured()
         val key = config.tokenEncryptionKey!!
         val state = TokenCrypto.state(userId, key)
         return "https://accounts.spotify.com/authorize?" + form(
@@ -130,7 +130,7 @@ class SpotifyService(
     }
 
     suspend fun syncPlaylists(userId: String): List<SpotifyPlaylistSummaryDto> {
-        ensureEnabled()
+        requireConfigured()
         var offset = 0
         var pages = 0
         val seen = LinkedHashSet<String>()
@@ -299,7 +299,7 @@ class SpotifyService(
         refresh: Boolean,
         matcher: SpotifyMatchingService,
     ): SpotifySavedPageDto {
-        if (refresh) ensureEnabled()
+        if (refresh) requireConfigured()
         if (refresh) {
             var pageOffset = 0
             var pages = 0
@@ -561,7 +561,7 @@ class SpotifyService(
     }
 
     private suspend fun exchangeCode(code: String): TokenSet {
-        ensureEnabled()
+        requireConfigured()
         val basic = Base64.getEncoder().encodeToString(
             "${config.spotifyClientId}:${config.spotifyClientSecret}".toByteArray(StandardCharsets.UTF_8),
         )
@@ -581,7 +581,7 @@ class SpotifyService(
     }
 
     private suspend fun refreshToken(refreshToken: String): TokenSet {
-        ensureEnabled()
+        requireConfigured()
         val basic = Base64.getEncoder().encodeToString(
             "${config.spotifyClientId}:${config.spotifyClientSecret}".toByteArray(StandardCharsets.UTF_8),
         )
@@ -793,12 +793,23 @@ class SpotifyService(
         return rows.size
     }
 
-    private fun ensureEnabled() {
-        if (!enabled) {
+    /**
+     * OAuth and token refresh need both Spotify credentials and Supabase storage.
+     * Import, matching and previously stored data do not call this guard.
+     */
+    fun requireConfigured() {
+        if (!config.spotifyConfigured) {
             throw ApiException(
                 503,
                 "spotify_not_configured",
-                "Spotify is not configured on the music backend",
+                "Spotify integration is not configured on this backend",
+            )
+        }
+        if (!supabase.enabled) {
+            throw ApiException(
+                503,
+                "supabase_not_configured",
+                "Supabase is required for Spotify OAuth on this backend",
             )
         }
     }

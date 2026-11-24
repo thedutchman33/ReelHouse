@@ -24,14 +24,19 @@ set -a; . ./.env; set +a
 ./gradlew run
 ```
 
+Spotify OAuth is optional. The service starts without Spotify credentials, and
+catalog, lyrics, MusicBrainz, Supabase and ZIP-import routes remain available.
+Only OAuth connect/callback and live Spotify synchronization require credentials;
+they return HTTP 503 `spotify_not_configured` when the credentials are absent.
+
 Live network probes are opt-in:
 
 ```bash
 MUSIC_LIVE_TESTS=true ./gradlew test --console=plain
 ```
 
-Unit tests cover token encryption, OAuth state signing and text matching without
-external services.
+Unit tests cover token encryption, OAuth state signing, text matching, optional
+Spotify configuration and ZIP preview parsing without external services.
 
 ## Docker
 
