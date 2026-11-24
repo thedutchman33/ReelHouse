@@ -52,6 +52,7 @@ export default function PosterImage({
   className = "",
   priority = false,
   sizes,
+  onError,
 }: {
   src?: string;
   title: string;
@@ -65,6 +66,13 @@ export default function PosterImage({
    * artwork is bigger (hero art) or smaller (thumbnails).
    */
   sizes?: string;
+  /**
+   * Called after this image and its responsive TMDB fallback both fail. The
+   * component still shows its branded placeholder; callers that have another
+   * real image to try (e.g. the detail hero's YouTube still) can use this to
+   * advance their own source list.
+   */
+  onError?: () => void;
 }) {
   // Two failure steps, not one: a candidate from the responsive set can be
   // absent from TMDB, in which case dropping back to the plain `src` (always a
@@ -89,8 +97,12 @@ export default function PosterImage({
       alt={title}
       onError={() => {
         if (!src) return;
-        if (canResize && plainSrc !== src) setPlainSrc(src);
-        else setFailedSrc(src);
+        if (canResize && plainSrc !== src) {
+          setPlainSrc(src);
+          return;
+        }
+        setFailedSrc(src);
+        onError?.();
       }}
       loading={priority ? "eager" : "lazy"}
       decoding="async"

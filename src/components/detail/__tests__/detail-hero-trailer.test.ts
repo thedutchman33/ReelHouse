@@ -14,12 +14,18 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@/components/media/PosterImage", async () => {
   const { createElement: h } = await import("react");
   return {
-    default: (props: { variant?: string; title: string; src?: string }) =>
+    default: (props: {
+      variant?: string;
+      title: string;
+      src?: string;
+      onError?: () => void;
+    }) =>
       h("img", {
         "data-testid":
           props.variant === "backdrop" ? "hero-backdrop" : "hero-poster",
         alt: props.title,
         src: props.src ?? "",
+        onError: props.onError,
       }),
   };
 });
@@ -103,7 +109,7 @@ describe("DetailHero trailer", () => {
     expect(document.activeElement).toBe(play);
   });
 
-  it("uses Moctale's banner as the hero artwork when supplied", () => {
+  it("prefers the TMDB backdrop over a Moctale banner", () => {
     act(() => {
       root.render(
         createElement(DetailHero, {
@@ -117,11 +123,48 @@ describe("DetailHero trailer", () => {
       container
         .querySelector('[data-testid="hero-backdrop"]')
         ?.getAttribute("src")
-    ).toBe(
-      `/api/moctale-image?src=${encodeURIComponent(
-        "https://media.moctale.in/images/hero.jpg"
-      )}`
-    );
+    ).toBe(MEDIA.backdropUrl);
+  });
+
+  it("uses the trailer's YouTube still when there is no TMDB backdrop", () => {
+    act(() => {
+      root.render(
+        createElement(DetailHero, {
+          media: { ...MEDIA, backdropUrl: undefined },
+          bannerUrl: "https://media.moctale.in/images/hero.jpg",
+        })
+      );
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="hero-backdrop"]')
+        ?.getAttribute("src")
+    ).toBe("https://i.ytimg.com/vi/Way9Dexny3w/maxresdefault.jpg");
+  });
+
+  it("advances to the YouTube still if the TMDB backdrop fails", () => {
+    act(() => {
+      root.render(
+        createElement(DetailHero, {
+          media: MEDIA,
+          bannerUrl: "https://media.moctale.in/images/hero.jpg",
+        })
+      );
+    });
+
+    const backdrop = container.querySelector(
+      '[data-testid="hero-backdrop"]'
+    )!;
+    act(() => {
+      backdrop.dispatchEvent(new Event("error", { bubbles: true }));
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="hero-backdrop"]')
+        ?.getAttribute("src")
+    ).toBe("https://i.ytimg.com/vi/Way9Dexny3w/maxresdefault.jpg");
   });
 
   it("has no play control when the title has no trailer", () => {

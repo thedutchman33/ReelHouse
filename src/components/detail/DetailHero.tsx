@@ -42,16 +42,12 @@ export default function DetailHero({
     resolvedTmdbId: media.resolvedTmdbId,
   };
 
-  // Moctale puts the trailer in the hero: the clean cinematic backdrop stays
-  // (YouTube thumbnails bake in title cards and letters), and the play circle
-  // centered over it opens the official trailer player.
-  //
-  // Moctale's CDN marks the banner `Cross-Origin-Resource-Policy: same-origin`,
-  // so the browser refuses to render it on this origin. Go through the app's
-  // same-origin image route; TMDB backdrops keep loading directly.
-  const heroSrc = bannerUrl
-    ? `/api/moctale-image?src=${encodeURIComponent(bannerUrl)}`
-    : media.backdropUrl;
+  // The trailer play circle sits over a real still, never an empty generated
+  // placeholder. TMDB's backdrop is the dependable hero image. If it is absent
+  // or fails, use the trailer's own YouTube stills, then Moctale's banner as a
+  // final real-image fallback. Moctale's CDN marks its banner
+  // `Cross-Origin-Resource-Policy: same-origin` and frequently rejects the
+  // proxy, so it cannot be the first source anymore.
   const [trailerOpen, setTrailerOpen] = useState(false);
   const trailerTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -67,6 +63,24 @@ export default function DetailHero({
           ]
         : [];
   const trailer = trailerOptions[0];
+
+  const heroSources = [
+    media.backdropUrl,
+    trailer
+      ? `https://i.ytimg.com/vi/${trailer.key}/maxresdefault.jpg`
+      : undefined,
+    trailer ? `https://i.ytimg.com/vi/${trailer.key}/hqdefault.jpg` : undefined,
+    bannerUrl
+      ? `/api/moctale-image?src=${encodeURIComponent(bannerUrl)}`
+      : undefined,
+  ].filter((src): src is string => Boolean(src));
+  const [heroSourceIndex, setHeroSourceIndex] = useState(0);
+  const heroSrc = heroSources[heroSourceIndex];
+
+  // A different title starts again from its best image.
+  useEffect(() => {
+    setHeroSourceIndex(0);
+  }, [media.id, bannerUrl, trailer?.key]);
 
   const rating = formatRating(media.rating);
   const year = yearOf(media.releaseDate);
@@ -104,6 +118,7 @@ export default function DetailHero({
           sizes="100vw"
           // Biased above centre so a wide crop keeps the subject in frame.
           className="h-full w-full object-cover object-[50%_28%]"
+          onError={() => setHeroSourceIndex((index) => index + 1)}
         />
         {/* Same scrim stack as the homepage hero: vertical fade into the page
             plus a left-side wash under the copy. */}
