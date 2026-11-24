@@ -1,8 +1,9 @@
 import Hero from "@/components/hero/Hero";
 import MediaRow from "@/components/media/MediaRow";
 import ContinueWatching from "@/components/media/ContinueWatching";
+import MyShowsRail from "@/components/media/MyShowsRail";
 import MyFeedRow from "@/components/media/MyFeedRow";
-import ProvidersRow from "@/components/providers/ProvidersRow";
+import OttRow from "@/components/ott/OttRow";
 import MoreOnReelhouse from "@/components/home/MoreOnReelhouse";
 import SafetyNotice from "@/components/common/SafetyNotice";
 import { getHeroItems, getHomeRows, getWatchProviders, isLiveMetadata } from "@/lib/tmdb";
@@ -32,7 +33,7 @@ const ROW_EYEBROWS: Record<string, string> = {
 
 export default async function HomePage() {
   // Wide net so every wordmark-backed family makes the rail (the rail dedupes
-  // variants itself); ordering is applied inside ProvidersRow.
+  // variants itself); ordering is applied inside OttRow.
   const [hero, rows, providers] = await Promise.all([
     getHeroItems(),
     getHomeRows(),
@@ -58,7 +59,9 @@ export default async function HomePage() {
       <div className="red-accent relative z-10 mt-7 pb-10 sm:mt-8">
         <ContinueWatching />
 
-        <ProvidersRow providers={providers} />
+        <MyShowsRail />
+
+        <OttRow providers={providers} />
 
         <SafetyNotice />
 

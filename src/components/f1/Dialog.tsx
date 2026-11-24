@@ -84,7 +84,7 @@ export default function F1Dialog({
 
   const dialog = (
     <div
-      className={`${modalF1Font.variable} fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:px-6 sm:pb-6 sm:pt-24`}
+      className={`${modalF1Font.variable} rh-overlay fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:px-6 sm:pb-6 sm:pt-24`}
       style={{ fontFamily: "var(--font-f1), var(--font-inter), ui-sans-serif, system-ui, sans-serif" }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -95,7 +95,7 @@ export default function F1Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy || fallbackId}
-        className={`f1-card max-h-[88vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl ${
+        className={`f1-card rh-modal max-h-[88vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl pb-[env(safe-area-inset-bottom)] sm:max-h-[calc(100vh_-_8rem)] sm:rounded-2xl sm:pb-0 ${
           size === "sm" ? "sm:max-w-md" : size === "md" ? "sm:max-w-xl" : "sm:max-w-3xl"
         }`}
       >

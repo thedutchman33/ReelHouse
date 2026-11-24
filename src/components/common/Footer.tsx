@@ -38,7 +38,7 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="red-accent relative z-10 bg-bg px-4 pb-10 pt-6 sm:px-6">
+    <footer className="red-accent relative z-10 bg-bg px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-6">
       <div className="rounded-[26px] border border-white/[0.07] bg-[#0b0c0d] px-6 py-9 text-center shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:py-10">
         <div className="flex flex-col items-center">
           <Logo className="[&_img]:h-8 sm:[&_img]:h-9" />

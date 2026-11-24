@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DetailContent from "@/components/detail/DetailContent";
+import { getMoctaleSnapshot } from "@/lib/moctale-server";
 import { getMediaDetail, getPopularDetailIds } from "@/lib/tmdb";
 
 // ISR: TMDB data moves on TMDB's clock — revalidate in the background,
@@ -39,10 +40,11 @@ export default async function TvPage({ params }: { params: Promise<{ id: string 
 
   const media = await getMediaDetail("tv", tmdbId);
   if (!media) notFound();
+  const moctale = await getMoctaleSnapshot(media);
 
   return (
     <div className="red-accent">
-      <DetailContent media={media} />
+      <DetailContent media={media} moctale={moctale} />
     </div>
   );
 }

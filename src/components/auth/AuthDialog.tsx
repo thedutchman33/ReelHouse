@@ -251,13 +251,13 @@ export default function AuthDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-dialog-title"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgb(0_0_0/0.88)] p-4"
+      className="rh-overlay fixed inset-0 z-[100] flex items-center justify-center bg-[rgb(0_0_0/0.88)] p-3 sm:p-4"
       onClick={onClose}
     >
       <div
         ref={panelRef}
         onClick={(event) => event.stopPropagation()}
-        className="red-accent nm-glass max-h-[calc(100svh-2rem)] w-full max-w-sm overflow-y-auto rounded-[16px] p-6 text-zinc-100 shadow-2xl"
+        className="red-accent nm-glass rh-modal max-h-[calc(100svh_-_2rem)] w-full max-w-sm overflow-y-auto rounded-[16px] p-5 text-zinc-100 shadow-2xl sm:p-6"
       >
         <div className="mb-3 flex items-start justify-between">
           <div>

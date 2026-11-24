@@ -9,6 +9,7 @@ import BootSplash from "@/components/common/BootSplash";
 import LibrarySync from "@/components/auth/LibrarySync";
 import AuthProvider from "@/components/auth/AuthProvider";
 import ResourceHints from "@/components/common/ResourceHints";
+import ToastHost from "@/components/common/ToastHost";
 
 // Reference design system: Inter for UI text, Bebas Neue (single weight,
 // condensed caps) for hero titles and section headings.
@@ -83,6 +84,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // `cover` lets the page paint under the notch/home indicator so
+  // env(safe-area-inset-*) reports real values; the fixed navbar and footer
+  // pad themselves by the same insets (see globals.css --rh-nav-h).
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#111212",
   colorScheme: "dark",
 };
@@ -106,6 +113,7 @@ export default async function RootLayout({
           <ResourceHints />
           <LibrarySync />
           <Navbar />
+          <ToastHost />
           {/* The navbar is a fixed floating bar; content clears it via --rh-nav-h
               (see globals.css). Pages that must slide beneath it (home hero,
               watch page) cancel this offset with a matching negative margin. */}

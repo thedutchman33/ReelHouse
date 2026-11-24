@@ -177,7 +177,7 @@ export default function SearchOverlay({
 
   return (
     <div
-      className="red-accent fixed inset-0 z-[60] animate-fade-in overflow-y-auto bg-black/50"
+      className="red-accent rh-overlay fixed inset-0 z-[60] overflow-y-auto bg-black/50"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -186,7 +186,7 @@ export default function SearchOverlay({
         role="dialog"
         aria-modal="true"
         aria-label="Search movies and series"
-        className="mx-auto mt-[8vh] w-[calc(100%-2rem)] max-w-2xl"
+        className="rh-modal mx-auto mt-[calc(8vh_+_env(safe-area-inset-top))] w-[calc(100%_-_2rem)] max-w-2xl"
       >
         {/* Input panel */}
         <form onSubmit={submit} role="search">
@@ -211,7 +211,7 @@ export default function SearchOverlay({
                 type="button"
                 onClick={onClose}
                 aria-label="Close search"
-                className="shrink-0 rounded-md p-1.5 text-muted transition hover:bg-white/5 hover:text-text"
+                className="shrink-0 rounded-md p-2 text-muted transition hover:bg-white/5 hover:text-text"
               >
                 <CloseIcon size={20} />
               </button>

@@ -30,7 +30,7 @@ import {
   useContinueWatching,
   useWatchlist,
 } from "@/lib/library";
-import { usePopover } from "@/lib/use-popover";
+import { rovingKeyDown, usePopover } from "@/lib/use-popover";
 import AccountPanel from "./AccountPanel";
 
 const GREEN_BUTTON =
@@ -181,7 +181,7 @@ function ChoiceMenu({
       </button>
 
       {open && (
-        <div className="nm-glass absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl shadow-2xl">
+        <div className="nm-glass rh-pop absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl shadow-2xl">
           {searchable && (
             <div className="border-b border-white/[0.08] p-2">
               <div className="relative">
@@ -200,7 +200,21 @@ function ChoiceMenu({
               </div>
             </div>
           )}
-          <ul role="listbox" aria-label={label} className="no-scrollbar max-h-72 overflow-y-auto p-1">
+          <ul
+            role="listbox"
+            aria-label={label}
+            onKeyDown={(event) =>
+              rovingKeyDown(
+                event,
+                Array.from(
+                  event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    'button[role="option"]'
+                  )
+                )
+              )
+            }
+            className="no-scrollbar rh-stagger max-h-72 overflow-y-auto p-1"
+          >
             {filtered.map((option) => {
               const active = option.value === value;
               return (
@@ -321,7 +335,7 @@ export default function SettingsView() {
       </h1>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[260px_1fr] lg:gap-8">
-        <aside className="flex min-w-0 flex-col lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start">
+        <aside className="flex min-w-0 flex-col lg:sticky lg:top-24 lg:max-h-[calc(100vh_-_7rem)] lg:self-start">
           <p className="mb-2 hidden px-3 text-[10px] uppercase tracking-[0.18em] text-muted/70 lg:block">
             Settings
           </p>

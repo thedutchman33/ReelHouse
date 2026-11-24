@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import MediaGrid from "@/components/media/MediaGrid";
-import ProviderCatalogSearch from "@/components/browse/ProviderCatalogSearch";
+import OttCatalogSearch from "@/components/browse/OttCatalogSearch";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
 import { dedupeByFamily, familyFor, sortProviders } from "@/lib/provider-logos";
 import { getProviderName, getProviderTitles, getWatchProviders, providerRegion } from "@/lib/tmdb";
@@ -24,13 +24,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const provider = await getProviderName(Number(id));
-  return { title: provider ? `${provider.name} Providers` : "Providers" };
+  return { title: provider ? `${provider.name} OTT` : "OTT" };
 }
 
 // Provider-filtered catalog: real TMDB discover results restricted to one
 // watch provider (US region). This is TMDB's own availability data — ReelHouse
 // does not claim a title streams anywhere TMDB doesn't list it.
-export default async function ProviderCatalogPage({
+export default async function OttCatalogPage({
   params,
   searchParams,
 }: {
@@ -58,27 +58,27 @@ export default async function ProviderCatalogPage({
   ]);
   if (!provider) notFound();
 
-  // Variant deep links (old /providers/1825 "HBO Max Amazon Channel") resolve
+  // Variant deep links (old /ott/1825 "HBO Max Amazon Channel") resolve
   // to their brand's flagship page, so a reseller catalog is never presented
   // as the brand itself.
   const family = familyFor(provider.name);
   if (family) {
     const familyMembers = allProviders.filter((p) => familyFor(p.name) === family);
     const flagship = sortProviders(dedupeByFamily(familyMembers))[0];
-    if (flagship && flagship.id !== providerId) redirect(`/providers/${flagship.id}`);
+    if (flagship && flagship.id !== providerId) redirect(`/ott/${flagship.id}`);
   }
 
   const hasNext = items.length >= 20;
   const pageHref = (p: number) =>
-    q ? `/providers/${providerId}?page=${p}&q=${encodeURIComponent(q)}` : `/providers/${providerId}?page=${p}`;
+    q ? `/ott/${providerId}?page=${p}&q=${encodeURIComponent(q)}` : `/ott/${providerId}?page=${p}`;
 
   return (
     <div className="container-rh py-8">
       {provider ? (
         <>
           <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted">
-            <Link href="/providers" className="transition hover:text-text">
-              Providers
+            <Link href="/ott" className="transition hover:text-text">
+              OTT
             </Link>
             <span className="mx-1.5">/</span>
             <span className="text-text/80">{provider.name}</span>
@@ -101,7 +101,7 @@ export default async function ProviderCatalogPage({
             </div>
           </div>
 
-          <ProviderCatalogSearch providerId={providerId} initialQuery={q} />
+          <OttCatalogSearch providerId={providerId} initialQuery={q} />
 
           <div className="mt-6">
             {q && items.length > 0 && (
@@ -113,7 +113,7 @@ export default async function ProviderCatalogPage({
               <p className="rounded-xl border border-dashed border-white/15 bg-surface/40 px-6 py-14 text-center text-sm text-muted">
                 {q
                   ? `Nothing in ${provider.name}'s catalog matches “${q}”.`
-                  : "No titles returned for this provider right now."}
+                  : "No titles returned for this OTT platform right now."}
               </p>
             ) : (
               <MediaGrid items={items} />
@@ -150,9 +150,9 @@ export default async function ProviderCatalogPage({
         </>
       ) : (
         <div className="rounded-xl border border-dashed border-white/15 bg-surface/40 px-6 py-16 text-center">
-          <p className="text-lg font-semibold text-text">Provider not found</p>
-          <Link href="/providers" className="btn-ghost mt-6">
-            All providers
+          <p className="text-lg font-semibold text-text">OTT platform not found</p>
+          <Link href="/ott" className="btn-ghost mt-6">
+            All OTT platforms
           </Link>
         </div>
       )}

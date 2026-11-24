@@ -197,7 +197,7 @@ export default function SessionTabs({
         <div
           role="status"
           aria-live="polite"
-          className="f1-in fixed bottom-4 right-4 z-50 flex w-max max-w-[calc(100vw-2rem)] items-center gap-4 overflow-hidden rounded-lg border border-white/10 bg-[#15151e] pl-4 pr-3 py-3 text-sm text-white shadow-[0_10px_30px_rgba(0,0,0,0.55)]"
+          className="rh-pop rh-pop-right fixed bottom-4 right-4 z-50 flex w-max max-w-[calc(100vw_-_2rem)] items-center gap-4 overflow-hidden rounded-lg border border-white/10 bg-[#15151e] pl-4 pr-3 py-3 text-sm text-white shadow-[0_10px_30px_rgba(0,0,0,0.55)]"
         >
           <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-[#e10600]" />
           <span className="font-medium">Lap added</span>

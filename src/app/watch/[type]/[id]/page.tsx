@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import PlaybackContainer from "@/components/playback/PlaybackContainer";
+import { getMoctaleSnapshot } from "@/lib/moctale-server";
 import { getMediaDetail } from "@/lib/tmdb";
 import { getPlaybackPlan } from "@/lib/providers";
 import type { MediaSummary, MediaType } from "@/types";
@@ -42,6 +43,7 @@ export default async function WatchPage({
 
   const media = await getMediaDetail(type, tmdbId);
   if (!media) notFound();
+  const moctale = await getMoctaleSnapshot(media);
 
   const summary: MediaSummary = {
     id: media.id,
@@ -54,6 +56,7 @@ export default async function WatchPage({
     releaseDate: media.releaseDate,
     genres: media.genres,
     overview: media.overview,
+    resolvedTmdbId: media.resolvedTmdbId,
   };
 
   const seasons = type !== "movie" ? media.seasons ?? [] : [];
@@ -104,7 +107,8 @@ export default async function WatchPage({
       initialSeasonNumber={seasonNum}
       initialEpisodeNumber={epNum}
       initialSeconds={initialSeconds}
-        backHref={`/${type}/${tmdbId}`}
+      moctale={moctale}
+      backHref={`/${type}/${tmdbId}`}
       />
     </div>
   );

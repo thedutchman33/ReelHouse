@@ -72,7 +72,7 @@ function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () => void 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-[rgb(0_0_0/0.88)] p-4"
+      className="rh-overlay fixed inset-0 z-[130] flex items-center justify-center bg-[rgb(0_0_0/0.88)] p-4"
       onClick={onClose}
     >
       <div
@@ -81,7 +81,7 @@ function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () => void 
         aria-modal="true"
         aria-labelledby="feedback-dialog-title"
         aria-describedby="feedback-dialog-description"
-        className="nm-glass max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl p-6 text-zinc-100 shadow-2xl"
+        className="nm-glass rh-modal max-h-[calc(100svh_-_2rem)] w-full max-w-lg overflow-y-auto rounded-2xl p-6 text-zinc-100 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

@@ -786,7 +786,7 @@ export default function ResultsCentre({ schedule, picks, onPicksChange, presetSe
       aria-busy={resultsLoading}
       className="f1-card rounded-2xl p-4 md:p-6"
     >
-      <div className={`space-y-2 ${viewMode === "tabbed" ? "min-h-[calc(100vh-11rem)]" : ""}`}>
+      <div className={`space-y-2 ${viewMode === "tabbed" ? "min-h-[calc(100vh_-_11rem)]" : ""}`}>
         <div className="flex w-full flex-col gap-4 md:flex-row">
           {leftRail}
           {rightCol}

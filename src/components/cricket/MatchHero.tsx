@@ -1,6 +1,7 @@
 "use client";
 
 import type { CricketMatch } from "@/lib/cricket/types";
+import { todayKey } from "@/lib/calendar";
 import {
   formatDateRange,
   formatTime,
@@ -71,6 +72,27 @@ export default function MatchHero({
   const hasScore = Boolean(india.score || opponent.score);
   const showCity = Boolean(match.city) && !match.venue.toLowerCase().includes(match.city!.toLowerCase());
   const dimensions = venueDimensions(match.venue, match.city);
+  const scheduledEnd = match.endDate ? Date.parse(`${match.endDate}T23:59:59`) : NaN;
+  const alertEnd = watchEndISO
+    ? Date.parse(watchEndISO)
+    : Number.isFinite(scheduledEnd)
+      ? scheduledEnd
+      : Date.parse(match.date) + 4 * 3600_000;
+  const liveAlert = {
+    key: `cricket:${match.gid}:live:${todayKey()}`,
+    title: `Live now: ${opponent.shortName} vs ${india.shortName}`,
+    body: [
+      match.title,
+      match.series,
+      `${match.format} · ${match.venue}`,
+      match.result,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    sport: "cricket" as const,
+    href: "/watch/cricket",
+    expiresAt: Number.isFinite(alertEnd) ? alertEnd : Date.now() + 4 * 3600_000,
+  };
 
   return (
     <section id="ck-hero" className="f1-card relative overflow-hidden rounded-2xl p-5 md:p-8">
@@ -107,7 +129,7 @@ export default function MatchHero({
           {/* Same two-line title lockup as the F1 hero: country/venue name in
               white, the defining line in the page accent. */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-            <h2 className="min-w-0 flex-1 font-f1 text-4xl font-bold uppercase leading-[0.95] tracking-tight text-white sm:text-6xl">
+            <h2 className="min-w-0 flex-1 font-f1 text-[clamp(1.75rem,8vw,3.75rem)] font-bold uppercase leading-[0.95] tracking-tight text-white">
               <span className="block truncate">{opponent.shortName}</span>
               <span className="block text-[#8fb4ec]">vs {india.shortName}</span>
             </h2>
@@ -120,6 +142,7 @@ export default function MatchHero({
                 isLive={live && !dayBreak}
                 dayBreak={dayBreak}
                 watchHref="/watch/cricket"
+                liveAlert={liveAlert}
               />
             </div>
           </div>

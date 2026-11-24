@@ -123,7 +123,7 @@ export default function EpisodeDrawer({
             {seasonMenu && (
               <ul
                 role="listbox"
-                className="absolute left-0 top-full z-10 mt-1 max-h-64 w-44 overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-2xl no-scrollbar"
+                className="rh-pop rh-pop-left rh-stagger absolute left-0 top-full z-10 mt-1 max-h-64 w-44 overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-2xl no-scrollbar"
               >
                 {seasons.map((s) => (
                   <li key={s.seasonNumber}>

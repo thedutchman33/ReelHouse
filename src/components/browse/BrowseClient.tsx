@@ -2,14 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import FilterBar from "@/components/browse/FilterBar";
+import FilterBar, { DiscoveryToggles } from "@/components/browse/FilterBar";
 import IndustryToggle from "@/components/browse/IndustryToggle";
 import MediaGrid from "@/components/media/MediaGrid";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from "@/components/player/icons";
 import {
+  AGE_RATING_OPTIONS,
   BROWSE_PAGES_PER_VIEW,
   browseHref,
+  countActiveFilters,
+  DEFAULT_INDUSTRY,
+  DEFAULT_SORT,
+  DURATION_OPTIONS,
+  LANGUAGE_OPTIONS,
   parseBrowseFilters,
+  searchParamsToRecord,
+  SORT_OPTIONS,
   type BrowseFilters,
   type BrowseType,
 } from "@/lib/browse";
@@ -33,11 +41,84 @@ import type { MediaSummary } from "@/types";
 
 type Paged = { items: MediaSummary[]; page: number; totalPages: number };
 
-// Browse geometry: 2 poster columns on phones, up to 8 on a wide display.
+// Browse geometry: 2 poster columns on phones, up to 6 on a wide display.
 const CARD_GRID_CLASS =
-  "grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8";
+  "grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6";
 
 const EMPTY_PAGE: Paged = { items: [], page: 1, totalPages: 0 };
+
+type FilterChip = { key: string; label: string; clear: Partial<BrowseFilters> };
+
+/**
+ * One removable chip per narrowing control — the discovery pills, the panel's
+ * filters, and the non-default sort/industry. Keeping sort and industry here
+ * means the row always matches the panel's active count (percentages etc. are
+ * resolved to the same labels the controls show).
+ */
+function activeFilterChips(
+  filters: BrowseFilters,
+  providers: WatchProvider[]
+): FilterChip[] {
+  const chips: FilterChip[] = [];
+
+  if (filters.select)
+    chips.push({ key: "select", label: "Reelhouse Select", clear: { select: false } });
+  if (filters.family)
+    chips.push({ key: "family", label: "Family Friendly", clear: { family: false } });
+  if (filters.award)
+    chips.push({ key: "award", label: "Award Winner", clear: { award: false } });
+  for (const genre of filters.genres) {
+    chips.push({
+      key: `genre:${genre}`,
+      label: genre,
+      clear: { genres: filters.genres.filter((item) => item !== genre) },
+    });
+  }
+  if (filters.year)
+    chips.push({ key: "year", label: String(filters.year), clear: { year: null } });
+  else if (filters.decade)
+    chips.push({ key: "decade", label: `${filters.decade}s`, clear: { decade: null } });
+
+  if (filters.ageRating) {
+    const label =
+      AGE_RATING_OPTIONS.find((option) => option.value === filters.ageRating)?.label ??
+      filters.ageRating;
+    chips.push({ key: "age", label: `Age: ${label}`, clear: { ageRating: null } });
+  }
+  if (filters.duration) {
+    const label =
+      DURATION_OPTIONS.find((option) => option.value === filters.duration)?.label ??
+      filters.duration;
+    chips.push({ key: "duration", label: `Runtime: ${label}`, clear: { duration: null } });
+  }
+  if (filters.language) {
+    const label =
+      LANGUAGE_OPTIONS.find((option) => option.value === filters.language)?.label ??
+      filters.language;
+    chips.push({ key: "language", label: `Language: ${label}`, clear: { language: null } });
+  }
+  if (filters.hideAnime)
+    chips.push({ key: "hide_anime", label: "Anime hidden", clear: { hideAnime: false } });
+  if (filters.provider) {
+    const name =
+      providers.find((provider) => provider.id === filters.provider)?.name ??
+      `#${filters.provider}`;
+    chips.push({ key: "provider", label: `OTT: ${name}`, clear: { provider: null } });
+  }
+  if (filters.sort !== DEFAULT_SORT) {
+    const label =
+      SORT_OPTIONS.find((option) => option.value === filters.sort)?.label ?? filters.sort;
+    chips.push({ key: "sort", label: `Sort: ${label}`, clear: { sort: DEFAULT_SORT } });
+  }
+  if (filters.industry !== DEFAULT_INDUSTRY)
+    chips.push({
+      key: "industry",
+      label: `Industry: ${filters.industry === "bollywood" ? "Bollywood" : "Hollywood"}`,
+      clear: { industry: DEFAULT_INDUSTRY },
+    });
+
+  return chips;
+}
 
 export default function BrowseClient({
   type: pinnedType,
@@ -53,16 +134,13 @@ export default function BrowseClient({
   subtitle: string;
   genres: string[];
   years: number[];
-  providers: MediaSummary["posterUrl"] extends never ? never : import("@/lib/tmdb").WatchProvider[];
+  /** Curated, priority-ordered provider set shared with the homepage rail. */
+  providers: WatchProvider[];
 }) {
   const params = useSearchParams();
-  const [filters, setFilters] = useState<BrowseFilters>(() => {
-    const fromUrl: Record<string, string> = {};
-    params.forEach((value, key) => {
-      fromUrl[key] = value;
-    });
-    return parseBrowseFilters(fromUrl, pinnedType === "all" ? undefined : pinnedType);
-  });
+  const [filters, setFilters] = useState<BrowseFilters>(() =>
+    parseBrowseFilters(searchParamsToRecord(params), pinnedType === "all" ? undefined : pinnedType)
+  );
 
   // Page-level search state. The debounced copy drives the fetch; the raw
   // value drives the input so typing never feels gated.
@@ -70,6 +148,9 @@ export default function BrowseClient({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState<Paged>(EMPTY_PAGE);
   const [loading, setLoading] = useState(true);
+  // On phones the filter panel collapses behind a button; from lg it is the
+  // sticky left column.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const reqId = useRef(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -95,6 +176,27 @@ export default function BrowseClient({
 
   const change = useCallback((patch: Partial<BrowseFilters>) => {
     setFilters((f) => ({ ...f, ...patch }));
+  }, []);
+
+  // Reset every narrowing control (the route's content type stays).
+  const resetFilters = useCallback(() => {
+    setFilters((f) => ({
+      ...f,
+      genres: [],
+      provider: null,
+      year: null,
+      decade: null,
+      ageRating: null,
+      duration: null,
+      language: null,
+      hideAnime: false,
+      select: false,
+      family: false,
+      award: false,
+      sort: DEFAULT_SORT,
+      industry: DEFAULT_INDUSTRY,
+      page: 1,
+    }));
   }, []);
 
   useEffect(() => {
@@ -134,10 +236,18 @@ export default function BrowseClient({
         .catch(fail);
     } else {
       const qs = new URLSearchParams({ type: filters.type });
-      if (filters.genre) qs.set("genre", filters.genre);
+      for (const genre of filters.genres) qs.append("genre", genre);
       if (filters.provider) qs.set("provider", String(filters.provider));
       if (filters.year) qs.set("year", String(filters.year));
-      if (filters.sort !== "popularity") qs.set("sort", filters.sort);
+      if (!filters.year && filters.decade) qs.set("decade", String(filters.decade));
+      if (filters.ageRating) qs.set("age", filters.ageRating);
+      if (filters.duration) qs.set("duration", filters.duration);
+      if (filters.language) qs.set("language", filters.language);
+      if (filters.hideAnime) qs.set("hide_anime", "1");
+      if (filters.select) qs.set("select", "1");
+      if (filters.family) qs.set("family", "1");
+      if (filters.award) qs.set("award", "1");
+      if (filters.sort !== DEFAULT_SORT) qs.set("sort", filters.sort);
       if (filters.industry !== "hollywood") qs.set("industry", filters.industry);
       if (filters.page > 1) qs.set("page", String(filters.page));
 
@@ -170,17 +280,13 @@ export default function BrowseClient({
     }
   }, [filters.page]);
 
-  const changeType = useCallback(
-    (type: BrowseType) => change({ type, sort: "popularity", page: 1 }),
-    [change]
-  );
-
   // 7reels loads eight TMDB pages per view, so Next moves the page param by 8
   // (1 -> 9 -> 17). Anime's AniList source stays one page at a time.
   const pagesPerView = filters.type === "anime" ? 1 : BROWSE_PAGES_PER_VIEW;
   const pageEnd = Math.min(page.page + pagesPerView - 1, page.totalPages);
   const hasPrev = !searching && page.page > 1;
   const hasNext = !searching && page.totalPages > page.page + pagesPerView - 1;
+  const activeChips = searching ? [] : activeFilterChips(filters, providers);
 
   return (
     <div className="browse-accent w-full px-6 py-8 md:px-16">
@@ -204,54 +310,117 @@ export default function BrowseClient({
         )}
       </header>
 
-      {/* One toolbar row: search on the left, the three dropdowns on the right,
-          all 46px tall and visually separate. "/" focuses the search. */}
-      <div className="mt-6">
-        <FilterBar
-          filters={filters}
-          onChange={change}
-          genres={genres}
-          years={years}
-          providers={providers}
-          searchSlot={
-            <div className="relative">
-              <SearchIcon
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
-              />
-              <input
-                ref={searchRef}
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setSearch("");
-                }}
-                placeholder="Search movies and series"
-                aria-label="Search this catalog"
-                className="h-[46px] w-full rounded-[14px] border border-white/10 bg-surface pl-12 pr-12 text-sm text-text outline-none transition placeholder:text-muted/70 focus:border-accent/70 focus:ring-4 focus:ring-accent/15"
-              />
-              {search ? (
+      {/* Moctale-style browse: sticky filter card on the left, search and the
+          discovery pills above the grid on the right. On phones the panel
+          collapses behind the Filters button. "/" focuses the search. */}
+      {!searching && (
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          className="mt-6 flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-[#141419] px-4 text-sm font-medium text-text transition hover:border-white/25 lg:hidden"
+        >
+          Filters
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/10 px-1.5 text-[11px] font-semibold">
+            {countActiveFilters(filters)}
+          </span>
+          <span className="ml-auto text-[11px] text-white/40">
+            {filtersOpen ? "Hide" : "Show"}
+          </span>
+        </button>
+      )}
+
+      <div
+        className={`mt-4 grid gap-6 lg:mt-6 ${
+          searching ? "" : "lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start"
+        }`}
+      >
+        {!searching && (
+          <div
+            className={`${filtersOpen ? "" : "hidden"} lg:sticky lg:top-24 lg:block`}
+          >
+            <FilterBar
+              filters={filters}
+              onChange={change}
+              genres={genres}
+              years={years}
+              providers={providers}
+            />
+          </div>
+        )}
+
+        <div className="min-w-0">
+          <div className="relative">
+            <SearchIcon
+              size={18}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+            />
+            <input
+              ref={searchRef}
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearch("");
+              }}
+              placeholder="Search movies and series"
+              aria-label="Search this catalog"
+              className="h-[46px] w-full rounded-[14px] border border-white/10 bg-surface pl-12 pr-12 text-sm text-text outline-none transition placeholder:text-muted/70 focus:border-accent/70 focus:ring-4 focus:ring-accent/15"
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-white/10 hover:text-text"
+              >
+                <CloseIcon size={15} />
+              </button>
+            ) : (
+              <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+                /
+              </kbd>
+            )}
+          </div>
+
+          {!searching && (
+            <div className="mt-4">
+              <DiscoveryToggles filters={filters} onChange={change} />
+            </div>
+          )}
+
+          {activeChips.length > 0 && (
+            <div
+              className="mt-3 flex flex-wrap items-center gap-2"
+              aria-label="Active filters"
+            >
+              {activeChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => change({ ...chip.clear, page: 1 })}
+                  aria-label={`Remove ${chip.label} filter`}
+                  className="group inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] pl-3 pr-2 text-xs font-medium text-text/85 transition hover:border-accent/50 hover:text-text"
+                >
+                  {chip.label}
+                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full text-white/40 transition group-hover:bg-white/10 group-hover:text-white">
+                    <CloseIcon size={11} />
+                  </span>
+                </button>
+              ))}
+              {activeChips.length > 1 && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
-                  aria-label="Clear search"
-                  className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-white/10 hover:text-text"
+                  onClick={resetFilters}
+                  className="ml-1 cursor-pointer text-xs font-semibold text-accent transition hover:text-accent/80"
                 >
-                  <CloseIcon size={15} />
+                  Clear all
                 </button>
-              ) : (
-                <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[11px] font-semibold text-muted">
-                  /
-                </kbd>
               )}
             </div>
-          }
-          dimmed={searching}
-        />
-      </div>
+          )}
 
-      <p className="mt-6 text-[13px] text-muted" aria-live="polite">
+          <p className="mt-5 text-[13px] text-muted" aria-live="polite">
         {searching
           ? loading && page.items.length === 0
             ? "Searching…"
@@ -288,9 +457,7 @@ export default function BrowseClient({
             ) : (
               <button
                 type="button"
-                onClick={() =>
-                  change({ genre: null, provider: null, year: null, sort: "popularity", industry: "hollywood", page: 1 })
-                }
+                onClick={resetFilters}
                 className="btn-ghost mt-6 cursor-pointer"
               >
                 Clear Filters
@@ -351,6 +518,8 @@ export default function BrowseClient({
           )}
         </nav>
       )}
+        </div>
+      </div>
     </div>
   );
 }

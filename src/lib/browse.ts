@@ -37,18 +37,101 @@ export const INDUSTRY_OPTIONS: { value: BrowseIndustry; label: string }[] = [
 
 export const DEFAULT_INDUSTRY: BrowseIndustry = "hollywood";
 
+/** Broad certification bands — mapped per media type when querying. */
+export type AgeRating = "kids" | "teen" | "mature";
+
+/** Runtime bands (movies only — TMDB's TV discover has no runtime filter). */
+export type DurationBand = "short" | "standard" | "long" | "epic";
+
 export interface BrowseFilters {
   type: BrowseType;
-  /** Genre display name (matches the names shown on cards), or null for all. */
-  genre: string | null;
-  /** Watch-provider id (TMDB), or null for all — the "Source" filter. */
+  /** Selected genre display names (matches the names shown on cards). Empty = all. */
+  genres: string[];
+  /** OTT/watch-provider id (TMDB), or null for all. */
   provider: number | null;
   /** Release/first-air year, or null for all. */
   year: number | null;
   sort: BrowseSort;
   /** Industry toggle — omitted from URLs when at the default (Hollywood). */
   industry: BrowseIndustry;
+  /** Decade start year (e.g. 2010 for the 2010s), or null for all decades. */
+  decade: number | null;
+  /** Certification band, or null for every rating. */
+  ageRating: AgeRating | null;
+  /** Runtime band, or null for any length. */
+  duration: DurationBand | null;
+  /** ISO 639-1 original-language code, or null for every language. */
+  language: string | null;
+  /** Hide animated titles from the results. */
+  hideAnime: boolean;
+  /** Reelhouse Select — the curated high-rated, well-voted shelf. */
+  select: boolean;
+  /** Family Friendly — kid-safe certifications. */
+  family: boolean;
+  /** Award Winner — award-calibre acclaim (see discoverParams). */
+  award: boolean;
   page: number;
+}
+
+export const AGE_RATING_OPTIONS: { value: AgeRating; label: string }[] = [
+  { value: "kids", label: "All ages" },
+  { value: "teen", label: "Teen" },
+  { value: "mature", label: "Mature" },
+];
+
+export const DURATION_OPTIONS: {
+  value: DurationBand;
+  label: string;
+  gte?: number;
+  lte?: number;
+}[] = [
+  { value: "short", label: "Under 90m", lte: 89 },
+  { value: "standard", label: "90 – 120m", gte: 90, lte: 120 },
+  { value: "long", label: "120 – 150m", gte: 121, lte: 150 },
+  { value: "epic", label: "150m +", gte: 151 },
+];
+
+export const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "hi", label: "Hindi" },
+  { value: "ta", label: "Tamil" },
+  { value: "te", label: "Telugu" },
+  { value: "ko", label: "Korean" },
+  { value: "ja", label: "Japanese" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+];
+
+/** Decade starts offered by the filter (newest first, like the reference). */
+export const DECADE_OPTIONS = [2020, 2010, 2000, 1990, 1980, 1970, 1960, 1950];
+
+/** Dot colours for the genre chips, matching Moctale's genre palette. */
+const GENRE_COLORS: Record<string, string> = {
+  Action: "#bd0010",
+  Adventure: "#d97706",
+  Animation: "#00CE7A",
+  Comedy: "#fcb700",
+  Crime: "#8B5CF6",
+  Documentary: "#38BDF8",
+  Drama: "#7a503e",
+  Family: "#34D399",
+  Fantasy: "#B048FF",
+  History: "#A16207",
+  Horror: "#3f3f46",
+  Kids: "#22D3EE",
+  Music: "#F472B6",
+  Mystery: "#5017ab",
+  Reality: "#2DD4BF",
+  Romance: "#fe486a",
+  "Sci-Fi": "#00b1b8",
+  Thriller: "#0041a8",
+  "War & Politics": "#64748B",
+  War: "#64748B",
+  Western: "#D97706",
+};
+
+export function genreColor(name: string): string {
+  return GENRE_COLORS[name] ?? "#8A8A93";
 }
 
 export const TYPE_OPTIONS: { value: BrowseType; label: string; href: string }[] = [
@@ -65,7 +148,7 @@ export const SORT_OPTIONS: { value: BrowseSort; label: string }[] = [
   { value: "oldest", label: "Oldest" },
 ];
 
-export const DEFAULT_SORT: BrowseSort = "popularity";
+export const DEFAULT_SORT: BrowseSort = "recent";
 
 /**
  * 7reels-style browse paging: one view loads eight TMDB pages (160 cards),
@@ -80,6 +163,39 @@ export function browsePathFor(type: BrowseType): string {
 
 function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * Keep repeated query keys instead of letting the last one win. Browse's genre
+ * filter appends one `genre` per selection (`?genre=Action&genre=Comedy`).
+ */
+export function searchParamsToRecord(searchParams: {
+  forEach(callback: (value: string, key: string) => void): void;
+}): Record<string, string | string[]> {
+  const record: Record<string, string | string[]> = {};
+  searchParams.forEach((value, key) => {
+    const existing = record[key];
+    record[key] =
+      existing === undefined
+        ? value
+        : Array.isArray(existing)
+          ? [...existing, value]
+          : [existing, value];
+  });
+  return record;
+}
+
+/** Read repeated and comma-separated genre values into one de-duplicated list. */
+function readGenres(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return Array.from(
+    new Set(
+      values
+        .flatMap((item) => item.split(","))
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
 }
 
 function isSort(value: string | undefined): value is BrowseSort {
@@ -101,7 +217,7 @@ export function parseBrowseFilters(
     forcedType ??
     (rawType === "movie" || rawType === "tv" || rawType === "all" || rawType === "anime" ? rawType : "all");
 
-  const genreRaw = firstValue(searchParams.genre)?.trim();
+  const genres = readGenres(searchParams.genre);
   const providerRaw = Number(firstValue(searchParams.provider));
   const yearRaw = Number(firstValue(searchParams.year));
   const pageRaw = Number(firstValue(searchParams.page));
@@ -111,27 +227,74 @@ export function parseBrowseFilters(
   const normalizedSort = sortRaw === "latest" ? "recent" : sortRaw;
   const industryRaw = firstValue(searchParams.industry);
 
+  const decadeRaw = Number(firstValue(searchParams.decade));
+  const yearFloor = Number.isInteger(yearRaw) && yearRaw > 1800 ? yearRaw : null;
+  const decade =
+    Number.isInteger(decadeRaw) && DECADE_OPTIONS.includes(decadeRaw)
+      ? decadeRaw
+      : null;
+
+  const ageRaw = firstValue(searchParams.age);
+  const ageRating: AgeRating | null =
+    ageRaw === "kids" || ageRaw === "teen" || ageRaw === "mature"
+      ? ageRaw
+      : null;
+
+  const durationRaw = firstValue(searchParams.duration);
+  const duration: DurationBand | null =
+    durationRaw === "short" ||
+    durationRaw === "standard" ||
+    durationRaw === "long" ||
+    durationRaw === "epic"
+      ? durationRaw
+      : null;
+
+  const languageRaw = firstValue(searchParams.language)?.trim().toLowerCase();
+  const language = LANGUAGE_OPTIONS.some((option) => option.value === languageRaw)
+    ? (languageRaw as string)
+    : null;
+
   return {
     type,
-    genre: genreRaw ? genreRaw : null,
+    genres,
     provider: Number.isInteger(providerRaw) && providerRaw > 0 ? providerRaw : null,
-    year: Number.isInteger(yearRaw) && yearRaw > 1800 ? yearRaw : null,
+    year: yearFloor,
     sort: isSort(normalizedSort) ? normalizedSort : DEFAULT_SORT,
     industry: industryRaw === "bollywood" ? "bollywood" : DEFAULT_INDUSTRY,
+    decade: yearFloor ? null : decade,
+    ageRating,
+    duration,
+    language,
+    hideAnime: firstValue(searchParams.hide_anime) === "1",
+    select: firstValue(searchParams.select) === "1",
+    family: firstValue(searchParams.family) === "1",
+    award: firstValue(searchParams.award) === "1",
     page: Number.isInteger(pageRaw) && pageRaw > 0 ? Math.min(pageRaw, 500) : 1,
   };
 }
 
 /** True when anything is narrowing the results (drives "Clear filters"). */
 export function hasActiveFilters(filters: BrowseFilters): boolean {
-  return (
-    filters.genre !== null ||
-    filters.provider !== null ||
-    filters.year !== null ||
-    filters.sort !== DEFAULT_SORT ||
-    filters.industry !== DEFAULT_INDUSTRY ||
-    filters.page > 1
-  );
+  return countActiveFilters(filters) > 0 || filters.page > 1;
+}
+
+/** How many filter controls are narrowing the grid (the panel's badge). */
+export function countActiveFilters(filters: BrowseFilters): number {
+  let count = 0;
+  count += filters.genres.length;
+  if (filters.provider) count += 1;
+  if (filters.year) count += 1;
+  if (filters.sort !== DEFAULT_SORT) count += 1;
+  if (filters.industry !== DEFAULT_INDUSTRY) count += 1;
+  if (filters.decade) count += 1;
+  if (filters.ageRating) count += 1;
+  if (filters.duration) count += 1;
+  if (filters.language) count += 1;
+  if (filters.hideAnime) count += 1;
+  if (filters.select) count += 1;
+  if (filters.family) count += 1;
+  if (filters.award) count += 1;
+  return count;
 }
 
 /**
@@ -148,9 +311,17 @@ export function browseHref(
   const path = browsePathFor(next.type);
   const params = new URLSearchParams();
 
-  if (next.genre) params.set("genre", next.genre);
+  for (const genre of next.genres) params.append("genre", genre);
   if (next.provider) params.set("provider", String(next.provider));
   if (next.year) params.set("year", String(next.year));
+  if (!next.year && next.decade) params.set("decade", String(next.decade));
+  if (next.ageRating) params.set("age", next.ageRating);
+  if (next.duration) params.set("duration", next.duration);
+  if (next.language) params.set("language", next.language);
+  if (next.hideAnime) params.set("hide_anime", "1");
+  if (next.select) params.set("select", "1");
+  if (next.family) params.set("family", "1");
+  if (next.award) params.set("award", "1");
   if (next.sort !== DEFAULT_SORT) params.set("sort", next.sort);
   if (next.industry !== DEFAULT_INDUSTRY) params.set("industry", next.industry);
   // Paging is only preserved when paging is what changed.

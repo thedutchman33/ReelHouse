@@ -3,8 +3,8 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/player/icons";
-import ProviderLogo from "@/components/providers/ProviderLogo";
-import { dedupeByFamily, sortProviders, wordmarkFor } from "@/lib/provider-logos";
+import OttLogo from "@/components/ott/OttLogo";
+import { featuredProviders } from "@/lib/provider-logos";
 import type { WatchProvider } from "@/lib/tmdb";
 
 // Provider logo carousel (reference pattern): PROVIDERS display heading + an
@@ -14,10 +14,8 @@ import type { WatchProvider } from "@/lib/tmdb";
 // Apple TV Store into Apple TV…), ordered most-popular first, wordmark-backed
 // families only — square-app-icon-only providers read as blank white squares
 // once inverted, so they stay out of the rail.
-export default function ProvidersRow({ providers: all }: { providers: WatchProvider[] }) {
-  const providers = sortProviders(
-    dedupeByFamily(all.filter((p) => wordmarkFor(p.name)))
-  );
+export default function OttRow({ providers: all }: { providers: WatchProvider[] }) {
+  const providers = featuredProviders(all);
   const scroller = useRef<HTMLDivElement>(null);
   if (!providers.length) return null;
 
@@ -28,14 +26,14 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
   };
 
   return (
-    <section aria-label="Watch providers" className="mb-10">
+    <section aria-label="OTT platforms" className="mb-10">
       <div className="container-rh flex items-end justify-between gap-4">
         <div className="flex items-baseline gap-4">
           <h2 className="font-display text-xl uppercase tracking-[0.06em] text-text md:text-2xl">
-            Providers
+            OTT PLATFORMS
           </h2>
           <Link
-            href="/providers"
+            href="/ott"
             className="text-xs font-semibold uppercase tracking-[0.2em] text-accent/90 transition hover:text-accent"
           >
             View All
@@ -45,7 +43,7 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
           <button
             type="button"
             onClick={() => nudge(-1)}
-            aria-label="Scroll providers left"
+            aria-label="Scroll OTT platforms left"
             className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-surface/70 text-muted transition hover:text-text"
           >
             <ChevronLeftIcon size={18} />
@@ -53,7 +51,7 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
           <button
             type="button"
             onClick={() => nudge(1)}
-            aria-label="Scroll providers right"
+            aria-label="Scroll OTT platforms right"
             className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-surface/70 text-muted transition hover:text-text"
           >
             <ChevronRightIcon size={18} />
@@ -70,7 +68,7 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
             <Link
               key={p.id}
               // Clicking a provider opens the catalog with that provider already
-              // selected in Browse's Source filter (?provider=<tmdb id>), instead
+              // selected in Browse's OTT filter (?provider=<tmdb id>), instead
               // of a separate provider page.
               href={`/browse?provider=${p.id}`}
               // The browse grid is fetched client-side from /api/browse, so an
@@ -81,7 +79,7 @@ export default function ProvidersRow({ providers: all }: { providers: WatchProvi
             >
               {/* Reference anatomy (REA-verified): the logo fills the tile and
                   carries its own padding, so wordmarks span the full card. */}
-              <ProviderLogo
+              <OttLogo
                 name={p.name}
                 fallbackSrc={p.logoUrl}
                 className="h-full w-full px-4 py-3 sm:px-5 sm:py-4"

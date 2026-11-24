@@ -11,6 +11,7 @@ import {
 import {
   addToCatalog,
   createCatalog,
+  setTrackingNotify,
   toggleCatalogItem,
   toggleTracked,
   toggleWatchlist,
@@ -19,6 +20,8 @@ import {
   useTracked,
   useWatchlist,
 } from "@/lib/library";
+import type { TrackingNotify } from "@/lib/tracking";
+import { toast } from "@/lib/toast";
 import type { MediaSummary } from "@/types";
 
 const PANEL_WIDTH = 260;
@@ -97,10 +100,47 @@ function TrackSeriesRow({
           Track series
         </span>
         <span className="block text-[11px] text-white/45">
-          New episodes in Calendar → Tracking
+          New episodes appear in your calendar
         </span>
       </span>
     </button>
+  );
+}
+
+const ALERT_OPTIONS: { value: TrackingNotify; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "premieres", label: "Premieres" },
+  { value: "off", label: "Off" },
+];
+
+function AlertPreference({
+  notify,
+  onChange,
+}: {
+  notify: TrackingNotify;
+  onChange: (value: TrackingNotify) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-3 pb-2">
+      <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+        Alerts
+      </span>
+      {ALERT_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={notify === option.value}
+          onClick={() => onChange(option.value)}
+          className={`rounded-md px-2 py-1 text-[10.5px] font-semibold transition ${
+            notify === option.value
+              ? "bg-accent text-accent-ink"
+              : "bg-white/[0.05] text-white/55 hover:bg-white/[0.09] hover:text-white"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -124,7 +164,9 @@ export default function AddToListDialog({
   const watchlist = useWatchlist();
   const inWatchlist = useIsInWatchlist(item.id);
   const tracked = useTracked();
-  const isTracked = tracked.some((entry) => entry.media.id === item.id);
+  const trackedEntry = tracked.find((entry) => entry.media.id === item.id);
+  const isTracked = trackedEntry !== undefined;
+  const notify = trackedEntry?.notify ?? "all";
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [position, setPosition] = useState<{ top: number; left: number } | null>(
@@ -309,7 +351,7 @@ export default function AddToListDialog({
         }}
         // Portaled to <body>, so the page's red-accent scope cannot reach it —
         // carry the scope on the panel itself.
-        className="red-accent add-to-list-sheet nm-glass fixed z-[300] flex max-h-[min(340px,72vh)] animate-fade-in flex-col overflow-hidden rounded-[12px]"
+        className="red-accent add-to-list-sheet nm-glass rh-pop fixed z-[300] flex max-h-[min(340px,72vh)] flex-col overflow-hidden rounded-[12px]"
       >
         <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-2.5">
           <div className="min-w-0">
@@ -333,13 +375,27 @@ export default function AddToListDialog({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-1.5">
-          {item.type === "tv" && (
+        <div className="rh-stagger min-h-0 flex-1 overflow-auto p-1.5">
+          {(item.type === "tv" || item.type === "anime") && (
             <div className="mb-1 border-b border-white/[0.08] pb-1">
               <TrackSeriesRow
                 tracked={isTracked}
-                onToggle={() => toggleTracked(item)}
+                onToggle={() => {
+                  const next = toggleTracked(item);
+                  toast(
+                    next
+                      ? `Following ${item.title} — new episodes will appear in your calendar.`
+                      : `Stopped following ${item.title}.`,
+                    { tone: next ? "success" : "default" }
+                  );
+                }}
               />
+              {isTracked && (
+                <AlertPreference
+                  notify={notify}
+                  onChange={(value) => setTrackingNotify(item, value)}
+                />
+              )}
             </div>
           )}
 

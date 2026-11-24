@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  BellIcon,
   CalendarDaysIcon,
   EyeIcon,
   ThumbsDownIcon,
@@ -15,11 +16,13 @@ export default function CollectionStats({
   watchedCount,
   likedCount,
   dislikedCount,
+  trackedCount,
   weekCount,
 }: {
   watchedCount: number;
   likedCount: number;
   dislikedCount: number;
+  trackedCount: number;
   weekCount: number;
 }) {
   const cards = [
@@ -51,10 +54,19 @@ export default function CollectionStats({
       suffix: undefined,
     },
     {
+      href: "/calendar?view=tracking",
+      name: "Following",
+      count: trackedCount,
+      hint: "Shows you follow",
+      icon: BellIcon,
+      accent: false,
+      suffix: undefined,
+    },
+    {
       href: "/calendar",
       name: "Calendar",
       count: weekCount,
-      hint: "New movies & shows",
+      hint: "Releases this week",
       icon: CalendarDaysIcon,
       accent: true,
       suffix: "this week",
@@ -69,7 +81,7 @@ export default function CollectionStats({
       >
         Collections
       </p>
-      <div className="grid max-w-[980px] grid-cols-2 gap-3 sm:grid-cols-4 md:gap-4">
+      <div className="grid max-w-[1120px] grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
           return (

@@ -824,7 +824,7 @@ function PalettePicker({
         <span className="block h-3 w-3 rounded" style={{ background: pick.colour ?? "#ffffff" }} aria-hidden="true" />
       </button>
       {open && (
-        <div className="f1-in absolute bottom-full left-0 z-30 mt-1 mb-1 w-64 rounded-lg border border-white/15 bg-[#101113]/95 p-2 shadow-[0_12px_32px_rgba(0,0,0,0.65)]">
+        <div className="rh-pop rh-pop-up rh-pop-left absolute bottom-full left-0 z-30 mt-1 mb-1 w-64 rounded-lg border border-white/15 bg-[#101113]/95 p-2 shadow-[0_12px_32px_rgba(0,0,0,0.65)]">
           <div className="flex flex-wrap gap-1">
             {colours.map((c, i) => (
               <button

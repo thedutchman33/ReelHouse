@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { wordmarkFor } from "@/lib/provider-logos";
 
 /**
- * Provider logo rendered the reference way (anatomy reverse-engineered from
+ * OTT platform logo rendered the reference way (anatomy reverse-engineered from
  * 7reels with REA): official brand wordmark assets shown as white marks on a
  * rounded tile. Providers without a wordmark asset fall back to their TMDB
  * logo, normalized to the same white silhouette with `brightness-0 invert`
  * (exactly what the reference does for those), and a failed load hides itself.
  */
-export default function ProviderLogo({
+export default function OttLogo({
   name,
   fallbackSrc,
   className = "",

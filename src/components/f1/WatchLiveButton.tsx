@@ -7,6 +7,7 @@ import {
   watchLivePhase,
   type WatchLivePhase as Phase,
 } from "@/components/f1/watch-live-phase";
+import { publishLiveAlert, retireLiveAlert } from "@/lib/live-alerts";
 import { startPageLoader } from "@/lib/page-loader";
 
 // The hero's broadcast control. Both faces sit in the same grid cell, so the
@@ -121,6 +122,7 @@ export default function WatchLiveButton({
   isLive = false,
   dayBreak = false,
   watchHref = "/watch/f1",
+  liveAlert = null,
 }: {
   /** Shared page clock, so every countdown ticks on the same instant. */
   now: number;
@@ -143,6 +145,16 @@ export default function WatchLiveButton({
   demoSeconds?: number;
   /** Watch page opened by the live face. Defaults to the F1 channel page. */
   watchHref?: string;
+  /** Published to the notification centre when this button unlocks. */
+  liveAlert?: {
+    key: string;
+    title: string;
+    body: string;
+    href?: string;
+    sport: "f1" | "cricket";
+    /** Defaults to the button's own watch-window end. */
+    expiresAt?: number;
+  } | null;
 }) {
   const router = useRouter();
   const [burst, setBurst] = useState(false);
@@ -200,12 +212,49 @@ export default function WatchLiveButton({
   }, [live, router, watchHref]);
 
   // Burst only when this component saw the countdown hit zero — a page opened
-  // after the unlock renders the live face straight away.
+  // after the unlock renders the live face straight away. The same transition
+  // publishes one live notification with the session/match details.
+  const liveAlertRef = useRef(liveAlert);
+  liveAlertRef.current = liveAlert;
   const previous = useRef<Phase | null>(null);
   useEffect(() => {
     const was = previous.current;
     previous.current = phase;
+    const alert = liveAlertRef.current;
+
+    // A page opened after the unlock has no locked→live transition to watch,
+    // but it should still show the live alert. The store dedupes by event key.
+    if (was === null) {
+      if (phase === "live" && alert) {
+        publishLiveAlert({
+          key: alert.key,
+          title: alert.title,
+          body: alert.body,
+          href: alert.href ?? watchHref,
+          sport: alert.sport,
+          expiresAt: alert.expiresAt ?? endMs,
+        });
+      }
+      return;
+    }
+
+    if (was === "live" && phase !== "live") {
+      if (alert) retireLiveAlert(alert.key);
+      return;
+    }
     if (was !== "locked" || phase !== "live") return;
+
+    if (alert) {
+      publishLiveAlert({
+        key: alert.key,
+        title: alert.title,
+        body: alert.body,
+        href: alert.href ?? watchHref,
+        sport: alert.sport,
+        expiresAt: alert.expiresAt ?? endMs,
+      });
+    }
+
     if (Date.now() - mountedAt.current < BURST_GRACE_MS) return;
     setBurst(true);
     const id = window.setTimeout(() => setBurst(false), 700);

@@ -245,8 +245,8 @@ export function Select({
             id={listId}
             role="listbox"
             aria-label={`${label} options`}
-            className={`absolute z-50 mt-1.5 max-h-72 w-max min-w-full max-w-[min(22rem,calc(100vw-5rem))] overflow-y-auto rounded-xl border border-[#8fb4ec]/25 bg-[#0a162b]/[0.98] p-1 shadow-[0_22px_60px_-12px_rgb(0_0_0/0.9)] backdrop-blur-md ck-scroll ${
-              align === "right" ? "right-0" : "left-0"
+            className={`rh-pop rh-stagger absolute z-50 mt-1.5 max-h-72 w-max min-w-full max-w-[min(22rem,calc(100vw_-_5rem))] overflow-y-auto rounded-xl border border-[#8fb4ec]/25 bg-[#0a162b]/[0.98] p-1 shadow-[0_22px_60px_-12px_rgb(0_0_0/0.9)] backdrop-blur-md ck-scroll ${
+              align === "right" ? "rh-pop-right right-0" : "rh-pop-left left-0"
             }`}
           >
             {options.length === 0 ? (
@@ -458,7 +458,7 @@ export function Modal({
 
   const dialog = (
     <div
-      className={`ck-modal-root ${modalCricketFont.variable} fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:px-6 sm:pb-6 sm:pt-24`}
+      className={`ck-modal-root ${modalCricketFont.variable} rh-overlay fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:px-6 sm:pb-6 sm:pt-24`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -468,7 +468,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy || fallbackId}
-        className={`f1-card max-h-[88vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl ${
+        className={`f1-card rh-modal max-h-[88vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl pb-[env(safe-area-inset-bottom)] sm:max-h-[calc(100vh_-_8rem)] sm:rounded-2xl sm:pb-0 ${
           size === "sm" ? "sm:max-w-md" : size === "md" ? "sm:max-w-xl" : "sm:max-w-2xl"
         }`}
       >

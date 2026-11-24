@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseBrowseFilters } from "@/lib/browse";
+import { parseBrowseFilters, searchParamsToRecord } from "@/lib/browse";
 import { getBrowseResults } from "@/lib/tmdb";
 
 // Browse results API — powers the static Movies / TV Shows / Browse shells.
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const filters = parseBrowseFilters(Object.fromEntries(searchParams.entries()));
+  const filters = parseBrowseFilters(searchParamsToRecord(searchParams));
 
   try {
     const page = await getBrowseResults(filters);

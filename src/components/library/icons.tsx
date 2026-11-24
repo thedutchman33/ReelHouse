@@ -105,6 +105,14 @@ export const ClapperboardIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const SparklesIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m12 3 1.7 4.8L18.5 9.5l-4.8 1.7L12 16l-1.7-4.8L5.5 9.5l4.8-1.7z" />
+    <path d="m19 14 .8 2.2 2.2.8-2.2.8L19 20l-.8-2.2-2.2-.8 2.2-.8z" />
+    <path d="m5 15 .7 1.9 1.9.7-1.9.7L5 20.2l-.7-1.9-1.9-.7 1.9-.7z" />
+  </Svg>
+);
+
 export const XIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M18 6 6 18M6 6l12 12" />
@@ -128,6 +136,45 @@ export const MoreVerticalIcon = (p: IconProps) => (
 export const BookmarkIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+  </Svg>
+);
+
+export const HomeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m3 11 9-8 9 8" />
+    <path d="M5 10v10h14V10" />
+    <path d="M9 20v-6h6v6" />
+  </Svg>
+);
+
+export const FilmIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" />
+  </Svg>
+);
+
+export const TvIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="13" rx="2" />
+    <path d="M8 21h8M12 18v3" />
+    <path d="m10 8 4 2.5-4 2.5z" />
+  </Svg>
+);
+
+export const ToriiIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 5c4 1 14 1 18 0" />
+    <path d="M5 5v15M19 5v15" />
+    <path d="M4 9h16" />
+    <path d="M8 9v5M16 9v5" />
+  </Svg>
+);
+
+export const GamepadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 8h10a5 5 0 0 1 4.7 6.7l-.5 1.4a3 3 0 0 1-5.2 1l-1.4-1.8H9.4L8 17.1a3 3 0 0 1-5.2-1l-.5-1.4A5 5 0 0 1 7 8Z" />
+    <path d="M7 11v4M5 13h4M16 12h.01M18 14h.01" />
   </Svg>
 );
 

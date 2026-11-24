@@ -19,6 +19,14 @@ export interface CastMember {
   profileUrl?: string;
 }
 
+/** One playable YouTube trailer/teaser shown under the detail hero player. */
+export interface TrailerVideo {
+  /** YouTube video key. */
+  key: string;
+  /** Display caption, e.g. "Final Trailer" or "Teaser 1". */
+  name: string;
+}
+
 export interface Episode {
   id: string;
   seasonNumber: number;
@@ -42,6 +50,8 @@ export interface Season {
   seasonNumber: number;
   name: string;
   episodeCount: number;
+  /** First air date for the season, when TMDB has announced one. */
+  airDate?: string;
   /**
    * Anime chains: the AniList entry this season aggregates (and its resolved
    * TMDB twin, when one exists) so playback addresses the right entry.
@@ -55,6 +65,17 @@ export interface Season {
    * mock data still inlines them.
    */
   episodes?: Episode[];
+}
+
+/** The next scheduled episode for a series, from TMDB's `next_episode_to_air`. */
+export interface UpcomingEpisode {
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  overview?: string;
+  /** ISO date (YYYY-MM-DD) the episode airs. */
+  airDate: string;
+  stillUrl?: string;
 }
 
 export interface Media {
@@ -75,10 +96,14 @@ export interface Media {
   cast?: CastMember[];
   recommendations?: MediaSummary[];
   seasons?: Season[];
-  /** Official YouTube trailer key (watch-page trailer section). */
+  /** Next scheduled episode for a returning/airing series. */
+  nextEpisodeToAir?: UpcomingEpisode;
+  /** Official YouTube trailer key (detail and watch trailer sections). */
   trailerKey?: string;
   /** Official trailer title from TMDB (e.g. "Final Trailer"). */
   trailerName?: string;
+  /** All playable trailers/teasers, newest first (detail hero player). */
+  trailerVideos?: TrailerVideo[];
   /** US content rating, e.g. "PG-13" / "TV-MA" (detail hero meta). */
   certification?: string;
 
@@ -112,6 +137,11 @@ export interface MediaSummary {
   certification?: string;
   /** Official title-logo artwork (TMDB images), used by the hero when present. */
   logoUrl?: string;
+  /**
+   * ANIME ONLY: the TMDB twin used for calendar matching and TMDB-id based
+   * playback, resolved when the detail payload is loaded.
+   */
+  resolvedTmdbId?: number;
 }
 
 export interface MediaRow {
@@ -120,6 +150,36 @@ export interface MediaRow {
   items: MediaSummary[];
   /** Render with 1..N rank badges (used by the "Top 10" row). */
   ranked?: boolean;
+}
+
+/** The trailer feed's content filter (Moctale-style space/video split). */
+export type TrailerKind = "all" | "movie" | "tv";
+
+/** One playable trailer card in the /trailers feed. */
+export interface TrailerFeedItem {
+  id: string;
+  tmdbId: number;
+  type: "movie" | "tv";
+  title: string;
+  overview?: string;
+  year?: string;
+  rating?: number;
+  genres: string[];
+  /** Official YouTube video key. */
+  youtubeKey: string;
+  trailerName: string;
+  official: boolean;
+  publishedAt?: string;
+  /** Catalog detail route when the item is resolvable in the active source. */
+  detailHref?: string;
+}
+
+/** One server-rendered page of the trailer feed. */
+export interface TrailerFeed {
+  items: TrailerFeedItem[];
+  page: number;
+  totalPages: number;
+  kind: TrailerKind;
 }
 
 /** Normalized playback source returned by any VideoProvider. */

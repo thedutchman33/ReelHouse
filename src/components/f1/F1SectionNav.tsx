@@ -87,7 +87,7 @@ export default function F1SectionNav() {
   return (
     <nav
       aria-label="Formula 1 sections"
-      className="flex max-w-[calc(100vw-1.5rem)] items-center gap-0.5 overflow-x-auto rounded-lg border border-white/[0.08] bg-[rgb(12_13_14/0.82)] p-1 shadow-[0_8px_28px_rgb(0_0_0/0.35)] backdrop-blur-xl no-scrollbar"
+      className="flex max-w-[calc(100vw_-_1.5rem)] items-center gap-0.5 overflow-x-auto rounded-lg border border-white/[0.08] bg-[rgb(12_13_14/0.82)] p-1 shadow-[0_8px_28px_rgb(0_0_0/0.35)] backdrop-blur-xl no-scrollbar"
     >
       {SECTIONS.map((section) => {
         const current = active === section.id;
@@ -97,7 +97,7 @@ export default function F1SectionNav() {
             href={`#${section.id}`}
             onClick={(event) => jump(event, section)}
             aria-current={current ? "location" : undefined}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white max-[360px]:px-1.5 ${
+            className={`shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white max-sm:px-2.5 max-[360px]:px-1.5 ${
               current
                 ? "bg-[#e10600]/15 text-white ring-1 ring-inset ring-[#e10600]/35"
                 : "text-white/60 hover:bg-white/[0.06] hover:text-white"

@@ -1,260 +1,389 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { CheckIcon, ChevronDownIcon, CloseIcon } from "@/components/player/icons";
+import { useEffect, useId, useRef, useState } from "react";
+import { ChevronDownIcon, CloseIcon, SearchIcon } from "@/components/player/icons";
 import {
+  AGE_RATING_OPTIONS,
+  DECADE_OPTIONS,
+  DEFAULT_INDUSTRY,
+  DEFAULT_SORT,
+  DURATION_OPTIONS,
+  LANGUAGE_OPTIONS,
   SORT_OPTIONS,
-  TYPE_OPTIONS,
   browseHref,
+  countActiveFilters,
+  genreColor,
+  type AgeRating,
   type BrowseFilters,
   type BrowseType,
+  type DurationBand,
 } from "@/lib/browse";
-import { dedupeByFamily, sortProviders } from "@/lib/provider-logos";
 import type { WatchProvider } from "@/lib/tmdb";
 
 // ---------------------------------------------------------------------------
-// Browse filters.
+// Browse filters — Moctale-style left panel.
 //
-// Three separate rows, in this order:
-//   1. one toolbar row: the search field, then Genre / Source / Year
-//   2. the selected filters, as removable pills with "Clear all"
-//   3. the content-type tabs (underline) with the sort choices beside them
+// One bordered card holding every narrowing control: sort, OTT, content type,
+// genre, decade, age rating, duration, language and year. The three discovery
+// pills (Reelhouse Select / Family Friendly / Award Winner) live in the results
+// column above the grid.
 //
-// The dropdowns are custom listboxes painted in a portal on <body> with fixed
-// positioning, so the menu is always above the poster grid and can never be
-// clipped by the toolbar. They follow the select-only combobox pattern:
-// arrow keys move, Enter picks, Escape closes, and the trigger keeps focus so
-// screen readers follow the active option.
-//
-// Filtering is client-side: each pick updates BrowseClient's filter state, so a
-// change is one /api/browse fetch. The type tabs are plain links between the
-// prerendered /browse, /movies, /tv-shows and /anime shells, carrying the
-// current filters across in the URL.
+// Every control writes through `onChange`, so a pick is one browse-state update
+// (and one /api/browse fetch). Content type is a route, so it navigates between
+// /movies, /tv-shows, /browse and /anime, carrying the rest of the filters in
+// the URL.
 // ---------------------------------------------------------------------------
 
-interface SelectOption {
-  value: string;
-  label: string;
+function FilterIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="17" viewBox="0 0 24 24" width="17">
+      <path
+        d="M4 7h16M7 12h10M10 17h4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
 }
 
-interface PanelPosition {
-  top: number;
-  left: number;
-  width: number;
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="13" viewBox="0 0 24 24" width="13">
+      <path
+        d="m5 12 4 4L19 6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.2"
+      />
+    </svg>
+  );
 }
 
-/** One dropdown: styled 46px trigger + a themed option panel in a portal. */
-function FilterSelect({
+/** A service icon with a branded fallback when TMDB's logo can't load. */
+function OttLogo({
+  name,
+  src,
+  color = "#24242B",
+}: {
+  name: string;
+  src: string;
+  color?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <span
+      className="grid h-5 w-5 shrink-0 place-items-center overflow-hidden rounded-[5px]"
+      style={{ backgroundColor: color }}
+    >
+      {failed ? (
+        <span className="text-[8px] font-bold tracking-tight text-white">
+          {name.slice(0, 2).toUpperCase()}
+        </span>
+      ) : (
+        // TMDB provider logos are square app icons; the button text names them.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          alt=""
+          className="h-full w-full object-cover"
+          draggable={false}
+          loading="lazy"
+          onError={() => setFailed(true)}
+          src={src}
+        />
+      )}
+    </span>
+  );
+}
+
+function Section({
+  title,
+  children,
+  hint,
+}: {
+  title: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div className="border-t border-white/[0.07] px-5 py-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8A8A93]">
+          {title}
+        </p>
+        {hint && <span className="text-[10px] text-white/30">{hint}</span>}
+      </div>
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Styled listbox for the two remaining dropdowns. Unlike a native select it
+ * keeps the dark panel treatment on every OS, scrolls long year lists inside a
+ * capped menu, and supports arrow keys, Home/End and Escape.
+ */
+function PanelSelect<T extends string | number>({
   label,
-  display,
   value,
   options,
   onChange,
 }: {
   label: string;
-  /** Value shown on the face (the "all" wording when nothing is picked). */
-  display: string;
-  /** Raw option value; "" means "all". */
-  value: string;
-  options: SelectOption[];
-  onChange: (value: string) => void;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const [panel, setPanel] = useState<PanelPosition | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const listId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const listboxId = useId();
 
-  const narrowed = value !== "";
-  const selectedIndex = options.findIndex((option) => option.value === value);
-
-  // Fixed coordinates measured from the trigger: 6px below it, flipping above
-  // when the viewport runs out of room, clamped to stay on screen sideways.
-  const place = useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const width = Math.max(rect.width, 216);
-    const height = Math.min(options.length * 38 + 14, 300);
-    const spaceBelow = window.innerHeight - rect.bottom - 12;
-    const openUp = spaceBelow < height && rect.top - 12 > spaceBelow;
-    const left = Math.min(
-      Math.max(rect.left, 12),
-      Math.max(12, window.innerWidth - width - 12)
-    );
-    setPanel({
-      top: openUp ? Math.max(12, rect.top - height - 6) : rect.bottom + 6,
-      left,
-      width,
-    });
-  }, [options.length]);
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((option) => String(option.value) === String(value))
+  );
+  const selectedLabel =
+    options.find((option) => String(option.value) === String(value))?.label ?? "";
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions = normalizedQuery
+    ? options.filter((option) =>
+        option.label.toLowerCase().includes(normalizedQuery)
+      )
+    : options;
 
   const openMenu = () => {
-    setActive(selectedIndex >= 0 ? selectedIndex : 0);
-    place();
+    setQuery("");
+    setActiveIndex(selectedIndex);
     setOpen(true);
   };
 
-  const pick = (option: SelectOption) => {
-    onChange(option.value);
+  useEffect(() => {
+    if (!open) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      searchRef.current?.focus();
+    });
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("focusin", onFocusIn);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("focusin", onFocusIn);
+    };
+  }, [open]);
+
+  const choose = (next: T) => {
+    if (String(next) !== String(value)) onChange(next);
     setOpen(false);
     triggerRef.current?.focus();
   };
 
-  // Dismissal: click/tap outside, Escape, or any page scroll away from the
-  // panel (the panel's own option scrolling must not close it).
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    const onScroll = (event: Event) => {
-      if (panelRef.current?.contains(event.target as Node)) return;
-      place();
-    };
-    const onResize = () => setOpen(false);
-
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onResize);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [open, place]);
-
-  // Keep the keyboard cursor visible in a scrolling list.
-  useEffect(() => {
-    if (!open) return;
-    document
-      .getElementById(`${listId}-option-${active}`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [open, active, listId]);
-
-  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (!open) {
-      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
-        event.preventDefault();
-        openMenu();
-      }
-      return;
-    }
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        setActive((i) => (i + 1) % options.length);
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        setActive((i) => (i - 1 + options.length) % options.length);
-        break;
-      case "Home":
-        event.preventDefault();
-        setActive(0);
-        break;
-      case "End":
-        event.preventDefault();
-        setActive(options.length - 1);
-        break;
-      case "Enter":
-      case " ":
-        event.preventDefault();
-        if (options[active]) pick(options[active]);
-        break;
-      case "Tab":
-        setOpen(false);
-        break;
-    }
+  const focusOption = (index: number) => {
+    if (filteredOptions.length === 0) return;
+    const next =
+      (index + filteredOptions.length) % filteredOptions.length;
+    setActiveIndex(next);
+    optionRefs.current[next]?.focus();
   };
 
   return (
-    <>
+    <div
+      ref={rootRef}
+      className="relative"
+      onKeyDown={(event) => {
+        if (!open) return;
+        const inSearch = event.target === searchRef.current;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setOpen(false);
+          triggerRef.current?.focus();
+        } else if (event.key === "ArrowDown") {
+          event.preventDefault();
+          focusOption(inSearch ? 0 : activeIndex + 1);
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          focusOption(
+            inSearch ? filteredOptions.length - 1 : activeIndex - 1
+          );
+        } else if (!inSearch && event.key === "Home") {
+          event.preventDefault();
+          focusOption(0);
+        } else if (!inSearch && event.key === "End") {
+          event.preventDefault();
+          focusOption(filteredOptions.length - 1);
+        }
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
-        role="combobox"
+        aria-label={`${label}: ${selectedLabel}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls={open ? listId : undefined}
-        aria-activedescendant={open ? `${listId}-option-${active}` : undefined}
-        aria-label={`${label}: ${display}`}
-        onClick={() => (open ? setOpen(false) : openMenu())}
-        onKeyDown={onTriggerKeyDown}
-        className={`relative flex h-[46px] min-w-[172px] flex-1 items-center justify-between gap-3 rounded-xl border px-4 text-left transition-colors sm:flex-none ${
-          narrowed
-            ? "border-accent/70 bg-accent/[0.07]"
-            : "border-white/10 bg-surface hover:border-white/20"
-        } ${open ? "border-white/30" : ""}`}
+        aria-controls={listboxId}
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          openMenu();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            openMenu();
+          }
+        }}
+        className={`h-10 w-full cursor-pointer rounded-lg border px-3 pr-9 text-left text-sm font-medium outline-none transition ${
+          open
+            ? "border-accent/60 bg-[#1A1A21] text-white"
+            : "border-white/10 bg-[#17171C] text-[#E2E2E2] hover:border-white/25"
+        }`}
       >
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span
-            className={`shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-              narrowed ? "text-accent" : "text-muted"
-            }`}
-          >
-            {label}
-          </span>
-          <span className="truncate text-sm font-semibold text-text">{display}</span>
-        </span>
+        <span className="block truncate">{selectedLabel}</span>
         <ChevronDownIcon
-          size={16}
-          className={`shrink-0 transition-transform duration-200 ${
-            narrowed ? "text-accent" : "text-muted"
-          } ${open ? "rotate-180" : ""}`}
+          className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40 transition-transform duration-200 ${
+            open ? "rotate-180 text-white/70" : ""
+          }`}
+          size={14}
         />
       </button>
 
-      {open &&
-        panel &&
-        createPortal(
+      {open && (
+        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-white/15 bg-[#18181E] shadow-[0_18px_48px_rgba(0,0,0,0.7)]">
+          <div className="border-b border-white/[0.08] p-2">
+            <label className="sr-only" htmlFor={`${listboxId}-search`}>
+              Search {label.toLowerCase()}
+            </label>
+            <div className="relative">
+              <SearchIcon
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-white/35"
+                size={14}
+              />
+              <input
+                ref={searchRef}
+                id={`${listboxId}-search`}
+                type="search"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setActiveIndex(0);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    const option =
+                      filteredOptions[activeIndex] ?? filteredOptions[0];
+                    if (option) choose(option.value);
+                  }
+                }}
+                placeholder={`Search ${label.toLowerCase()}s...`}
+                autoComplete="off"
+                spellCheck={false}
+                className="h-9 w-full rounded-lg border border-white/10 bg-[#111116] pl-8 pr-2.5 text-[13px] text-white outline-none placeholder:text-white/35 focus:border-accent/50"
+              />
+            </div>
+          </div>
+
           <div
-            ref={panelRef}
-            id={listId}
+            id={listboxId}
             role="listbox"
             aria-label={label}
-            style={{ top: panel.top, left: panel.left, width: panel.width }}
-            className="menu-scroll fixed z-[120] max-h-[300px] overflow-y-auto rounded-xl border border-white/12 bg-surface-2 p-1.5 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] [scrollbar-color:rgba(255,255,255,0.2)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-2"
+            className="max-h-56 overflow-y-auto overscroll-contain p-1.5"
           >
-            {options.map((option, index) => {
-              const isSelected = option.value === value;
-              const isActive = index === active;
-              return (
-                <div
-                  key={option.value || "all"}
-                  id={`${listId}-option-${index}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => pick(option)}
-                  className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                    isActive ? "bg-white/[0.07]" : ""
-                  } ${isSelected ? "font-semibold text-accent" : "font-medium text-text"}`}
-                >
-                  <span className="truncate">{option.label}</span>
-                  {isSelected && <CheckIcon size={14} className="shrink-0 text-accent" />}
-                </div>
-              );
-            })}
-          </div>,
-          document.body
-        )}
-    </>
+            {filteredOptions.length === 0 ? (
+              <p
+                role="status"
+                className="px-3 py-4 text-center text-[12px] text-white/40"
+              >
+                No matches
+              </p>
+            ) : (
+              filteredOptions.map((option, index) => {
+                const selected = String(option.value) === String(value);
+                return (
+                  <button
+                    key={String(option.value)}
+                    ref={(element) => {
+                      optionRefs.current[index] = element;
+                    }}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    tabIndex={-1}
+                    onClick={() => choose(option.value)}
+                    onFocus={() => setActiveIndex(index)}
+                    className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[13px] outline-none transition-colors ${
+                      selected
+                        ? "bg-accent/[0.14] font-semibold text-white"
+                        : "text-[#CFCFD4] hover:bg-white/[0.06] hover:text-white focus:bg-white/[0.06] focus:text-white"
+                    }`}
+                  >
+                    <span className="truncate">{option.label}</span>
+                    {selected && <CheckIcon />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Chip({
+  active,
+  disabled = false,
+  onClick,
+  children,
+  dot,
+  title,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  dot?: string;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-colors ${
+        active
+          ? "border-accent/70 bg-accent/[0.12] text-white"
+          : "border-white/10 bg-[#141419] text-[#C6C6C6] hover:border-white/25 hover:text-white"
+      } disabled:cursor-not-allowed disabled:opacity-35`}
+    >
+      {dot && (
+        <span
+          aria-hidden="true"
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: dot }}
+        />
+      )}
+      {children}
+    </button>
   );
 }
 
@@ -263,207 +392,81 @@ export default function FilterBar({
   onChange,
   genres,
   years,
-  providers = [],
-  searchSlot,
-  dimmed = false,
+  providers,
 }: {
   filters: BrowseFilters;
   /** Merge a patch into the browse filter state (resets paging itself). */
   onChange: (patch: Partial<Omit<BrowseFilters, "type">>) => void;
   genres: string[];
   years: number[];
-  providers?: WatchProvider[];
-  /** The catalog search field, sharing the toolbar row with the dropdowns. */
-  searchSlot?: React.ReactNode;
-  /** Search mode: filters don't apply to search results, so they de-emphasize
-      instead of offering controls that would do nothing. */
-  dimmed?: boolean;
+  /** Same curated, priority-ordered set as the homepage OTT rail. */
+  providers: WatchProvider[];
 }) {
   const router = useRouter();
-  const inert = dimmed ? "pointer-events-none select-none opacity-40 transition-opacity" : "";
 
-  // Source options mirror the homepage provider rail exactly: one entry per
-  // brand family (Netflix, not Netflix Kids + Netflix; HBO Max, not the
-  // Amazon Channel reseller), in the family priority order.
-  const familyProviders: WatchProvider[] = sortProviders(dedupeByFamily(providers));
-  const activeProvider = familyProviders.find((p) => p.id === filters.provider);
+  const activeCount = countActiveFilters(filters);
+  const durationLocked = filters.type === "tv";
 
-  const genreOptions: SelectOption[] = [
-    { value: "", label: "All genres" },
-    ...genres.map((genre) => ({ value: genre, label: genre })),
-  ];
-  const providerOptions: SelectOption[] = [
-    { value: "", label: "All providers" },
-    ...familyProviders.map((p) => ({ value: String(p.id), label: p.name })),
-  ];
-  const yearOptions: SelectOption[] = [
-    { value: "", label: "All years" },
-    ...years.map((year) => ({ value: String(year), label: String(year) })),
-  ];
+  const goToType = (type: BrowseType) =>
+    router.push(browseHref(filters, { type, page: 1 }));
 
-  const goToType = (type: BrowseType, base: BrowseFilters = filters) =>
-    router.push(browseHref(base, { type, page: 1 }));
-
-  // What the viewer has narrowed by, in the order it appears on the page.
-  const chips: { key: string; label: string; remove: () => void }[] = [];
-  if (filters.type !== "all") {
-    chips.push({
-      key: "type",
-      label: TYPE_OPTIONS.find((option) => option.value === filters.type)?.label ?? "All",
-      // The type is the route, so dropping it means going back to /browse with
-      // everything else kept.
-      remove: () => goToType("all"),
-    });
-  }
-  if (filters.genre) {
-    chips.push({
-      key: "genre",
-      label: filters.genre,
-      remove: () => onChange({ genre: null, page: 1 }),
-    });
-  }
-  if (activeProvider) {
-    chips.push({
-      key: "source",
-      label: activeProvider.name,
-      remove: () => onChange({ provider: null, page: 1 }),
-    });
-  }
-  if (filters.year) {
-    chips.push({
-      key: "year",
-      label: String(filters.year),
-      remove: () => onChange({ year: null, page: 1 }),
-    });
-  }
-
-  // "Clear all" resets type, genre, source and year — the ordering stays.
   const clearAll = () => {
-    onChange({ genre: null, provider: null, year: null, page: 1 });
-    if (filters.type !== "all") {
-      goToType("all", { ...filters, genre: null, provider: null, year: null, page: 1 });
-    }
+    onChange({
+      genres: [],
+      provider: null,
+      year: null,
+      decade: null,
+      ageRating: null,
+      duration: null,
+      language: null,
+      hideAnime: false,
+      select: false,
+      family: false,
+      award: false,
+      sort: DEFAULT_SORT,
+      industry: DEFAULT_INDUSTRY,
+      page: 1,
+    });
   };
 
   return (
-    <div className="space-y-5">
-      {/* 1 — one toolbar row: the search leads, the three dropdowns trail.
-          Separate controls (never boxed together), all 46px tall; on a phone
-          the search takes the row and the filters wrap beneath it. */}
-      <div className={`flex flex-wrap items-center gap-3 ${inert}`}>
-        {searchSlot && <div className="min-w-0 flex-[1_1_300px]">{searchSlot}</div>}
-        <FilterSelect
-          label="Genre"
-          display={filters.genre ?? "All genres"}
-          value={filters.genre ?? ""}
-          options={genreOptions}
-          onChange={(value) => onChange({ genre: value || null, page: 1 })}
-        />
-        {providerOptions.length > 1 && (
-          <FilterSelect
-            label="Source"
-            display={activeProvider?.name ?? "All providers"}
-            value={filters.provider ? String(filters.provider) : ""}
-            options={providerOptions}
-            onChange={(value) => onChange({ provider: value ? Number(value) : null, page: 1 })}
-          />
-        )}
-        <FilterSelect
-          label="Year"
-          display={filters.year ? String(filters.year) : "All years"}
-          value={filters.year ? String(filters.year) : ""}
-          options={yearOptions}
-          onChange={(value) => onChange({ year: value ? Number(value) : null, page: 1 })}
-        />
-      </div>
-
-      {/* 2 — what is currently applied, each removable on its own. */}
-      <div
-        aria-live="polite"
-        className={`flex min-h-[34px] flex-wrap items-center gap-2 ${inert}`}
-      >
-        {chips.length === 0 ? (
-          <span className="text-[13px] text-muted">No filters selected</span>
-        ) : (
-          <>
-            {chips.map((chip) => (
-              <span
-                key={chip.key}
-                className="inline-flex items-center gap-2 rounded-full border border-accent/60 bg-accent/[0.08] py-1 pl-3 pr-1 text-[13px] font-medium text-accent"
-              >
-                {chip.label}
-                <button
-                  type="button"
-                  onClick={chip.remove}
-                  aria-label={`Remove ${chip.label} filter`}
-                  className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-accent text-accent-ink transition hover:brightness-110"
-                >
-                  <CloseIcon size={11} />
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={clearAll}
-              className="ml-1 cursor-pointer text-[13px] font-medium text-muted underline-offset-4 transition hover:text-text hover:underline"
-            >
-              Clear all
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* 3 — content type as underline tabs, ordering as bordered choices. */}
-      <div
-        className={`flex flex-col gap-3 border-b border-white/10 sm:flex-row sm:items-end sm:justify-between sm:gap-6 ${inert}`}
-      >
-        <nav
-          aria-label="Content type"
-          className="no-scrollbar -mx-1 flex items-center gap-6 overflow-x-auto px-1"
-        >
-          {TYPE_OPTIONS.map((option) => {
-            const current = option.value === filters.type;
-            return (
-              <Link
-                key={option.value}
-                href={
-                  current
-                    ? browseHref(filters)
-                    : browseHref(filters, { type: option.value, page: 1 })
-                }
-                aria-current={current ? "true" : undefined}
-                className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-sm font-medium transition-colors ${
-                  current ? "text-text" : "text-muted hover:text-text"
-                }`}
-              >
-                {option.label}
-                <span
-                  aria-hidden="true"
-                  className={`absolute inset-x-0 -bottom-px h-0.5 rounded-full transition-colors ${
-                    current ? "bg-accent" : "bg-transparent"
-                  }`}
-                />
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="no-scrollbar -mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-2 sm:pb-1">
-          <span className="mr-1.5 hidden shrink-0 text-sm font-semibold text-text sm:inline">
-            Sort by
+    <aside
+      aria-label="Filters"
+      className="rounded-2xl border border-white/10 bg-[#0C0C10]"
+    >
+      <div className="flex items-center justify-between gap-2 px-5 py-4">
+        <div className="flex items-center gap-2.5 text-[#E2E2E2]">
+          <FilterIcon />
+          <span className="text-[15px] font-semibold">Filters</span>
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/10 px-1.5 text-[11px] font-semibold text-white">
+            {activeCount}
           </span>
+        </div>
+        <button
+          type="button"
+          onClick={clearAll}
+          disabled={activeCount === 0}
+          className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium text-white/45 transition hover:text-white disabled:cursor-default disabled:opacity-35"
+        >
+          <CloseIcon size={11} />
+          Clear
+        </button>
+      </div>
+
+      <Section title="Sort by">
+        <div role="group" aria-label="Sort by" className="grid grid-cols-2 gap-2">
           {SORT_OPTIONS.map((option) => {
-            const current = filters.sort === option.value;
+            const active = filters.sort === option.value;
             return (
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={active}
                 onClick={() => onChange({ sort: option.value, page: 1 })}
-                aria-current={current ? "true" : undefined}
-                className={`shrink-0 cursor-pointer whitespace-nowrap rounded-[10px] border px-4 py-[9px] text-sm transition-colors ${
-                  current
-                    ? "border-accent bg-accent font-semibold text-white"
-                    : "border-white/10 bg-surface font-medium text-text hover:border-white/25"
+                className={`h-9 w-full cursor-pointer rounded-lg border px-2 text-[12px] font-medium transition-colors ${
+                  active
+                    ? "border-accent/70 bg-accent/[0.12] text-white"
+                    : "border-white/10 bg-[#141419] text-[#C6C6C6] hover:border-white/25 hover:text-white"
                 }`}
               >
                 {option.label}
@@ -471,7 +474,272 @@ export default function FilterBar({
             );
           })}
         </div>
-      </div>
+      </Section>
+
+      {filters.type !== "anime" && providers.length > 0 && (
+        <Section title="OTT">
+          <div
+            role="group"
+            aria-label="OTT"
+            className="grid max-h-[252px] grid-cols-2 gap-1.5 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]"
+          >
+            {providers.map((provider) => {
+              const active = filters.provider === provider.id;
+              return (
+                <button
+                  key={provider.id}
+                  type="button"
+                  title={provider.name}
+                  aria-pressed={active}
+                  onClick={() =>
+                    onChange({
+                      provider: active ? null : provider.id,
+                      page: 1,
+                    })
+                  }
+                  className={`flex h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-left transition-colors ${
+                    active
+                      ? "border-accent/70 bg-accent/[0.12] text-white"
+                      : "border-white/10 bg-[#141419] text-[#D4D4D8] hover:border-white/25 hover:text-white"
+                  }`}
+                >
+                  <OttLogo name={provider.name} src={provider.logoUrl} />
+                  <span className="min-w-0 truncate text-[11px] font-semibold">
+                    {provider.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      <Section title="Content type">
+        <div className="flex flex-wrap gap-2">
+          <Chip active={filters.type === "all"} onClick={() => goToType("all")}>
+            All
+          </Chip>
+          <Chip active={filters.type === "movie"} onClick={() => goToType("movie")}>
+            Movies
+          </Chip>
+          <Chip active={filters.type === "tv"} onClick={() => goToType("tv")}>
+            Shows
+          </Chip>
+          <Chip active={filters.type === "anime"} onClick={() => goToType("anime")}>
+            Anime
+          </Chip>
+        </div>
+      </Section>
+
+      <Section
+        title="Genre"
+        hint={filters.genres.length > 1 ? `${filters.genres.length} selected` : undefined}
+      >
+        <div className="flex flex-wrap gap-2">
+          {genres.map((genre) => {
+            const active = filters.genres.includes(genre);
+            return (
+              <Chip
+                key={genre}
+                active={active}
+                dot={genreColor(genre)}
+                onClick={() =>
+                  onChange({
+                    genres: active
+                      ? filters.genres.filter((item) => item !== genre)
+                      : [...filters.genres, genre],
+                    page: 1,
+                  })
+                }
+              >
+                {genre}
+              </Chip>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section title="Decade">
+        <div className="flex flex-wrap gap-2">
+          {DECADE_OPTIONS.map((decade) => (
+            <Chip
+              key={decade}
+              active={filters.decade === decade}
+              disabled={Boolean(filters.year)}
+              onClick={() =>
+                onChange({
+                  decade: filters.decade === decade ? null : decade,
+                  page: 1,
+                })
+              }
+            >
+              {decade}s
+            </Chip>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Age rating">
+        <div className="flex flex-wrap gap-2">
+          {AGE_RATING_OPTIONS.map((option) => (
+            <Chip
+              key={option.value}
+              active={filters.ageRating === option.value}
+              onClick={() =>
+                onChange({
+                  ageRating:
+                    filters.ageRating === option.value
+                      ? null
+                      : (option.value as AgeRating),
+                  page: 1,
+                })
+              }
+            >
+              {option.label}
+            </Chip>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Duration" hint={durationLocked ? "Movies only" : undefined}>
+        <div className="flex flex-wrap gap-2">
+          {DURATION_OPTIONS.map((option) => (
+            <Chip
+              key={option.value}
+              active={filters.duration === option.value}
+              disabled={durationLocked}
+              onClick={() =>
+                onChange({
+                  duration:
+                    filters.duration === option.value
+                      ? null
+                      : (option.value as DurationBand),
+                  page: 1,
+                })
+              }
+            >
+              {option.label}
+            </Chip>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Language">
+        <PanelSelect
+          label="Language"
+          onChange={(language) => onChange({ language, page: 1 })}
+          options={[
+            { value: "", label: "All languages" },
+            ...LANGUAGE_OPTIONS,
+          ]}
+          value={filters.language ?? ""}
+        />
+      </Section>
+
+      <Section title="Year">
+        <PanelSelect
+          label="Year"
+          onChange={(value) =>
+            onChange({ year: value ? Number(value) : null, page: 1 })
+          }
+          options={[
+            { value: "", label: "All years" },
+            ...years.map((year) => ({ value: String(year), label: String(year) })),
+          ]}
+          value={filters.year ? String(filters.year) : ""}
+        />
+      </Section>
+    </aside>
+  );
+}
+
+/**
+ * The three discovery pills above the grid. Each one is a hard filter on the
+ * catalogue: Reelhouse Select (curated acclaim), Family Friendly (kid-safe
+ * certifications) and Award Winner (award-calibre acclaim).
+ */
+export function DiscoveryToggles({
+  filters,
+  onChange,
+}: {
+  filters: BrowseFilters;
+  onChange: (patch: Partial<Omit<BrowseFilters, "type">>) => void;
+}) {
+  const pills = [
+    {
+      key: "select" as const,
+      label: "Reelhouse Select",
+      on: filters.select,
+      accent: "#FFC400",
+      text: "bg-gradient-to-r from-[#FFC400] via-[#FF8A00] to-[#FF5DA2] bg-clip-text text-transparent",
+      border: "border-[#6E5900]",
+      bg: "bg-[#171204]",
+      activeBorder: "border-[#FFC400]",
+      activeBg: "bg-[#211900]",
+    },
+    {
+      key: "family" as const,
+      label: "Family Friendly",
+      on: filters.family,
+      accent: "#5FD36C",
+      text: "text-[#5FD36C]",
+      border: "border-[#2B5D37]",
+      bg: "bg-[#0A140C]",
+      activeBorder: "border-[#5FD36C]",
+      activeBg: "bg-[#0D1F12]",
+    },
+    {
+      key: "award" as const,
+      label: "Award Winner",
+      on: filters.award,
+      accent: "#38BDF8",
+      text: "text-[#38BDF8]",
+      border: "border-[#1D4E66]",
+      bg: "bg-[#08131A]",
+      activeBorder: "border-[#38BDF8]",
+      activeBg: "bg-[#0A1C27]",
+    },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2.5">
+      {pills.map((pill) => (
+        <button
+          key={pill.key}
+          type="button"
+          aria-pressed={pill.on}
+          onClick={() => onChange({ [pill.key]: !pill.on, page: 1 })}
+          className={`inline-flex h-[38px] cursor-pointer items-center gap-2 rounded-full border px-4 text-[13px] font-semibold transition hover:brightness-110 ${
+            pill.on
+              ? `${pill.activeBorder} ${pill.activeBg}`
+              : `${pill.border} ${pill.bg}`
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`grid h-4 w-4 place-items-center rounded-[5px] border ${
+              pill.on ? "border-transparent" : "bg-transparent"
+            }`}
+            style={{
+              borderColor: pill.on ? "transparent" : pill.accent,
+              backgroundColor: pill.on ? pill.accent : undefined,
+            }}
+          >
+            {pill.on && (
+              <svg fill="none" height="10" viewBox="0 0 12 12" width="10">
+                <path
+                  d="M2.5 6.2 4.8 8.5 9.5 3.5"
+                  stroke="#0B0B0E"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
+          </span>
+          <span className={pill.text}>{pill.label}</span>
+        </button>
+      ))}
     </div>
   );
 }

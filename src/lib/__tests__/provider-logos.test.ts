@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { dedupeByFamily, familyFor, sortProviders, wordmarkFor } from "@/lib/provider-logos";
+import {
+  dedupeByFamily,
+  familyFor,
+  featuredProviders,
+  sortProviders,
+  wordmarkFor,
+} from "@/lib/provider-logos";
 
 // The provider family system: one card per brand, flagship resolution, and
 // the operator's priority order. These rules guard the homepage rail, the
@@ -72,6 +78,29 @@ describe("dedupeByFamily", () => {
       { name: "Some Service" },
     ]);
     expect(out).toEqual([]);
+  });
+});
+
+describe("featuredProviders", () => {
+  it("builds the shared homepage rail set in priority order", () => {
+    const out = featuredProviders([
+      { name: "Hulu" },
+      { name: "Netflix Kids" },
+      { name: "HBO Max Amazon Channel" },
+      { name: "Apple TV Store" },
+      { name: "Netflix" },
+      { name: "Some Service" },
+      { name: "JioHotstar" },
+      { name: "HBO Max" },
+    ]);
+
+    expect(out.map((provider) => provider.name)).toEqual([
+      "Netflix",
+      "HBO Max",
+      "Apple TV Store",
+      "JioHotstar",
+      "Hulu",
+    ]);
   });
 });
 

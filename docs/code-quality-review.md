@@ -144,7 +144,7 @@ Verified by symbol-reference counts across `src/` (definition-only = zero other 
 ### 1.6 Checked and **not** dead (avoid false positives)
 
 - `/api/seasons/[tvId]/[season]` — called via template strings in `EpisodeList.tsx:124` and `PlaybackContainer.tsx:156`.
-- `/movie/[id]`, `/tv/[id]`, `/watch/[type]/[id]`, `/providers/[id]` — linked with template strings; the audit's “unlinked page” flag is a false positive.
+- `/movie/[id]`, `/tv/[id]`, `/watch/[type]/[id]`, `/ott/[id]` — linked with template strings; the audit's “unlinked page” flag is a false positive.
 - `public/cricket/flags/*.svg` — loaded dynamically from `FLAG_CODES` in `TeamFlag.tsx:8–34`.
 - `jsdom` — used by two per-file `// @vitest-environment jsdom` suites, not globally.
 - `IccStatistics`’ `.ck-table` — dead only *after* the screen removal; cascade it.

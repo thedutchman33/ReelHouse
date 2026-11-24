@@ -49,7 +49,7 @@
 <table>
 <tr>
 <td width="50%"><img src="docs/readme/home.webp" alt="Home: rotating hero, continue watching, providers rail and curated rows"/></td>
-<td width="50%"><img src="docs/readme/browse.webp" alt="Browse: genre, source, year and industry filters over a poster grid"/></td>
+<td width="50%"><img src="docs/readme/browse.webp" alt="Browse: genre, OTT, year and industry filters over a poster grid"/></td>
 </tr>
 <tr>
 <td align="center"><b>🏠 Home</b><br/><sub>Hero · continue watching · providers · My Feed</sub></td>
@@ -136,7 +136,7 @@ flowchart LR
 <td width="33%" valign="top"><b>🧠 My Feed</b><br/><sub>Curated all-time pools (movies <i>and</i> series) with watch-history genres steering the pick, rotating daily. Renders with zero history.</sub></td>
 </tr>
 <tr>
-<td valign="top"><b>📺 Providers, deduped</b><br/><sub>Family collapse (Netflix Kids → Netflix, flagship reseller resolution) in the rail, the Source filter and provider pages — one entry per brand, priority ordered.</sub></td>
+<td valign="top"><b>📺 Providers, deduped</b><br/><sub>Family collapse (Netflix Kids → Netflix, flagship reseller resolution) in the rail, the OTT filter and provider pages — one entry per brand, priority ordered.</sub></td>
 <td valign="top"><b>🎬 A real watch page</b><br/><sub>Server chips with live Mbps test, switch-server border beam, episode rail with per-episode progress, vidvault downloads, keyboard + fullscreen.</sub></td>
 <td valign="top"><b>🔎 Search that respects you</b><br/><sub>Debounced, server-backed, recent-search chips you can clear, trending seed when idle — and zero spinners between routes (250 ms fade).</sub></td>
 </tr>
@@ -205,6 +205,9 @@ TMDB_API_KEY=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
+# Moctale community reviews and trailer feed (server-side signed-in session cookie)
+MOCTALE_COOKIE=
+
 # Subtitle search (server-side only)
 OPENSUBTITLES_API_KEY=
 # ...plus these two to also *download* a selected subtitle
@@ -213,6 +216,8 @@ OPENSUBTITLES_PASSWORD=
 ```
 
 Each block is independent — add only what you need. Apply `supabase/migrations/0001_init.sql` for the schema + RLS. Behind a proxy/CDN, set `SITE_URL` (see [`docs/deployment.md`](docs/deployment.md)). For video providers, see [`docs/video-provider-setup.md`](docs/video-provider-setup.md).
+
+Moctale community data is optional. `MOCTALE_COOKIE` is a signed-in `moctale.in` session cookie copied from a browser request header; it stays server-side and is never exposed to the client. Moctale's password login is Turnstile-protected, so a server cannot sign in with a username/password — the cookie is the supported server-side path. Without it, detail pages show their no-reviews state and the trailers page falls back to its TMDB feed.
 
 </details>
 

@@ -1,17 +1,17 @@
 import { Suspense } from "react";
 import BrowseClient from "@/components/browse/BrowseClient";
 import type { BrowseType } from "@/lib/browse";
+import { featuredProviders } from "@/lib/provider-logos";
 import { getBrowseOptions, getWatchProviders } from "@/lib/tmdb";
 
 // ---------------------------------------------------------------------------
 // Shared browse screen — now a PRERENDERED SHELL.
 //
 // The page carries no user- or query-dependent server data: the genre/year
-// options and provider list are static-ish (fetched once per revalidation at
-// the edge), and the results grid is fetched client-side from /api/browse by
-// BrowseClient. That is what makes /movies and /tv-shows CDN-fast like the
-// reference: the HTML is served from the edge, filter picks are one small
-// JSON fetch.
+// options are static-ish (resolved once per revalidation at the edge), and the
+// results grid is fetched client-side from /api/browse by BrowseClient. That is
+// what makes /movies and /tv-shows CDN-fast like the reference: the HTML is
+// served from the edge, filter picks are one small JSON fetch.
 //
 // /browse, /movies and /tv-shows are the same shell with a different content
 // type pinned.
@@ -28,12 +28,7 @@ export default async function BrowseView({
   subtitle: string;
 }) {
   const options = getBrowseOptions(type);
-  // Anime is AniList-backed — watch providers are a TMDB concept, so the
-  // Source dropdown is simply not offered there.
-  const providers =
-    type === "anime"
-      ? []
-      : await getWatchProviders("US", type === "tv" ? "tv" : "movie");
+  const providers = featuredProviders(await getWatchProviders("US"));
 
   return (
     <div className="relative isolate min-h-screen overflow-hidden">

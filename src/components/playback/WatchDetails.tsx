@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import PosterImage from "@/components/media/PosterImage";
+import ReviewButton from "@/components/reviews/ReviewButton";
+import { moctaleContentUrl } from "@/lib/moctale";
 import { formatRuntime } from "@/lib/utils";
 import type { Media } from "@/types";
 
@@ -76,9 +78,17 @@ export default function WatchDetails({ detail, seasonInfo }: { detail: Media; se
           />
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl leading-[1.02] tracking-tight text-foreground md:text-4xl">
-            {detail.title}
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="min-w-0 flex-1 font-display text-2xl leading-[1.02] tracking-tight text-foreground md:text-4xl">
+              {detail.title}
+            </h1>
+            <ReviewButton
+              href={moctaleContentUrl(detail)}
+              title={detail.title}
+              variant="watch"
+              className="mt-0.5"
+            />
+          </div>
           {detail.tagline && (
             <p className="mt-2 text-sm italic text-muted-foreground/90 md:text-[15px]">
               &ldquo;{detail.tagline}&rdquo;

@@ -11,13 +11,16 @@ import {
 } from "react";
 import MediaCard from "@/components/media/MediaCard";
 import PosterImage from "@/components/media/PosterImage";
+import TrackButton from "@/components/media/TrackButton";
 import {
-  ArrowLeftIcon,
   BellIcon,
-  CalendarDaysIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@/components/library/icons";
+import CalendarHeader, {
+  type CalendarViewMode,
+} from "@/components/calendar/CalendarHeader";
+import FollowingView from "@/components/calendar/FollowingView";
 import {
   buildCalendarDays,
   episodeBadge,
@@ -35,9 +38,14 @@ import {
   type CalendarRelease,
 } from "@/lib/calendar";
 import { useTracked } from "@/lib/library";
+import {
+  episodeCode,
+  episodeWhen,
+  MAX_TRACKED_CALENDAR_IDS,
+  trackedTmdbIds,
+  type NextUpEpisode,
+} from "@/lib/tracking";
 import type { MediaSummary } from "@/types";
-
-type CalendarViewMode = "calendar" | "tracking";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -48,70 +56,26 @@ const BASE_FILTERS: { key: CalendarFilter; label: string }[] = [
   { key: "episodes", label: "Episodes" },
 ];
 
-function CalendarHeader({
-  mode,
-  monthOffset,
-}: {
-  mode: CalendarViewMode;
-  monthOffset: number;
-}) {
-  const calendarHref = `/calendar${monthOffset > 0 ? `?m=${monthOffset}` : ""}`;
-  const trackingHref = `/calendar?view=tracking${
-    monthOffset > 0 ? `&m=${monthOffset}` : ""
-  }`;
-
-  return (
-    <>
-      <Link
-        href="/my-list"
-        className="nm-raise-sm inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-muted transition hover:text-text"
-      >
-        <ArrowLeftIcon size={16} />
-        Back
-      </Link>
-
-      <div className="mt-7">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-accent">
-          {mode === "tracking" ? "Your shows" : "Coming soon"}
-        </p>
-        <h1 className="mt-1 font-display text-4xl uppercase leading-none tracking-wider text-text md:text-5xl">
-          {mode === "tracking" ? "Tracking" : "Release Calendar"}
-        </h1>
-      </div>
-
-      <div className="nm-inset mt-5 inline-flex items-center gap-1 rounded-xl p-1">
-        <Link
-          href={calendarHref}
-          className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition ${
-            mode === "calendar"
-              ? "nm-raise-sm text-accent"
-              : "text-muted hover:text-text"
-          }`}
-        >
-          <CalendarDaysIcon size={16} />
-          Calendar
-        </Link>
-        <Link
-          href={trackingHref}
-          className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition ${
-            mode === "tracking"
-              ? "nm-raise-sm text-accent"
-              : "text-muted hover:text-text"
-          }`}
-        >
-          <BellIcon size={16} />
-          Tracking
-        </Link>
-      </div>
-    </>
-  );
-}
-
 function toSummary(item: CalendarRelease): MediaSummary {
   return {
     id: item.id,
     tmdbId: item.tmdbId,
     type: item.type,
+    title: item.title,
+    posterUrl: item.posterUrl,
+    backdropUrl: item.backdropUrl,
+    rating: item.rating,
+    releaseDate: item.date,
+    genres: [],
+  };
+}
+
+/** A followed-series summary keyed by the SHOW, not the episode entry. */
+function toShowSummary(item: CalendarRelease): MediaSummary {
+  return {
+    id: `tv-${item.tmdbId}`,
+    tmdbId: item.tmdbId,
+    type: "tv",
     title: item.title,
     posterUrl: item.posterUrl,
     backdropUrl: item.backdropUrl,
@@ -141,55 +105,67 @@ export default function CalendarView({
   const tracked = useTracked();
   const month = initial.month;
 
-  const trackedIds = useMemo(
-    () => new Set(tracked.map((entry) => entry.media.tmdbId)),
-    [tracked]
-  );
-  const trackedKey = useMemo(
-    () => [...trackedIds].sort((a, b) => a - b).join(","),
-    [trackedIds]
-  );
+  const trackedIdList = useMemo(() => trackedTmdbIds(tracked), [tracked]);
+  const trackedIds = useMemo(() => new Set(trackedIdList), [trackedIdList]);
+  const trackedKey = useMemo(() => trackedIdList.join(","), [trackedIdList]);
   const [trackedEpisodes, setTrackedEpisodes] = useState<CalendarRelease[]>([]);
   const [trackedLoading, setTrackedLoading] = useState(false);
+  const [trackedError, setTrackedError] = useState(false);
+  const [trackedReload, setTrackedReload] = useState(0);
+  const [trackedTruncated, setTrackedTruncated] = useState(false);
+  const [nextUp, setNextUp] = useState<NextUpEpisode | null>(null);
   const effectiveFilter: CalendarFilter =
-    filter === "tracking" && trackedIds.size === 0 ? "all" : filter;
-
-  useEffect(() => {
-    if (filter === "tracking" && tracked.length === 0) setFilter("all");
-  }, [filter, tracked.length]);
+    filter === "tracking" && tracked.length === 0 ? "all" : filter;
 
   // The public month payload only loads its top airing shows. Followed series
   // get their own episode fetch here, so a tracked title is never missing just
   // because it sits outside that popularity cut.
   useEffect(() => {
+    // The Following view has its own enriched request; don't fetch the month
+    // calendar's tracked payload when that tab is the one being shown.
+    if (initialView === "tracking") return;
     if (!trackedKey) {
       setTrackedEpisodes([]);
+      setNextUp(null);
+      setTrackedTruncated(false);
+      setTrackedError(false);
       setTrackedLoading(false);
       return;
     }
 
     const controller = new AbortController();
     setTrackedLoading(true);
+    setTrackedError(false);
     const query = new URLSearchParams({ month, ids: trackedKey });
     fetch(`/api/calendar/tracked?${query.toString()}`, {
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok) return { items: [] };
-        return (await response.json()) as { items?: CalendarRelease[] };
+        if (!response.ok) throw new Error("tracked_calendar_failed");
+        return (await response.json()) as {
+          items?: CalendarRelease[];
+          nextUp?: NextUpEpisode | null;
+          truncated?: boolean;
+        };
       })
       .then((data) => {
-        if (!controller.signal.aborted) setTrackedEpisodes(data.items ?? []);
+        if (controller.signal.aborted) return;
+        setTrackedEpisodes(data.items ?? []);
+        setNextUp(data.nextUp ?? null);
+        setTrackedTruncated(Boolean(data.truncated));
       })
       .catch(() => {
-        if (!controller.signal.aborted) setTrackedEpisodes([]);
+        if (controller.signal.aborted) return;
+        setTrackedEpisodes([]);
+        setNextUp(null);
+        setTrackedError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setTrackedLoading(false);
       });
 
     return () => controller.abort();
-  }, [month, trackedKey]);
+  }, [month, trackedKey, trackedReload, initialView]);
 
   const allItems = useMemo(() => {
     const byId = new Map<string, CalendarRelease>();
@@ -239,7 +215,7 @@ export default function CalendarView({
     () => [
       ...BASE_FILTERS,
       ...(tracked.length > 0
-        ? [{ key: "tracking" as CalendarFilter, label: "Tracking" }]
+        ? [{ key: "tracking" as CalendarFilter, label: "Following" }]
         : []),
     ],
     [tracked.length]
@@ -298,7 +274,7 @@ export default function CalendarView({
   }, [month]);
 
   if (initialView === "tracking") {
-    return <TrackingView monthOffset={monthOffset} />;
+    return <FollowingView monthOffset={monthOffset} month={month} />;
   }
 
   const goMonth = (delta: number) => {
@@ -408,10 +384,70 @@ export default function CalendarView({
       </div>
 
       {trackedLoading && effectiveFilter === "tracking" && (
-        <p className="mb-4 text-sm text-muted">Loading your tracked episodes…</p>
+        <p className="mb-4 text-sm text-muted">Loading your followed shows…</p>
       )}
 
-      <div className={`transition-opacity ${pending ? "opacity-55" : ""}`}>
+      {tracked.length > 0 && trackedError && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-danger/25 bg-danger/10 px-4 py-2.5 text-sm text-text">
+          <span>Couldn&apos;t load episodes for the shows you follow.</span>
+          <button
+            type="button"
+            onClick={() => setTrackedReload((value) => value + 1)}
+            className="font-semibold text-accent transition hover:text-accent-strong"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {(trackedTruncated || tracked.length > MAX_TRACKED_CALENDAR_IDS) && (
+        <p className="mb-4 text-xs text-muted">
+          You follow more than {MAX_TRACKED_CALENDAR_IDS} shows — the calendar
+          covers your {MAX_TRACKED_CALENDAR_IDS} most recent follows.
+        </p>
+      )}
+
+      {effectiveFilter === "tracking" &&
+      !trackedLoading &&
+      !trackedError &&
+      counts.tracking === 0 ? (
+        <div className="nm-inset mt-4 rounded-2xl px-6 py-12 text-center md:py-14">
+          <div className="mx-auto flex max-w-md flex-col items-center">
+            <BellIcon size={28} className="text-accent" />
+            <h2 className="mt-3 text-sm font-semibold text-text">
+              None of your shows air in {monthLabel(month)}
+            </h2>
+            {nextUp ? (
+              <p className="mt-1 text-sm text-muted">
+                Next up: {nextUp.title} — {episodeWhen(nextUp.airDate)} (
+                {episodeCode({
+                  seasonNumber: nextUp.seasonNumber,
+                  episodeNumber: nextUp.episodeNumber,
+                })}
+                ).
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-muted">
+                No upcoming episodes are announced yet. Your followed shows
+                still appear in Following.
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link
+                href="/calendar?view=tracking"
+                className="btn-accent h-9 px-4 py-0 text-sm"
+              >
+                Open Following
+              </Link>
+              <Link href="/calendar" className="btn-ghost h-9 px-4 py-0 text-sm">
+                Browse all releases
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className={`transition-opacity ${pending ? "opacity-55" : ""}`}>
         <div className="nm-raise-sm overflow-hidden rounded-[16px] p-2 sm:p-3">
           <div className="mb-1 grid grid-cols-7 gap-1 sm:gap-2">
             {WEEKDAYS.map((day) => (
@@ -514,7 +550,15 @@ export default function CalendarView({
         </h2>
 
         {selectedItems.length === 0 ? (
-          <p className="text-muted">Nothing scheduled that day — pick another day.</p>
+          <p className="text-muted">
+            {effectiveFilter === "tracking"
+              ? `No followed episodes on this day.${
+                  nextUp
+                    ? ` Next up: ${nextUp.title} — ${episodeWhen(nextUp.airDate)}.`
+                    : ""
+                }`
+              : "Nothing scheduled that day — pick another day."}
+          </p>
         ) : (
           <>
             {cards.length > 0 && (
@@ -535,11 +579,14 @@ export default function CalendarView({
                     const episode = item.episode;
                     if (!episode) return null;
                     return (
-                      <Link
+                      <div
                         key={item.id}
-                        href={`/watch/tv/${item.tmdbId}?s=${episode.seasonNumber}&e=${episode.episodeNumber}`}
-                        className="group overflow-hidden rounded-xl bg-white/[0.04] ring-1 ring-white/[0.06] transition-colors hover:bg-white/[0.07]"
+                        className="group relative overflow-hidden rounded-xl bg-white/[0.04] ring-1 ring-white/[0.06] transition-colors hover:bg-white/[0.07]"
                       >
+                        <Link
+                          href={`/watch/tv/${item.tmdbId}?s=${episode.seasonNumber}&e=${episode.episodeNumber}`}
+                          className="block"
+                        >
                         <div className="relative aspect-video overflow-hidden bg-surface-2">
                           <PosterImage
                             src={
@@ -566,7 +613,16 @@ export default function CalendarView({
                             {episodeSubtitle(episode)}
                           </p>
                         </div>
-                      </Link>
+                        </Link>
+                        {!item.tracked && (
+                          <div className="absolute right-2 top-2 z-10">
+                            <TrackButton
+                              item={toShowSummary(item)}
+                              surface="calendar"
+                            />
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -575,61 +631,9 @@ export default function CalendarView({
           </>
         )}
       </section>
-    </div>
-  );
-}
-
-function TrackingView({ monthOffset }: { monthOffset: number }) {
-  const tracked = useTracked();
-
-  return (
-    <div className="red-accent w-full px-6 pb-8 pt-24 md:px-16">
-      <CalendarHeader mode="tracking" monthOffset={monthOffset} />
-
-      <p className="mt-6 max-w-3xl text-sm leading-relaxed text-muted">
-        Tap the bell on any series (or Track series in Add to list) to follow it.
-        Its new episodes are marked in the calendar.
-      </p>
-
-      {tracked.length === 0 ? (
-        <div className="nm-inset mt-4 rounded-2xl px-6 py-14 text-center md:py-16">
-          <div className="mx-auto flex max-w-md flex-col items-center">
-            <BellIcon size={30} className="text-accent" />
-            <h2 className="mt-3 text-sm font-semibold text-text">
-              You&apos;re not tracking any series yet
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              Open a series and tap the bell next to Add to List.
-            </p>
-            <Link href="/tv-shows" className="btn-accent mt-5 h-10 px-5 py-0 text-sm">
-              Browse series
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {tracked.map(({ media }) => (
-            <Link
-              key={media.id}
-              href={`/${media.type}/${media.tmdbId}`}
-              prefetch={false}
-              className="group block"
-            >
-              <div className="poster-frame">
-                <PosterImage
-                  src={media.posterUrl}
-                  title={media.title}
-                  type={media.type}
-                  className="poster-img"
-                />
-              </div>
-              <h3 className="mt-2 truncate text-[13px] font-semibold text-text">
-                {media.title}
-              </h3>
-            </Link>
-          ))}
-        </div>
+        </>
       )}
     </div>
   );
 }
+

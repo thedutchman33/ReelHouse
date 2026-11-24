@@ -244,7 +244,7 @@ function PillSelect({
               role="listbox"
               aria-label={label}
               tabIndex={-1}
-              className="f1-scroll absolute right-0 z-40 mt-1 max-h-80 w-full min-w-[15rem] overflow-y-auto overscroll-contain rounded-lg border border-white/[0.12] bg-[#121219] p-1 shadow-[0_18px_40px_rgba(0,0,0,0.65)]"
+              className="f1-scroll rh-pop rh-pop-right rh-stagger absolute right-0 z-40 mt-1 max-h-80 w-full min-w-[15rem] overflow-y-auto overscroll-contain rounded-lg border border-white/[0.12] bg-[#121219] p-1 shadow-[0_18px_40px_rgba(0,0,0,0.65)]"
             >
               {options.map((o, i) => {
                 const selected = o.value === value;

@@ -89,14 +89,14 @@ export default function ProviderSelector({
       </button>
 
       {open && (
-          <div className="panel absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw-1rem)]">
+          <div className="panel rh-pop rh-pop-right absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw_-_1rem)]">
           <p className="panel-label border-b border-white/10">Servers</p>
           <ul
             ref={listRef}
             role="listbox"
             aria-label="Playback servers"
             onKeyDown={(e) => rovingKeyDown(e, optionButtons(listRef.current))}
-            className="max-h-72 overflow-y-auto p-1.5"
+            className="rh-stagger max-h-72 overflow-y-auto p-1.5"
           >
             {listed.map((p) => {
               const active = p.id === selectedId;

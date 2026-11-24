@@ -92,7 +92,7 @@ export default function LibraryFilters({
       {open && (
         <div
           id="library-filters"
-          className="nm-inset mt-3 animate-fade-in space-y-4 rounded-2xl p-4 md:p-5"
+          className="nm-inset rh-pop rh-stagger mt-3 space-y-4 rounded-2xl p-4 md:p-5"
         >
           <div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-muted">

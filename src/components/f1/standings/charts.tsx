@@ -523,7 +523,7 @@ export function StandingsLineChart({
             round={hoveredRound?.round ?? hover.index + 1}
             fallback={tooltipTitle}
           />
-          <ul className="flex max-h-[calc(100vh-9rem)] flex-col gap-1 overflow-hidden px-3 py-2">
+          <ul className="flex max-h-[calc(100vh_-_9rem)] flex-col gap-1 overflow-hidden px-3 py-2">
             {hoveredValues.map((row, i) => (
               <li key={row.s.id} className="flex items-center gap-2 leading-4">
                 <span className="w-4 shrink-0 text-right text-[11px] tabular-nums" style={{ color: row.s.colour }}>

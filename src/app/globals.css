@@ -5,7 +5,9 @@
 :root {
   /* Floating navbar geometry: main content and the home hero offset by this
      so the fixed bar can float over the page (reference pattern). */
-  --rh-nav-h: 60px;
+  /* Includes the iOS notch/status-bar inset: the fixed bar pads itself by the
+     same amount (see Navbar), so content clears it on notched phones too. */
+  --rh-nav-h: calc(60px + env(safe-area-inset-top));
 
   /* Reelhouse — streaming-dark theme with an emerald accent, matching the
      reference design language. Space-separated RGB triplets so Tailwind's
@@ -14,6 +16,10 @@
   --rh-surface: 26 28 27;     /* hsl(150 3% 11%) — cards, popovers */
   --rh-surface-2: 36 38 37;   /* hsl(150 3% 14%) — raised surface */
   --rh-border: 43 45 44;      /* hsl(150 3% 17%) */
+  /* One hairline for every shared container surface: cards, menus, dialogs,
+     inset wells and neumorphic panels. Kept at 9% white so it defines the
+     edge without becoming a second visual weight. */
+  --rh-hairline: 255 255 255 / 0.09;
   --rh-text: 242 243 242;
   --rh-muted: 137 144 140;    /* hsl(150 3% 55%) */
   --rh-accent: 16 185 129;    /* #10b981 emerald */
@@ -68,21 +74,44 @@
   .live-blink { animation: none; }
 }
 
+/* Moctale-style primary-nav underline. The geometry is written onto the
+   element by DesktopNavLinks after the open label has been laid out; the
+   transition is enabled only after the first measurement so the underline
+   cannot slide in from 0px on hydration. */
+.nav-underline[data-ready="true"] {
+  transition:
+    left 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-underline[data-ready="true"] {
+    transition: none;
+  }
+}
+
 @media (max-width: 1279px) {
   :root {
-    --rh-nav-h: 104px; /* two-tier bar: top row + scrollable link row */
+    /* Two-tier bar: top row + scrollable link row (taller link targets). */
+    --rh-nav-h: calc(112px + env(safe-area-inset-top));
   }
 }
 
 @layer base {
   html {
     color-scheme: dark;
+    /* Stop mobile Safari from inflating body text in landscape, which broke
+       the measured rail and nav geometry. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     /* Firefox page scrollbar — same neutral-on-dark treatment. */
     scrollbar-width: thin;
     scrollbar-color: rgb(255 255 255 / 0.18) transparent;
   }
   body {
     @apply bg-bg text-text antialiased;
+    /* Touch devices: no grey flash rectangle on every tap. */
+    -webkit-tap-highlight-color: transparent;
     font-feature-settings: "ss01", "cv01";
   }
   /* Page scrollbar, themed to the design system (reference pattern): a
@@ -127,6 +156,18 @@
   }
 }
 
+/* iOS Safari zooms the page whenever a text field under 16px is focused, which
+   left the whole site scaled up after using any form. Force a 16px editing
+   size on phones and tablets; the search field is already larger and is
+   skipped. */
+@media (max-width: 1023px) {
+  input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 @layer components {
   /* Page content column — 7reels' measured geometry: 24px gutters on phones,
      64px from 768px up, and NO max-width cap (their content runs edge to edge;
@@ -134,6 +175,13 @@
      Every page uses this one column so the left and right margins match. */
   .container-rh {
     @apply w-full px-6 md:px-16;
+  }
+
+  /* Detail-page media column (trailer + community charts). At 1920px this is
+     the measured 1576px content span of Moctale's title page, with matching
+     172px outer margins. The trailer and all three Moctale cards share it. */
+  .detail-rh {
+    @apply mx-auto w-full max-w-[1704px] px-6 md:px-16;
   }
 
   /* Full-bleed horizontal media rail (reference row anatomy): tight gaps,
@@ -144,6 +192,9 @@
     @apply flex gap-2 overflow-x-auto py-4 pb-6 no-scrollbar lg:gap-2.5 xl:gap-3;
     scroll-snap-type: x proximity;
     scroll-padding-inline: 24px;
+    /* Swiping a rail sideways must not trigger the browser's back gesture on
+       phones — the rail keeps the gesture. */
+    overscroll-behavior-x: contain;
   }
   .row-scroll > * {
     scroll-snap-align: start;
@@ -195,7 +246,8 @@
 
   /* Popover / dropdown panel. */
   .panel {
-    @apply overflow-hidden rounded-xl border border-white/10 bg-surface/95 shadow-2xl backdrop-blur-xl;
+    @apply overflow-hidden rounded-xl border bg-surface/95 shadow-2xl backdrop-blur-xl;
+    border-color: rgb(var(--rh-hairline));
   }
   .panel-label {
     @apply px-3 pb-1.5 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted;
@@ -259,17 +311,125 @@
   /* Poster frame: fixed 2:3 (TMDB's poster ratio), so artwork is never cropped
      vertically and every card in a row/grid is exactly the same shape. */
   .poster-frame {
-    @apply relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-surface-2 shadow-card ring-1 ring-black/10;
+    @apply relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-surface-2 shadow-card ring-1 ring-white/[0.09];
   }
   /* Backdrop/still frame: fixed 16:9. */
   .still-frame {
-    @apply relative aspect-video w-full overflow-hidden rounded-lg bg-surface-2 shadow-card ring-1 ring-black/10;
+    @apply relative aspect-video w-full overflow-hidden rounded-lg bg-surface-2 shadow-card ring-1 ring-white/[0.09];
   }
   /* Artwork inside either frame. Absolute so the frame's ratio — not the
      image's intrinsic size — decides the box, and centered so a ratio mismatch
      trims both edges evenly instead of slicing the top. */
   .frame-img {
     @apply absolute inset-0 h-full w-full object-cover object-center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Popup / dropdown motion (reference: 7reels account menu).
+
+   The panel settles with a short lift + scale, then its rows arrive in a tight
+   stagger. One system for every menu so a filter list, the account menu and a
+   dialog all feel like the same product. Motion is entrance-only: closing is
+   immediate, so keyboard dismissal never waits for an animation.
+--------------------------------------------------------------------------- */
+@keyframes rh-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes rh-pop-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes rh-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rh-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes rh-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.rh-pop {
+  transform-origin: top center;
+  animation: rh-pop-in 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.rh-pop-right {
+  transform-origin: top right;
+}
+.rh-pop-left {
+  transform-origin: top left;
+}
+.rh-pop-up {
+  transform-origin: bottom center;
+  animation-name: rh-pop-in-up;
+}
+.rh-pop-up.rh-pop-right {
+  transform-origin: bottom right;
+}
+.rh-modal {
+  transform-origin: center;
+  animation: rh-modal-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.rh-overlay {
+  animation: rh-overlay-in 170ms ease-out both;
+}
+
+/* Rows arrive after the surface. Long lists settle at a fixed final delay
+   instead of making item 40 wait a second behind item 1. */
+.rh-stagger > * {
+  animation: rh-item-in 210ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 20ms;
+}
+.rh-stagger > *:nth-child(2) { animation-delay: 38ms; }
+.rh-stagger > *:nth-child(3) { animation-delay: 56ms; }
+.rh-stagger > *:nth-child(4) { animation-delay: 74ms; }
+.rh-stagger > *:nth-child(5) { animation-delay: 92ms; }
+.rh-stagger > *:nth-child(6) { animation-delay: 110ms; }
+.rh-stagger > *:nth-child(7) { animation-delay: 128ms; }
+.rh-stagger > *:nth-child(8) { animation-delay: 146ms; }
+.rh-stagger > *:nth-child(9) { animation-delay: 164ms; }
+.rh-stagger > *:nth-child(10) { animation-delay: 182ms; }
+.rh-stagger > *:nth-child(n + 11) { animation-delay: 196ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rh-pop,
+  .rh-modal,
+  .rh-overlay,
+  .rh-stagger > * {
+    animation: none !important;
   }
 }
 
@@ -970,6 +1130,7 @@
     transition: color 0.18s, box-shadow 0.2s;
   }
   .nm-raise-sm {
+    border: 1px solid rgb(var(--rh-hairline));
     box-shadow:
       -3px -3px 7px hsl(var(--nm-hi) / 0.025),
       4px 4px 9px hsl(var(--nm-lo) / 0.6);
@@ -982,17 +1143,20 @@
     background: #202221;
   }
   .nm-raise {
+    border: 1px solid rgb(var(--rh-hairline));
     box-shadow:
       -4px -4px 9px hsl(var(--nm-hi) / 0.035),
       5px 5px 12px hsl(var(--nm-lo) / 0.75);
     background: #232524;
   }
   .nm-inset {
+    border: 1px solid rgb(var(--rh-hairline));
     box-shadow:
       inset 2px 2px 6px rgba(0, 0, 0, 0.45),
       inset -1px -1px 4px rgba(255, 255, 255, 0.04);
   }
   .nm-glass {
+    border: 1px solid rgb(var(--rh-hairline));
     box-shadow:
       -5px -5px 12px hsl(var(--nm-hi) / 0.03),
       7px 7px 18px hsl(var(--nm-lo) / 0.7);
@@ -1316,10 +1480,77 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Moctale community charts.
+
+   Entrance: the donut/gauge settles into place once, then the centre readout
+   crossfades on each hover. The meter's coloured arcs draw along their own
+   pathLength, so every segment reveals in the same direction as the source.
+   All hover geometry lives on SVG groups in MoctaleInsights; these rules only
+   own the one-time entrance and reduced-motion fallbacks.
+--------------------------------------------------------------------------- */
+@keyframes rh-chart-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.rh-chart-in {
+  transform-origin: center;
+  animation: rh-chart-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rh-chart-label-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.rh-chart-label-in {
+  animation: rh-chart-label-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rh-meter-arc-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.rh-meter-arc {
+  stroke-dasharray: 1;
+  animation: rh-meter-arc-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rh-chart-in,
+  .rh-chart-label-in,
+  .rh-meter-arc {
+    animation: none;
+  }
+  .rh-chart-in,
+  .rh-chart-in * {
+    transition-duration: 0.01ms !important;
+  }
+  .rh-meter-arc {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* F1TV panel chrome — flat dark sheet with a hairline border and an inner
    top highlight (replaces the watch-page neumorphic nm-glass on /f1). */
 .f1-card {
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgb(var(--rh-hairline));
   background: linear-gradient(180deg, rgba(21, 21, 30, 0.92), rgba(15, 15, 21, 0.95));
   box-shadow:
     0 2px 22px rgba(0, 0, 0, 0.42),

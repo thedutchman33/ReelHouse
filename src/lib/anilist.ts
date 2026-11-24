@@ -372,10 +372,13 @@ export async function anilistBrowse(filters: BrowseFilters): Promise<AniListBrow
   // arguments are composed in lockstep.
   const decls: string[] = ["$page: Int", "$perPage: Int", "$sort: [MediaSort]"];
   const args: string[] = ["type: ANIME", "sort: $sort", "isAdult: false"];
-  if (filters.genre && (ANILIST_GENRES as readonly string[]).includes(filters.genre)) {
-    decls.push("$genre: String");
-    args.push("genre_in: [$genre]");
-    variables.genre = filters.genre;
+  const genreFilter = filters.genres.filter((genre) =>
+    (ANILIST_GENRES as readonly string[]).includes(genre)
+  );
+  if (genreFilter.length > 0) {
+    decls.push("$genres: [String]");
+    args.push("genre_in: $genres");
+    variables.genres = genreFilter;
   }
   if (filters.year) {
     decls.push("$startDateGreater: FuzzyDateInt", "$startDateLess: FuzzyDateInt");

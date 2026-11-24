@@ -9,7 +9,9 @@ import WatchDock from "@/components/playback/WatchDock";
 import ServerPanel from "@/components/playback/ServerPanel";
 import WatchDetails from "@/components/playback/WatchDetails";
 import WatchEpisodes from "@/components/playback/WatchEpisodes";
+import MoctaleInsights from "@/components/reviews/MoctaleInsights";
 import { RecommendationsSection, TrailerSection } from "@/components/playback/WatchExtras";
+import type { MoctaleSnapshot } from "@/lib/moctale";
 import { formatRuntime, isLiveMediaType } from "@/lib/utils";
 import type { EpisodeRef } from "@/lib/library";
 import { markPlaybackStarted, progressKey, readProgress } from "@/lib/library";
@@ -152,12 +154,15 @@ export default function PlaybackContainer({
   initialEpisodeNumber,
   initialSeconds,
   backHref,
+  moctale = null,
 }: {
   type: MediaType;
   media: MediaSummary;
   /** Full detail record (cast, tagline, recommendations) for the info section
       below the player. Optional so playback keeps working without it. */
   detail?: Media | null;
+  /** Real Moctale snapshot; absent when the title is not on Moctale. */
+  moctale?: MoctaleSnapshot | null;
   overview?: string;
   runtime?: number;
   seasons: Season[];
@@ -782,11 +787,11 @@ export default function PlaybackContainer({
       </div>
 
       {/* Floating back chip (reference geometry: left-3 top-1, sm:left-6 sm:top-4) */}
-      <div className="fixed left-3 top-1 z-[60] sm:left-6 sm:top-4">
+      <div className="fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.25rem,env(safe-area-inset-top))] z-[60] sm:left-6 sm:top-4">
         <BackButton href={backHref} />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-[1700px] px-4 pt-16 sm:pt-6 md:px-8">
+      <div className="relative z-10 mx-auto max-w-[1700px] px-4 pt-[calc(4rem_+_env(safe-area-inset-top))] sm:pt-6 md:px-8">
         {/* Player column: glow mask + stage + dock + switch row */}
         <div className="relative px-1">
           {/* Glow behind the stage (reference: radial mask + blur-64 backdrop) */}
@@ -979,6 +984,12 @@ export default function PlaybackContainer({
               />
             </div>
           )}
+
+          {/* Community Vibe Chart, Moctale Meter and most-liked reviews
+              (detail-page layout, watch placement directly under details). */}
+          {moctale ? (
+            <MoctaleInsights snapshot={moctale} surface="watch" />
+          ) : null}
         </div>
       </div>
 

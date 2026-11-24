@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { isMonthKey } from "@/lib/calendar";
-import { getTrackedCalendarEpisodes } from "@/lib/release-calendar";
+import { getTrackedShowStatus } from "@/lib/release-calendar";
+import { resolveTrackedIds } from "@/lib/tracking-server";
 
-// Episodes for the viewer's tracked series. Tracking lives in localStorage, so
-// the calendar sends its ids here after mount; this keeps a followed show's
-// dates available even when the public month payload's top-24 episode budget
-// does not include it.
+// Episodes for the viewer's followed series. The calendar sends its local ids
+// here after mount; signed-in callers can omit them and use their server-side
+// follows. Each show's detail request also yields next/last/status, which lets
+// the calendar's empty state name the next episode instead of showing a dead
+// month.
 export const dynamic = "force-dynamic";
-
-const MAX_TRACKED_IDS = 100;
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -18,22 +18,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "bad_month", items: [] }, { status: 400 });
   }
 
-  const ids = [
-    ...new Set(
-      (params.get("ids") ?? "")
-        .split(",")
-        .map((value) => Number(value))
-        .filter((id) => Number.isInteger(id) && id > 0)
-    ),
-  ].slice(0, MAX_TRACKED_IDS);
-
   try {
-    const items = await getTrackedCalendarEpisodes(month, ids);
+    const { ids, truncated } = await resolveTrackedIds(params.get("ids"));
+    const result = await getTrackedShowStatus(month, ids);
     return NextResponse.json(
-      { items },
+      {
+        items: result.items,
+        nextUp: result.nextUp,
+        truncated: truncated || result.truncated,
+      },
       {
         headers: {
-          // Personalised by the tracked ids in the query; keep it out of shared
+          // Personalised by the followed ids in the query; keep it out of shared
           // caches while still allowing a short browser cache.
           "Cache-Control": "private, max-age=300",
         },

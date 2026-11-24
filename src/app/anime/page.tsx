@@ -12,7 +12,7 @@ export default function AnimePage() {
     <BrowseView
       type="anime"
       title="Anime"
-      subtitle="Japanese animation - films and series together, filter by genre, year and sort order."
+      subtitle="Japanese animation - films and series together, filter by genre, decade and sort order."
     />
   );
 }

@@ -58,7 +58,7 @@ export default function CatalogDialog({
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-[140] grid animate-fade-in place-items-center bg-black/70 p-4 backdrop-blur-sm"
+      className="rh-overlay fixed inset-0 z-[140] grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
     >
       <form
         onSubmit={(event) => {
@@ -69,7 +69,7 @@ export default function CatalogDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="catalog-dialog-title"
-        className="nm-glass w-full max-w-md animate-fade-up rounded-2xl border border-white/10 p-5 shadow-2xl"
+        className="nm-glass rh-modal w-full max-w-md rounded-2xl border border-white/10 p-5 shadow-2xl"
       >
         <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted">
           Catalogs

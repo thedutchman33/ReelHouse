@@ -127,3 +127,16 @@ export function sortProviders<T extends { name: string }>(providers: T[]): T[] {
   };
   return [...providers].sort((a, b) => rank(a.name) - rank(b.name));
 }
+
+/**
+ * The provider set shared by the homepage OTT rail, the provider directory and
+ * the browse filter: one wordmark-backed flagship per brand family, in the
+ * operator's display priority.
+ */
+export function featuredProviders<T extends { name: string }>(
+  providers: T[]
+): T[] {
+  return sortProviders(
+    dedupeByFamily(providers.filter((provider) => wordmarkFor(provider.name)))
+  );
+}

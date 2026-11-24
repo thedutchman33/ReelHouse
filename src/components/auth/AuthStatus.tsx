@@ -7,6 +7,7 @@ import {
   BellIcon,
   BookOpenIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   DevicesIcon,
   GaugeIcon,
   GlobeIcon,
@@ -17,6 +18,8 @@ import {
 } from "@/components/account/icons";
 import { displayNameFor, avatarUrlFor, useAuth } from "@/components/auth/AuthProvider";
 import Flag from "@/components/account/Flag";
+import NotificationsPreview from "@/components/notifications/NotificationsPreview";
+import { useTrackingNotifications } from "@/components/notifications/use-tracking-notifications";
 import { QUALITY_MODES, languageOption, useSettings, updateSettings } from "@/lib/preferences";
 import { rovingKeyDown, usePopover } from "@/lib/use-popover";
 
@@ -42,9 +45,19 @@ const QUALITY_HINTS: Record<string, string> = {
 export default function AuthStatus() {
   const { user, ready, openAuth, signOut, accountMenuSignal } = useAuth();
   const { quality, language } = useSettings();
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    reload,
+    trackedCount,
+    dismissNotification,
+    clearAll,
+  } = useTrackingNotifications();
   const { open, rootRef, triggerRef, toggle, close, setOpen } = usePopover();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<"root" | "notifications">("root");
+  const [view, setView] = useState<"main" | "notifications">("main");
   const [busy, setBusy] = useState(false);
   const handledMenuSignal = useRef(accountMenuSignal);
 
@@ -56,10 +69,12 @@ export default function AuthStatus() {
 
   useEffect(() => {
     if (!open) {
-      setView("root");
+      setView("main");
       return;
     }
-    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const selector =
+      view === "notifications" ? "[data-notifications-back]" : '[role="menuitem"]';
+    menuRef.current?.querySelector<HTMLElement>(selector)?.focus();
   }, [open, view]);
 
   const label = displayNameFor(user);
@@ -94,7 +109,7 @@ export default function AuthStatus() {
         aria-expanded={open}
         aria-label="Account menu"
         title={user?.email ?? "Account"}
-        className={`inline-flex h-10 items-center justify-center rounded-lg text-white/80 transition hover:bg-white/5 hover:text-white w-10 ${
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition hover:bg-white/5 hover:text-white min-[360px]:h-9 min-[360px]:w-9 sm:h-10 sm:w-10 ${
           open ? "bg-white/10" : ""
         }`}
       >
@@ -131,41 +146,41 @@ export default function AuthStatus() {
       {open && (
         <div
           ref={menuRef}
-          role="menu"
-          aria-label="Account"
-          className="nm-glass absolute right-0 top-full z-50 mt-2 w-[300px] max-w-[calc(100vw-1.5rem)] rounded-2xl p-2"
-          onKeyDown={(event) =>
-            rovingKeyDown(
-              event,
-              Array.from(
-                event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')
-              )
-            )
+          role={view === "notifications" ? "dialog" : "menu"}
+          aria-label={view === "notifications" ? "Notifications" : "Account"}
+          className={`nm-glass rh-pop rh-pop-right absolute right-0 top-full z-50 mt-2 max-h-[calc(100dvh_-_5rem)] max-w-[calc(100vw_-_1.5rem)] overflow-y-auto overscroll-contain rounded-2xl p-2 [scrollbar-width:thin] ${
+            view === "notifications"
+              ? "w-[min(352px,calc(100vw_-_3rem))]"
+              : "w-[min(300px,calc(100vw_-_3rem))]"
+          }`}
+          onKeyDown={
+            view === "notifications"
+              ? undefined
+              : (event) =>
+                  rovingKeyDown(
+                    event,
+                    Array.from(
+                      event.currentTarget.querySelectorAll<HTMLElement>(
+                        '[role="menuitem"]'
+                      )
+                    )
+                  )
           }
         >
           {view === "notifications" ? (
-            <>
-              <div className="flex items-center gap-2 border-b border-white/[0.08] px-2 pb-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setView("root")}
-                  className="rounded-md p-1 text-white/60 transition hover:bg-white/5 hover:text-white"
-                  aria-label="Back to account menu"
-                >
-                  <ChevronDownIcon size={15} className="rotate-90" />
-                </button>
-                <p className="text-[13px] font-semibold text-white">Notifications</p>
-              </div>
-              <div className="px-3 py-8 text-center">
-                <BellIcon size={22} className="mx-auto text-white/25" />
-                <p className="mt-2 text-[12px] font-medium text-white/70">
-                  You&apos;re all caught up
-                </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-white/40">
-                  New-release and account notices will appear here.
-                </p>
-              </div>
-            </>
+            <NotificationsPreview
+              notifications={notifications}
+              trackedCount={trackedCount}
+              loading={loading}
+              error={error}
+              onRetry={reload}
+              onBack={() => setView("main")}
+              onNavigate={close}
+              onDismiss={dismissNotification}
+              onClearAll={clearAll}
+              surface="account"
+              backLabel="Back to account menu"
+            />
           ) : (
             <>
               {user ? (
@@ -232,7 +247,7 @@ export default function AuthStatus() {
 
               {!user && <div className="mx-3 h-px bg-white/[0.06]" />}
 
-              <div className="pt-1">
+              <div className="rh-stagger pt-1">
                 <Link
                   href="/settings"
                   role="menuitem"
@@ -303,11 +318,18 @@ export default function AuthStatus() {
                 <button
                   type="button"
                   role="menuitem"
+                  aria-haspopup="dialog"
                   onClick={() => setView("notifications")}
                   className={itemClass}
                 >
                   <BellIcon size={15} className="shrink-0 text-white/60" />
-                  Notifications
+                  <span className="flex-1">Notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-accent-ink">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                  <ChevronRightIcon size={13} className="text-white/35" />
                 </button>
                 <Link
                   href="/faq"

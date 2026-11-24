@@ -56,6 +56,18 @@ const nextConfig = {
   // the home page instead of rendering a second, differently styled form.
   async redirects() {
     return [
+      // The OTT directory now lives at /ott. Keep old /providers links and
+      // bookmarks working; Next preserves query strings across redirects.
+      {
+        source: "/providers",
+        destination: "/ott",
+        permanent: true,
+      },
+      {
+        source: "/providers/:id",
+        destination: "/ott/:id",
+        permanent: true,
+      },
       {
         source: "/login",
         destination: "/?auth=login",
@@ -135,7 +147,7 @@ const nextConfig = {
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://images.icc-cricket.com https://www.bcci.tv https://raw.githubusercontent.com",
+      "img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://media.moctale.in https://images.icc-cricket.com https://www.bcci.tv https://raw.githubusercontent.com",
       "font-src 'self'",
       "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co",
       "media-src 'self' blob:",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import type { TrackingNotify } from "@/lib/tracking";
 import type { MediaSummary, MediaType } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,8 @@ export interface WatchedEntry {
 export interface TrackedEntry {
   trackedAt: number;
   media: MediaSummary;
+  /** Per-show alert preference; older local entries default to "all". */
+  notify?: TrackingNotify;
 }
 
 /**
@@ -347,18 +350,119 @@ export function toggleReaction(item: MediaSummary, reaction: TitleReaction): voi
   commit({ ...cache, reactions: next });
 }
 
-/** Follow/unfollow a series for the Release Calendar's Tracking tab. */
+/** Follow/unfollow a series for the Following calendar and alert surfaces. */
 export function setTracked(item: MediaSummary, tracked: boolean): void {
   ensureLoaded();
+  const existing = cache.tracked[item.id];
   const next = { ...cache.tracked };
-  if (tracked) next[item.id] = { media: item, trackedAt: Date.now() };
-  else delete next[item.id];
+  if (tracked) {
+    const entry: TrackedEntry = {
+      media: item,
+      trackedAt: Date.now(),
+      notify: existing?.notify ?? "all",
+    };
+    next[item.id] = entry;
+    commit({ ...cache, tracked: next });
+    if (serverEnabled) {
+      void pushTracked(entry);
+      void logTrackingEvent({
+        eventType: "track",
+        mediaId: item.id,
+        metadata: { type: item.type, tmdbId: item.tmdbId },
+      });
+    }
+    return;
+  }
+
+  delete next[item.id];
   commit({ ...cache, tracked: next });
+  if (serverEnabled) {
+    void deleteTrackedRemote(item.id);
+    void logTrackingEvent({ eventType: "untrack", mediaId: item.id });
+  }
 }
 
-export function toggleTracked(item: MediaSummary): void {
+/** Returns the new state, so a caller can phrase its confirmation toast. */
+export function toggleTracked(item: MediaSummary): boolean {
   ensureLoaded();
-  setTracked(item, cache.tracked[item.id] === undefined);
+  const tracked = cache.tracked[item.id] === undefined;
+  setTracked(item, tracked);
+  return tracked;
+}
+
+/** Change one followed show's alert preference (all / premieres / off). */
+export function setTrackingNotify(
+  item: MediaSummary,
+  notify: TrackingNotify
+): void {
+  ensureLoaded();
+  const existing = cache.tracked[item.id];
+  if (!existing) return;
+  const entry: TrackedEntry = {
+    ...existing,
+    media: item,
+    notify,
+    // Bumped so a preference change wins the next local/server merge.
+    trackedAt: Date.now(),
+  };
+  commit({ ...cache, tracked: { ...cache.tracked, [item.id]: entry } });
+  if (serverEnabled) {
+    void pushTracked(entry);
+    void logTrackingEvent({
+      eventType: "preference",
+      mediaId: item.id,
+      metadata: { notify },
+    });
+  }
+}
+
+/**
+ * Refresh a followed entry's media snapshot (poster/title/resolved TMDB twin)
+ * without changing when it was followed. Detail pages call this when they load,
+ * which is how an anime followed from an AniList-only card acquires the TMDB
+ * match it needs for calendar episodes.
+ */
+export function refreshTrackedSnapshot(item: MediaSummary): void {
+  ensureLoaded();
+  const existing = cache.tracked[item.id];
+  if (!existing) return;
+
+  // Cards/search results can omit fields a detail payload carries. Fill in what
+  // this item knows and keep the existing value otherwise — especially the
+  // resolved TMDB twin, which must never be erased by an AniList-only card.
+  const media: MediaSummary = {
+    ...existing.media,
+    title: item.title || existing.media.title,
+    type: item.type,
+    tmdbId: item.tmdbId || existing.media.tmdbId,
+    posterUrl: item.posterUrl ?? existing.media.posterUrl,
+    backdropUrl: item.backdropUrl ?? existing.media.backdropUrl,
+    rating: item.rating ?? existing.media.rating,
+    releaseDate: item.releaseDate ?? existing.media.releaseDate,
+    genres: item.genres.length > 0 ? item.genres : existing.media.genres,
+    overview: item.overview ?? existing.media.overview,
+    certification: item.certification ?? existing.media.certification,
+    logoUrl: item.logoUrl ?? existing.media.logoUrl,
+    resolvedTmdbId: item.resolvedTmdbId ?? existing.media.resolvedTmdbId,
+  };
+
+  if (
+    existing.media.title === media.title &&
+    existing.media.posterUrl === media.posterUrl &&
+    existing.media.backdropUrl === media.backdropUrl &&
+    existing.media.resolvedTmdbId === media.resolvedTmdbId
+  ) {
+    return;
+  }
+  const entry: TrackedEntry = { ...existing, media };
+  commit({ ...cache, tracked: { ...cache.tracked, [item.id]: entry } });
+  if (serverEnabled) void pushTracked(entry);
+}
+
+/** Non-reactive lookup for event handlers. */
+export function isTracked(mediaId: string): boolean {
+  ensureLoaded();
+  return cache.tracked[mediaId] !== undefined;
 }
 
 // -------------------------------- catalogs ---------------------------------
@@ -473,6 +577,30 @@ async function pushWatchlist(
   }
 }
 
+async function pushTracked(entry: TrackedEntry): Promise<void> {
+  try {
+    await fetch("/api/tracking", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "track", entry }),
+    });
+  } catch {
+    /* best effort — reconciled on next hydrate */
+  }
+}
+
+async function deleteTrackedRemote(mediaId: string): Promise<void> {
+  try {
+    await fetch("/api/tracking", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "untrack", media_id: mediaId }),
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
 async function pushProgress(entry: ProgressEntry): Promise<void> {
   try {
     await fetch("/api/history", {
@@ -532,18 +660,31 @@ export function logPlaybackEvent(input: {
 
 async function fetchServerState(): Promise<LibrarySnapshot | null> {
   try {
-    const [wRes, hRes] = await Promise.all([
+    const [wRes, hRes, tRes] = await Promise.all([
       fetch("/api/watchlist", { headers: { Accept: "application/json" } }),
       fetch("/api/history", { headers: { Accept: "application/json" } }),
+      fetch("/api/tracking", { headers: { Accept: "application/json" } }),
     ]);
     // 401 => not actually signed in on the server; caller reverts to local.
-    if (wRes.status === 401 || hRes.status === 401) return null;
+    if (wRes.status === 401 || hRes.status === 401 || tRes.status === 401) {
+      return null;
+    }
     if (!wRes.ok || !hRes.ok) return EMPTY;
     const wJson = (await wRes.json()) as { items?: MediaSummary[] };
     const hJson = (await hRes.json()) as { entries?: ProgressEntry[] };
+    // Tracking is a newer table: an older deployment without the migration must
+    // not erase a working watchlist/history hydrate. Treat a failed tracking
+    // read as "no server follows" and let the local mirror retry next time.
+    const tJson = tRes.ok
+      ? ((await tRes.json()) as { entries?: TrackedEntry[] })
+      : { entries: [] };
     const progress: Record<string, ProgressEntry> = {};
     for (const e of hJson.entries ?? []) progress[e.key] = e;
-    return { watchlist: wJson.items ?? [], progress };
+    const tracked: Record<string, TrackedEntry> = {};
+    for (const entry of tJson.entries ?? []) {
+      if (entry?.media?.id) tracked[entry.media.id] = entry;
+    }
+    return { watchlist: wJson.items ?? [], progress, tracked };
   } catch {
     return EMPTY;
   }
@@ -555,10 +696,16 @@ export interface MergeResult {
   watchlist: MediaSummary[];
   /** Merged progress: newest `updatedAt` wins per key. */
   progress: Record<string, ProgressEntry>;
+  /** Merged follows: newest `trackedAt` wins per id. */
+  tracked: Record<string, TrackedEntry>;
   /** Local watchlist items not on the server — to push up (migration). */
   localOnlyWatch: MediaSummary[];
   /** Local progress entries newer than the server's — to push up. */
   localNewer: ProgressEntry[];
+  /** Local follows not on the server — to push up (migration). */
+  localOnlyTracked: TrackedEntry[];
+  /** Local follows newer than the server's — to push up. */
+  localNewerTracked: TrackedEntry[];
 }
 
 /**
@@ -593,7 +740,31 @@ export function mergeLibrary(
     }
   }
 
-  return { watchlist, progress, localOnlyWatch, localNewer };
+  // Tracking: union by media id, newest trackedAt wins. A local-only follow is
+  // migrated up on the first signed-in hydrate, exactly like a watchlist item.
+  const tracked: Record<string, TrackedEntry> = { ...(server.tracked ?? {}) };
+  const localOnlyTracked: TrackedEntry[] = [];
+  const localNewerTracked: TrackedEntry[] = [];
+  for (const [mediaId, entry] of Object.entries(effectiveLocal.tracked ?? {})) {
+    const remote = tracked[mediaId];
+    if (!remote) {
+      tracked[mediaId] = entry;
+      localOnlyTracked.push(entry);
+    } else if (entry.trackedAt > remote.trackedAt) {
+      tracked[mediaId] = entry;
+      localNewerTracked.push(entry);
+    }
+  }
+
+  return {
+    watchlist,
+    progress,
+    tracked,
+    localOnlyWatch,
+    localNewer,
+    localOnlyTracked,
+    localNewerTracked,
+  };
 }
 
 /**
@@ -621,24 +792,32 @@ export async function syncOnSignIn(userId: string): Promise<void> {
   const base: LibraryState = localIsOurs
     ? cache
     : { ...EMPTY, catalogs: starterCatalogs() };
-  const { watchlist, progress, localOnlyWatch, localNewer } = mergeLibrary(
-    base,
-    server,
-    { localIsOurs }
-  );
+  const {
+    watchlist,
+    progress,
+    tracked,
+    localOnlyWatch,
+    localNewer,
+    localOnlyTracked,
+    localNewerTracked,
+  } = mergeLibrary(base, server, { localIsOurs });
 
-  commit({ ...base, watchlist, progress });
+  commit({ ...base, watchlist, progress, tracked });
   setOwner(userId);
 
   // One-time migration + offline catch-up: push local-only / local-newer up.
   localOnlyWatch.forEach((m) => void pushWatchlist("add", m));
   localNewer.forEach((e) => void pushProgress(e));
+  localOnlyTracked.forEach((entry) => void pushTracked(entry));
+  localNewerTracked.forEach((entry) => void pushTracked(entry));
 }
 
 /**
- * Disable server sync and clear the server-mirrored watchlist/progress (data
- * stays on the server). Catalogs, watched marks and reactions never leave this
- * device, so a sign-out must not erase them.
+ * Disable server sync and clear the server-mirrored watchlist, progress and
+ * follows (data stays on the server). Catalogs, watched marks and reactions
+ * never leave this device, so a sign-out must not erase them. Tracking used to
+ * be local-only and was deliberately left behind here — that leaked the
+ * previous account's followed shows on a shared browser, so it is cleared too.
  */
 export function syncOnSignOut(): void {
   // Sign-out can arrive before the first component has read the store. Load the
@@ -646,7 +825,34 @@ export function syncOnSignOut(): void {
   ensureLoaded();
   serverEnabled = false;
   setOwner(null);
-  commit({ ...cache, watchlist: [], progress: {} });
+  commit({ ...cache, watchlist: [], progress: {}, tracked: {} });
+}
+
+/** Append-only follow/unfollow + notification-click analytics. Best effort. */
+export type TrackingEventType =
+  | "track"
+  | "untrack"
+  | "preference"
+  | "notification_click"
+  | "notification_open";
+
+export function logTrackingEvent(input: {
+  eventType: TrackingEventType;
+  mediaId?: string;
+  metadata?: Record<string, unknown>;
+}): void {
+  if (!serverEnabled) return;
+  fetch("/api/tracking/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event_type: input.eventType,
+      media_id: input.mediaId ?? null,
+      metadata: input.metadata ?? {},
+    }),
+  }).catch(() => {
+    /* analytics are best effort */
+  });
 }
 
 // --------------------------------- hooks -----------------------------------
@@ -673,6 +879,16 @@ export function useTracked(): TrackedEntry[] {
     () => Object.values(tracked).sort((a, b) => b.trackedAt - a.trackedAt),
     [tracked]
   );
+}
+
+export function useIsTracked(mediaId: string): boolean {
+  const { tracked } = useLibrary();
+  return useMemo(() => tracked[mediaId] !== undefined, [tracked, mediaId]);
+}
+
+export function useTrackedCount(): number {
+  const { tracked } = useLibrary();
+  return Object.keys(tracked).length;
 }
 
 export function useCatalogs(): Catalog[] {

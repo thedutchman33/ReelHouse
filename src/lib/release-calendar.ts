@@ -12,7 +12,14 @@ import {
   monthLabel,
   parseMonthKey,
   sortCalendarItems,
+  todayKey,
 } from "@/lib/calendar";
+import {
+  MAX_TRACKED_CALENDAR_IDS,
+  type NextUpEpisode,
+  type TrackedEpisodeInfo,
+  type TrackedShowStatus,
+} from "@/lib/tracking";
 import { MOCK_MEDIA } from "@/lib/mock";
 import { mediaId } from "@/lib/utils";
 
@@ -380,13 +387,171 @@ export async function getTrackedCalendarEpisodes(
   if (!TMDB_KEY) return [];
   const trackedIds = [...new Set(ids)]
     .filter((id) => Number.isInteger(id) && id > 0)
-    .slice(0, 100);
+    .slice(0, MAX_TRACKED_CALENDAR_IDS);
   if (trackedIds.length === 0) return [];
 
   const groups = await mapWithConcurrency(trackedIds, 6, (id) =>
     episodesForShow(id, month, true)
   );
   return sortCalendarItems(dedupe(groups.flat()));
+}
+
+function trackedEpisodeInfo(raw: any): TrackedEpisodeInfo | null {
+  const airDate = typeof raw?.air_date === "string" ? raw.air_date : "";
+  const seasonNumber = Number(raw?.season_number);
+  const episodeNumber = Number(raw?.episode_number);
+  if (
+    !airDate ||
+    !Number.isInteger(seasonNumber) ||
+    seasonNumber <= 0 ||
+    !Number.isInteger(episodeNumber) ||
+    episodeNumber <= 0
+  ) {
+    return null;
+  }
+  return {
+    seasonNumber,
+    episodeNumber,
+    name: raw.name || `Episode ${episodeNumber}`,
+    airDate,
+    stillUrl: image(raw.still_path, "w300"),
+  };
+}
+
+function nextUpFor(shows: TrackedShowStatus[]): NextUpEpisode | null {
+  const today = todayKey();
+  const candidates = shows.flatMap((show) => {
+    const episode = show.nextEpisode;
+    if (!episode || episode.airDate < today) return [];
+    return [
+      {
+        tmdbId: show.tmdbId,
+        title: show.name,
+        airDate: episode.airDate,
+        seasonNumber: episode.seasonNumber,
+        episodeNumber: episode.episodeNumber,
+        name: episode.name,
+      },
+    ];
+  });
+  candidates.sort(
+    (a, b) =>
+      a.airDate.localeCompare(b.airDate) ||
+      a.title.localeCompare(b.title)
+  );
+  return candidates[0] ?? null;
+}
+
+export interface TrackedShowStatusResult {
+  shows: TrackedShowStatus[];
+  items: CalendarRelease[];
+  nextUp: NextUpEpisode | null;
+  truncated: boolean;
+}
+
+/**
+ * One request for everything the Following timeline needs: each show's status,
+ * its next and last episode, and the episodes that air in the selected month.
+ * A show's detail is fetched once and its adjacent seasons are reused for both
+ * the calendar entries and the status metadata.
+ */
+export async function getTrackedShowStatus(
+  month: string,
+  ids: number[]
+): Promise<TrackedShowStatusResult> {
+  const unique = [...new Set(ids)].filter(
+    (id) => Number.isInteger(id) && id > 0
+  );
+  const trackedIds = unique.slice(0, MAX_TRACKED_CALENDAR_IDS);
+  const truncated = unique.length > MAX_TRACKED_CALENDAR_IDS;
+
+  if (!TMDB_KEY) {
+    return {
+      shows: trackedIds.map((tmdbId) => ({
+        tmdbId,
+        name: `Show ${tmdbId}`,
+        status: "Unknown",
+        nextEpisode: null,
+        lastEpisode: null,
+        monthEpisodes: [],
+      })),
+      items: [],
+      nextUp: null,
+      truncated,
+    };
+  }
+
+  const groups = await mapWithConcurrency(trackedIds, 6, async (id) => {
+    const detail = await tmdb(`/tv/${id}`, { language: "en-US" });
+    if (!detail?.id) {
+      return {
+        show: {
+          tmdbId: id,
+          name: `Show ${id}`,
+          status: "Unknown",
+          nextEpisode: null,
+          lastEpisode: null,
+          monthEpisodes: [],
+        } satisfies TrackedShowStatus,
+        items: [] as CalendarRelease[],
+      };
+    }
+
+    const seasonNumbers = new Set<number>();
+    for (const episode of [
+      detail.last_episode_to_air,
+      detail.next_episode_to_air,
+    ]) {
+      if (Number(episode?.season_number) > 0) {
+        seasonNumbers.add(episode.season_number);
+      }
+    }
+
+    const seasons = await Promise.all(
+      [...seasonNumbers].map((seasonNumber) =>
+        tmdb(`/tv/${detail.id}/season/${seasonNumber}`, {
+          language: "en-US",
+        })
+      )
+    );
+
+    const monthEpisodes = seasons
+      .flatMap((season) =>
+        ((season?.episodes ?? []) as any[])
+          .filter((episode) => episode?.air_date?.startsWith(month))
+          .map(trackedEpisodeInfo)
+          .filter((episode): episode is TrackedEpisodeInfo => Boolean(episode))
+      )
+      .sort(
+        (a, b) =>
+          a.airDate.localeCompare(b.airDate) ||
+          a.episodeNumber - b.episodeNumber
+      );
+
+    const items = seasons
+      .flatMap((season) => episodeEntriesForSeason(detail, season, month))
+      .map((item) => ({ ...item, tracked: true }));
+
+    return {
+      show: {
+        tmdbId: detail.id,
+        name: detail.name || `Show ${id}`,
+        status: detail.status || "Unknown",
+        nextEpisode: trackedEpisodeInfo(detail.next_episode_to_air),
+        lastEpisode: trackedEpisodeInfo(detail.last_episode_to_air),
+        monthEpisodes,
+      } satisfies TrackedShowStatus,
+      items,
+    };
+  });
+
+  const shows = groups.map((group) => group.show);
+  return {
+    shows,
+    items: sortCalendarItems(dedupe(groups.flatMap((group) => group.items))),
+    nextUp: nextUpFor(shows),
+    truncated,
+  };
 }
 
 /** One month of releases + grouped episodes for /calendar. */

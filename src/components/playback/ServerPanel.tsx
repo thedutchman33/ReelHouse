@@ -125,7 +125,9 @@ export default function ServerPanel({
     >
       {/* Header (reference anatomy) */}
       <div className="flex items-center gap-2.5 px-4 pt-2">
-        <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.24em] text-foreground/40">
+        {/* The label is hidden on phones so the selected server's name keeps
+            room instead of truncating to nothing. */}
+        <p className="hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.24em] text-foreground/40 sm:block">
           Servers
         </p>
         <p className="min-w-0 truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground">
@@ -153,7 +155,7 @@ export default function ServerPanel({
             title="Re-check server status"
             onClick={() => void recheck()}
             disabled={rechecking}
-            className="-mr-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-foreground/35 transition-colors hover:bg-white/[0.07] hover:text-foreground/80 disabled:opacity-40"
+            className="-mr-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground/35 transition-colors hover:bg-white/[0.07] hover:text-foreground/80 disabled:opacity-40 lg:h-6 lg:w-6"
           >
             <svg
               width="14"
@@ -194,7 +196,7 @@ export default function ServerPanel({
                 title={p.available ? p.displayName : (p.unavailableReason ?? "Unavailable")}
                 // nm-raise-sm / nm-raise = the reference's neumorphic "3D box"
                 // behind each server chip (exact shadow values from their CSS).
-                className={`nm-tab inline-flex shrink-0 items-center gap-2 rounded-[8px] px-[11px] py-[4px] text-[12px] transition ${
+                className={`nm-tab inline-flex min-h-[34px] shrink-0 items-center gap-2 rounded-[8px] px-[11px] py-1.5 text-[12px] transition lg:min-h-0 lg:py-[4px] ${
                   active
                     ? "nm-raise font-semibold text-foreground ring-1 ring-accent/40"
                     : p.available

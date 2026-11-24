@@ -321,6 +321,14 @@ function NextRaceCard({
   const liveNow = now >= startMs && now <= endMs;
   const inGrace = now > endMs && now <= endMs + SESSION_WATCH_GRACE_MS;
   const { dayRange } = useSessionTime();
+  const liveAlert = {
+    key: `f1:${next.session_key}:live`,
+    title: `Live now: ${next.session_name}`,
+    body: `${m.meeting_name} · ${m.circuit_short_name ?? m.location} · ${m.country_name}`,
+    sport: "f1" as const,
+    href: "/watch/f1",
+    expiresAt: endMs + SESSION_WATCH_GRACE_MS,
+  };
   return (
     <section className="f1-card relative overflow-hidden rounded-2xl p-5 md:p-8">
       <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -342,7 +350,7 @@ function NextRaceCard({
           {/* "Mexico City" on the first line, "Grand Prix" red beneath it —
               the F1 Bold two-line lockup. */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-            <h2 className="min-w-0 flex-1 font-f1 text-4xl font-bold uppercase leading-[0.95] tracking-wide text-white sm:text-6xl">
+            <h2 className="min-w-0 flex-1 font-f1 text-[clamp(1.75rem,8vw,3.75rem)] font-bold uppercase leading-[0.95] tracking-wide text-white">
               {m.meeting_name.replace(/ Grand Prix$/i, "")}
               <span className="block text-[#e10600]">{" "}Grand Prix</span>
             </h2>
@@ -353,6 +361,7 @@ function NextRaceCard({
                 endISO={next.date_end}
                 graceMs={SESSION_WATCH_GRACE_MS}
                 sessionName={next.session_name}
+                liveAlert={liveAlert}
               />
             </div>
           </div>

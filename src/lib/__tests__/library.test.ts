@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mergeLibrary, progressKey } from "@/lib/library";
-import type { ProgressEntry } from "@/lib/library";
+import type { ProgressEntry, TrackedEntry } from "@/lib/library";
 import type { MediaSummary } from "@/types";
 
 // --- fixtures ---------------------------------------------------------------
@@ -67,24 +67,75 @@ describe("mergeLibrary — progress newest-updatedAt wins", () => {
   });
 });
 
+describe("mergeLibrary — tracking union by newest trackedAt", () => {
+  const follow = (id: string, trackedAt: number): TrackedEntry => ({
+    media: media(id),
+    trackedAt,
+  });
+
+  it("keeps server follows, appends local-only ones and pushes only local wins", () => {
+    const local = {
+      watchlist: [],
+      progress: {},
+      tracked: {
+        "tv-1": follow("tv-1", 200),
+        "tv-2": follow("tv-2", 50),
+        "tv-4": follow("tv-4", 10),
+      },
+    };
+    const server = {
+      watchlist: [],
+      progress: {},
+      tracked: {
+        "tv-1": follow("tv-1", 100),
+        "tv-3": follow("tv-3", 300),
+        "tv-4": follow("tv-4", 50),
+      },
+    };
+
+    const res = mergeLibrary(local, server, { localIsOurs: true });
+
+    expect(Object.keys(res.tracked).sort()).toEqual([
+      "tv-1",
+      "tv-2",
+      "tv-3",
+      "tv-4",
+    ]);
+    expect(res.tracked["tv-1"].trackedAt).toBe(200);
+    expect(res.tracked["tv-3"].trackedAt).toBe(300);
+    expect(res.tracked["tv-4"].trackedAt).toBe(50); // server is newer
+    expect(res.localOnlyTracked.map((entry) => entry.media.id)).toEqual(["tv-2"]);
+    expect(res.localNewerTracked.map((entry) => entry.media.id)).toEqual(["tv-1"]);
+  });
+});
+
 describe("mergeLibrary — localIsOurs=false (shared browser)", () => {
   it("ignores local data entirely and uses the server as-is", () => {
     const local = {
       watchlist: [media("movie-1")],
       progress: { x: entry("x", 999) },
+      tracked: {
+        "tv-1": { media: media("tv-1"), trackedAt: 999 } as TrackedEntry,
+      },
     };
     const server = {
       watchlist: [media("movie-9")],
       progress: { y: entry("y", 5) },
+      tracked: {
+        "tv-9": { media: media("tv-9"), trackedAt: 5 } as TrackedEntry,
+      },
     };
 
     const res = mergeLibrary(local, server, { localIsOurs: false });
 
     expect(ids(res.watchlist)).toEqual(["movie-9"]);
     expect(Object.keys(res.progress)).toEqual(["y"]);
+    expect(Object.keys(res.tracked)).toEqual(["tv-9"]);
     // Nothing from the previous user's local mirror may be pushed up.
     expect(res.localOnlyWatch).toEqual([]);
     expect(res.localNewer).toEqual([]);
+    expect(res.localOnlyTracked).toEqual([]);
+    expect(res.localNewerTracked).toEqual([]);
   });
 });
 

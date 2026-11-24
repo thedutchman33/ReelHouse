@@ -89,6 +89,7 @@ export default function PlayerPicker({
       else setOpen(true);
     } else if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       setOpen(false);
     }
   };
@@ -163,7 +164,7 @@ export default function PlayerPicker({
           id={listId}
           role="listbox"
           aria-label={`${label} suggestions`}
-          className="absolute z-40 mt-1.5 max-h-64 w-full overflow-y-auto rounded-xl border border-[#8fb4ec]/25 bg-[#0a162b]/98 p-1 shadow-[0_22px_60px_-12px_rgb(0_0_0/0.9)] backdrop-blur-md ck-scroll"
+          className="rh-pop rh-pop-left absolute z-40 mt-1.5 max-h-64 w-full overflow-y-auto rounded-xl border border-[#8fb4ec]/25 bg-[#0a162b]/98 p-1 shadow-[0_22px_60px_-12px_rgb(0_0_0/0.9)] backdrop-blur-md ck-scroll"
         >
           {filtered.length === 0 ? (
             <p className="px-3 py-4 text-[13px] text-white/40">No players match “{query}”.</p>

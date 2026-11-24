@@ -14,6 +14,7 @@ import LibraryFilters from "@/components/library/LibraryFilters";
 import WatchHistory from "@/components/library/WatchHistory";
 import {
   ArrowLeftIcon,
+  BellIcon,
   ClapperboardIcon,
   EyeIcon,
   FolderOpenIcon,
@@ -35,15 +36,19 @@ import {
   deleteCatalog,
   removeFromCatalog,
   renameCatalog,
+  setTracked,
   setWatched,
   toggleWatchlist,
   toggleWatched,
   useCatalogs,
   useReactionMap,
+  useTracked,
   useWatchedMap,
   useWatchlist,
   type Catalog,
 } from "@/lib/library";
+import { isTrackableType } from "@/lib/tracking";
+import { toast } from "@/lib/toast";
 import { slugify } from "@/lib/utils";
 import type { MediaSummary } from "@/types";
 
@@ -106,6 +111,57 @@ function NoMatches({ onReset }: { onReset: () => void }) {
   );
 }
 
+function FollowPrompt({
+  items,
+  onFollow,
+  onDismiss,
+}: {
+  items: MediaSummary[];
+  onFollow: (item: MediaSummary) => void;
+  onDismiss: () => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <section
+      aria-label="Follow your series"
+      className="nm-raise-sm mb-6 flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center"
+    >
+      <span className="nm-inset grid h-10 w-10 shrink-0 place-items-center rounded-xl text-accent">
+        <BellIcon size={19} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-text">
+          Get new episodes in your calendar
+        </p>
+        <p className="mt-0.5 text-xs text-muted">
+          Follow a series from your Watchlist to see its air dates and alerts.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onFollow(item)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.04] px-2.5 text-xs font-semibold text-text transition hover:border-accent/45 hover:text-accent"
+          >
+            <BellIcon size={13} />
+            {item.title}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss follow suggestions"
+          className="grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-white/[0.06] hover:text-text"
+        >
+          <XIcon size={14} />
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function AddMoviesTile() {
   return (
     <Link href="/search" prefetch={false} className="group relative block">
@@ -153,6 +209,25 @@ function WatchlistHub({
   const catalogs = useCatalogs();
   const watched = useWatchedMap();
   const reactions = useReactionMap();
+  const tracked = useTracked();
+  const [followPromptOpen, setFollowPromptOpen] = useState(true);
+
+  const trackedIds = useMemo(
+    () => new Set(tracked.map((entry) => entry.media.id)),
+    [tracked]
+  );
+  const followSuggestions = useMemo(
+    () =>
+      followPromptOpen
+        ? watchlist
+            .filter(
+              (item) =>
+                isTrackableType(item.type) && !trackedIds.has(item.id)
+            )
+            .slice(0, 3)
+        : [],
+    [followPromptOpen, watchlist, trackedIds]
+  );
 
   const [filters, setFilters] = useState<LibraryFilterState>(
     DEFAULT_LIBRARY_FILTERS
@@ -238,7 +313,20 @@ function WatchlistHub({
         watchedCount={watchedCount}
         likedCount={likedCount}
         dislikedCount={dislikedCount}
+        trackedCount={tracked.length}
         weekCount={weekCount}
+      />
+
+      <FollowPrompt
+        items={followSuggestions}
+        onDismiss={() => setFollowPromptOpen(false)}
+        onFollow={(item) => {
+          setTracked(item, true);
+          toast(
+            `Following ${item.title} — new episodes will appear in your calendar.`,
+            { tone: "success" }
+          );
+        }}
       />
 
       <CatalogGrid

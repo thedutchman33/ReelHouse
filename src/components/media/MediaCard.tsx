@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import PosterImage from "./PosterImage";
+import TrackButton from "./TrackButton";
 import WatchlistButton from "./WatchlistButton";
 import { PlayIcon } from "@/components/player/icons";
 import { formatRating, yearOf } from "@/lib/utils";
@@ -117,8 +118,9 @@ export default function MediaCard({
       {/* Quick add — occupies the top-left corner (reference bookmark chip).
           Inert while hidden, so on touch it cannot intercept taps meant for the
           title; the title page's own Add to My List covers that case. */}
-      <div className="hover-reveal absolute left-2 top-2 z-10">
+      <div className="hover-reveal absolute left-2 top-2 z-10 flex items-center gap-1.5">
         <WatchlistButton item={item} variant="icon" />
+        <TrackButton item={item} surface="card" />
       </div>
 
       {/* Touch caption: on (hover: none) devices the hover title never shows,

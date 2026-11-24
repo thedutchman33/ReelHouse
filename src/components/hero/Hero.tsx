@@ -159,7 +159,9 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
 
   return (
     <section className="relative">
-      <div className="relative h-[82svh] min-h-[560px] max-h-[860px] w-full overflow-hidden">
+      {/* min(560px, 100svh) keeps a phone in landscape from getting a hero
+          taller than its whole screen (which pushed the copy out of view). */}
+      <div className="relative h-[82svh] min-h-[min(560px,100svh)] max-h-[860px] w-full overflow-hidden">
         {slides.map((slide, i) =>
           isMounted(i) ? (
             <div
@@ -293,7 +295,7 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
             </div>
 
             {/* Mobile/tablet: compact dots (the strip needs desktop room). */}
-            <div className="absolute bottom-4 right-6 z-20 flex items-center gap-1.5 min-[1400px]:hidden md:bottom-5 md:right-16">
+            <div className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] right-6 z-20 flex items-center gap-1.5 min-[1400px]:hidden md:bottom-5 md:right-16">
               {slides.map((slide, i) => (
                 <button
                   key={slide.key}
@@ -305,7 +307,7 @@ export default function Hero({ items }: { items: MediaSummary[] }) {
                     slide.kind === "live" ? slide.live.title : slide.item.title
                   }`}
                   aria-current={i === currentIndex}
-                  className="group grid h-6 place-items-center px-1"
+                  className="group grid h-9 place-items-center px-1.5"
                 >
                   <span
                     className={`rounded-full transition-all ${

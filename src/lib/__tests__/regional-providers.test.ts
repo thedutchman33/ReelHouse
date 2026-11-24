@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 // region, so getWatchProviders("US") injects them and region-aware consumers
 // resolve their catalog region via providerRegion. Without the pin the rail
 // silently loses the operator-requested card; without the region override its
-// catalog page and Source filter would query the wrong region and come back
+// catalog page and OTT filter would query the wrong region and come back
 // empty. The stubbed fetch keeps these tests network-free.
 
 // tmdb.ts reads TMDB_API_KEY at module scope (USE_LIVE) — set it BEFORE the
@@ -60,8 +60,10 @@ describe("pinned regional providers", () => {
     expect(list.some((p) => p.id === 2336)).toBe(false);
   });
 
-  it("resolves JioHotstar's catalog region to IN and leaves US providers alone", () => {
+  it("resolves the pinned Indian OTTs to IN and leaves US providers alone", () => {
     expect(providerRegion(2336)).toBe("IN");
+    expect(providerRegion(237)).toBe("IN");
+    expect(providerRegion(232)).toBe("IN");
     expect(providerRegion(8)).toBe("US");
     expect(providerRegion(8, "GB")).toBe("GB");
   });

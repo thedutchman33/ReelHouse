@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DetailContent from "@/components/detail/DetailContent";
+import { getMoctaleSnapshot } from "@/lib/moctale-server";
 import { getMediaDetail } from "@/lib/tmdb";
 import { anilistTrending } from "@/lib/anilist";
 
@@ -53,10 +54,11 @@ export default async function AnimeDetailPage({
 
   const media = await getMediaDetail("anime", anilistId);
   if (!media) notFound();
+  const moctale = await getMoctaleSnapshot(media);
 
   return (
     <div className="red-accent">
-      <DetailContent media={media} />
+      <DetailContent media={media} moctale={moctale} />
     </div>
   );
 }

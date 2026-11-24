@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import TrackButton from "@/components/media/TrackButton";
 import WatchlistButton from "@/components/media/WatchlistButton";
 import { NextEpisodeIcon } from "@/components/player/icons";
+import { rovingKeyDown } from "@/lib/use-popover";
 import { toggleReaction, useTitleReaction, type TitleReaction } from "@/lib/library";
 import { isLiveMediaType } from "@/lib/utils";
 import type { MediaSummary } from "@/types";
@@ -45,6 +47,7 @@ export default function WatchDock({
   const reaction = useTitleReaction(media.id);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   // Live channels have no watchlist entry or downloadable title behind them,
   // so those two controls are omitted rather than pointed at a 404.
   const isLive = isLiveMediaType(media.type);
@@ -56,14 +59,31 @@ export default function WatchDock({
         ? "/cricket"
         : `/${media.type}/${media.tmdbId}`;
 
-  // Close the More menu on any outside pointer.
+  // Close the More menu on any outside pointer or Escape, and put keyboard
+  // focus on its first item as soon as it opens.
   useEffect(() => {
     if (!moreOpen) return;
     const onDown = (e: PointerEvent) => {
       if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setMoreOpen(false);
+      moreButtonRef.current?.focus();
+    };
+    const frame = window.requestAnimationFrame(() => {
+      moreRef.current
+        ?.querySelector<HTMLElement>('[role="menuitem"]')
+        ?.focus();
+    });
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
   }, [moreOpen]);
 
   const react = (value: TitleReaction) => {
@@ -136,6 +156,7 @@ export default function WatchDock({
           </svg>
         </button>
 
+        {!isLive && <TrackButton item={media} variant="dock" surface="watch" />}
         {!isLive && <WatchlistButton item={media} variant="dock" />}
 
         {/* Download (reference behavior: opens vidvault.to for this title). */}
@@ -163,6 +184,7 @@ export default function WatchDock({
         {/* More (reference: ellipsis-vertical) — quick actions menu. */}
         <div ref={moreRef} className="relative">
           <button
+            ref={moreButtonRef}
             type="button"
             aria-haspopup="menu"
             aria-expanded={moreOpen}
@@ -180,7 +202,17 @@ export default function WatchDock({
           {moreOpen && (
             <div
               role="menu"
-              className="panel absolute right-0 top-full z-20 mt-1 w-52 p-1.5"
+              onKeyDown={(event) =>
+                rovingKeyDown(
+                  event,
+                  Array.from(
+                    event.currentTarget.querySelectorAll<HTMLElement>(
+                      '[role="menuitem"]'
+                    )
+                  )
+                )
+              }
+              className="panel rh-pop rh-pop-right rh-stagger absolute right-0 top-full z-20 mt-1 w-52 p-1.5"
             >
               <button
                 type="button"

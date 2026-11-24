@@ -1,17 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PosterImage from "@/components/media/PosterImage";
+import TrackButton from "@/components/media/TrackButton";
 import WatchlistButton from "@/components/media/WatchlistButton";
 import PlayButton from "@/components/detail/PlayButton";
+import ReleaseNotice from "@/components/detail/ReleaseNotice";
+import TrailerLightbox from "@/components/playback/TrailerLightbox";
+import ReviewButton from "@/components/reviews/ReviewButton";
 import { StarIcon } from "@/components/player/icons";
+import { moctaleContentUrl } from "@/lib/moctale";
+import type { ReleaseNotice as ReleaseNoticeModel } from "@/lib/release-notice";
 import { formatRating, formatRuntime, yearOf } from "@/lib/utils";
 import type { Media, MediaSummary } from "@/types";
 
 // Detail hero, set in the same language as the homepage hero: official title
 // logo artwork over the backdrop (Bebas fallback), ★ · year · certification
 // chip · runtime meta row, and genre pills. The poster stays left of the copy.
-export default function DetailHero({ media }: { media: Media }) {
+export default function DetailHero({
+  media,
+  bannerUrl,
+  releaseNotice,
+}: {
+  media: Media;
+  /** Moctale's own landscape hero banner, when the title has a Moctale page. */
+  bannerUrl?: string;
+  /** Upcoming theatrical/series event, or null when nothing is scheduled. */
+  releaseNotice?: ReleaseNoticeModel | null;
+}) {
   const summary: MediaSummary = {
     id: media.id,
     tmdbId: media.tmdbId,
@@ -23,7 +39,34 @@ export default function DetailHero({ media }: { media: Media }) {
     releaseDate: media.releaseDate,
     genres: media.genres,
     overview: media.overview,
+    resolvedTmdbId: media.resolvedTmdbId,
   };
+
+  // Moctale puts the trailer in the hero: the clean cinematic backdrop stays
+  // (YouTube thumbnails bake in title cards and letters), and the play circle
+  // centered over it opens the official trailer player.
+  //
+  // Moctale's CDN marks the banner `Cross-Origin-Resource-Policy: same-origin`,
+  // so the browser refuses to render it on this origin. Go through the app's
+  // same-origin image route; TMDB backdrops keep loading directly.
+  const heroSrc = bannerUrl
+    ? `/api/moctale-image?src=${encodeURIComponent(bannerUrl)}`
+    : media.backdropUrl;
+  const [trailerOpen, setTrailerOpen] = useState(false);
+  const trailerTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const trailerOptions =
+    media.trailerVideos && media.trailerVideos.length > 0
+      ? media.trailerVideos
+      : media.trailerKey
+        ? [
+            {
+              key: media.trailerKey,
+              name: media.trailerName ?? "Official Trailer",
+            },
+          ]
+        : [];
+  const trailer = trailerOptions[0];
 
   const rating = formatRating(media.rating);
   const year = yearOf(media.releaseDate);
@@ -51,9 +94,9 @@ export default function DetailHero({ media }: { media: Media }) {
     // hero). The backdrop and the copy padding grow by the bar's height, so
     // nothing inside the page actually moves.
     <section className="relative -mt-[var(--rh-nav-h)]">
-      <div className="absolute inset-x-0 top-0 h-[calc(58svh_+_var(--rh-nav-h))] min-h-[calc(380px_+_var(--rh-nav-h))] overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-[calc(68svh_+_var(--rh-nav-h))] min-h-[calc(460px_+_var(--rh-nav-h))] overflow-hidden">
         <PosterImage
-          src={media.backdropUrl}
+          src={heroSrc}
           title={media.title}
           type={media.type}
           variant="backdrop"
@@ -66,9 +109,38 @@ export default function DetailHero({ media }: { media: Media }) {
             plus a left-side wash under the copy. */}
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/40 to-transparent" />
+        {trailer && (
+          <button
+            ref={trailerTriggerRef}
+            type="button"
+            onClick={() => setTrailerOpen(true)}
+            aria-label="Play Official Trailer"
+            aria-haspopup="dialog"
+            className="group absolute left-1/2 top-[48%] z-10 grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full border border-white/20 bg-black/40 text-white shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-[2px] transition hover:scale-105 hover:border-white/35 hover:bg-black/60 sm:top-[59%]"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              className="ml-0.5 sm:h-6 sm:w-6"
+            >
+              <polygon points="6 3 20 12 6 21 6 3" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      <div className="container-rh relative pb-8 pt-[calc(26svh_+_var(--rh-nav-h))] sm:pt-[calc(30svh_+_var(--rh-nav-h))]">
+      {releaseNotice && (
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--rh-nav-h)+1rem)] z-20">
+          <div className="container-rh flex justify-end">
+            <ReleaseNotice notice={releaseNotice} />
+          </div>
+        </div>
+      )}
+
+      <div className="container-rh relative pb-8 pt-[calc(30svh_+_var(--rh-nav-h))] sm:pt-[calc(30svh_+_var(--rh-nav-h))]">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end">
           {/* Fixed 2:3 frame: a poster whose real ratio differs is trimmed evenly
               on both edges instead of losing its top. */}
@@ -134,11 +206,27 @@ export default function DetailHero({ media }: { media: Media }) {
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <PlayButton media={summary} />
+              <TrackButton item={summary} variant="hero" surface="detail" />
               <WatchlistButton item={summary} variant="hero" />
+              <ReviewButton
+                href={moctaleContentUrl(media)}
+                title={media.title}
+              />
             </div>
           </div>
         </div>
       </div>
+
+      {trailer && (
+        <TrailerLightbox
+          open={trailerOpen}
+          onClose={() => setTrailerOpen(false)}
+          trailerKey={trailer.key}
+          trailerName={trailer.name}
+          trailers={trailerOptions}
+          returnFocusTo={trailerTriggerRef}
+        />
+      )}
     </section>
   );
 }
@@ -161,14 +249,14 @@ function TitleLogo({ src, title }: { src: string; title: string }) {
   }
 
   return (
-    <div className="relative mb-2 h-16 sm:h-20 lg:h-24">
+    <div className="relative mb-2">
       <h1 className="sr-only">{title}</h1>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={title}
         onError={() => setFailed(true)}
-        className="max-h-full w-auto max-w-[260px] object-contain object-left drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] sm:max-w-[340px] lg:max-w-[420px]"
+        className="block h-auto max-h-14 w-auto max-w-[220px] object-contain object-left drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] sm:max-h-16 sm:max-w-[290px] lg:max-h-[72px] lg:max-w-[360px]"
         draggable={false}
       />
     </div>

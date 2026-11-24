@@ -25,7 +25,7 @@ export default function IndustryToggle({
       {/* Sliding thumb — exactly one segment wide, glides to the active side. */}
       <span
         aria-hidden="true"
-        className={`absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-lg bg-white shadow-[0_1px_2px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-1 left-1 w-[calc(50%_-_0.25rem)] rounded-lg bg-white shadow-[0_1px_2px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-out ${
           bollywood ? "translate-x-full" : "translate-x-0"
         }`}
       />

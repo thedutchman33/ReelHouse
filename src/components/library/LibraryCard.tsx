@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import PosterImage from "@/components/media/PosterImage";
+import TrackButton from "@/components/media/TrackButton";
 import {
   BookmarkIcon,
   CheckIcon,
@@ -67,6 +68,7 @@ export default function LibraryCard({
         </Link>
 
         <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5">
+          <TrackButton item={item} surface="my-list" />
           <button
             type="button"
             onClick={(event) => onAddToList(event.currentTarget)}

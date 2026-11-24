@@ -1,11 +1,29 @@
 import "server-only";
 
 import { cache } from "react";
-import { BROWSE_PAGES_PER_VIEW } from "@/lib/browse";
+import { BROWSE_PAGES_PER_VIEW, DURATION_OPTIONS } from "@/lib/browse";
 import type { BrowseFilters, BrowseSort, BrowseType } from "@/lib/browse";
 import { MOCK_MEDIA } from "@/lib/mock";
+import {
+  TRAILERS_PER_PAGE,
+  fallbackTrailerFeed,
+  pickDetailTrailerOptions,
+  pickFullTrailerVideo,
+  sortTrailersNewest,
+} from "@/lib/trailers";
 import { mediaId } from "@/lib/utils";
-import type { Episode, Media, MediaRow, MediaSummary, MediaType, Season } from "@/types";
+import type {
+  Episode,
+  Media,
+  MediaRow,
+  MediaSummary,
+  MediaType,
+  Season,
+  TrailerFeed,
+  TrailerFeedItem,
+  TrailerKind,
+  UpcomingEpisode,
+} from "@/types";
 import { ANILIST_GENRES, anilistBrowse, anilistDetail, anilistSearch, anilistTrending } from "@/lib/anilist";
 
 // ---------------------------------------------------------------------------
@@ -477,10 +495,16 @@ const PINNED_REGIONAL_PROVIDERS: (WatchProvider & { region: string })[] = [
   },
 ];
 
+/** Regions whose TMDB catalogs back the pinned Indian OTT providers. */
+const REGIONAL_PROVIDER_REGIONS: Record<number, string> = {
+  232: "IN", // Zee5
+  237: "IN", // SonyLIV
+  2336: "IN", // JioHotstar
+};
+
 /** The region a provider's TMDB catalog actually lives in (fallback = US). */
 export function providerRegion(providerId: number, fallback = "US"): string {
-  const hit = PINNED_REGIONAL_PROVIDERS.find((p) => p.id === providerId);
-  return hit ? hit.region : fallback;
+  return REGIONAL_PROVIDER_REGIONS[providerId] ?? fallback;
 }
 
 export async function getWatchProviders(
@@ -558,6 +582,30 @@ export async function getProviderName(
   return all.find((p) => p.id === providerId) ?? null;
 }
 
+/** Map TMDB's next scheduled episode into the detail model. */
+function upcomingEpisode(raw: any): UpcomingEpisode | undefined {
+  const airDate = typeof raw?.air_date === "string" ? raw.air_date : "";
+  const seasonNumber = Number(raw?.season_number);
+  const episodeNumber = Number(raw?.episode_number);
+  if (
+    !airDate ||
+    !Number.isInteger(seasonNumber) ||
+    seasonNumber <= 0 ||
+    !Number.isInteger(episodeNumber) ||
+    episodeNumber <= 0
+  ) {
+    return undefined;
+  }
+  return {
+    seasonNumber,
+    episodeNumber,
+    title: raw.name || `Episode ${episodeNumber}`,
+    overview: raw.overview || undefined,
+    airDate,
+    stillUrl: img(raw.still_path, "w300"),
+  };
+}
+
 // Wrapped in React's per-request cache(), keyed on (type, tmdbId), for the same
 // reason as liveHomeRows above: every detail-ish route calls getMediaDetail()
 // twice per request — once in generateMetadata and once in the page body
@@ -583,14 +631,11 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
     .slice(0, 12)
     .map(compactForCard);
 
-  // Official trailer: TMDB's videos list — official YouTube trailers first,
-  // most recent first. Real data only; no trailer means the section hides.
-  const videos: any[] = data.videos?.results ?? [];
-  const trailer =
-    videos
-      .filter((v) => v.site === "YouTube" && /trailer/i.test(v.type || ""))
-      .sort((a, b) => (b.official === true ? 1 : 0) - (a.official === true ? 1 : 0))
-      .find(Boolean) ?? videos.find((v) => v.site === "YouTube");
+  // Detail trailer: TMDB's YouTube trailers and teasers, newest first. When
+  // Moctale has the title, DetailContent replaces this with Moctale's curated
+  // `video_list`; this remains the fallback for titles outside Moctale.
+  const trailerVideos = pickDetailTrailerOptions(data.videos?.results ?? []);
+  const trailer = trailerVideos[0];
 
   // Seasons ship as METADATA only (number, name, count) with no cap —
   // long-running anime (Naruto: Shippuden's 22, One Piece's 20+) used to be
@@ -599,13 +644,14 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
   let seasons;
   if (type === "tv" && Array.isArray(data.seasons)) {
     seasons = data.seasons
-      .filter((s: any) => s.season_number > 0)
-      .map((s: any) => ({
-        seasonNumber: s.season_number as number,
-        name: (s.name as string) ?? `Season ${s.season_number}`,
-        episodeCount: (s.episode_count as number) ?? 0,
-      }));
+      .filter((s: any) => s.season_number > 0)        .map((s: any) => ({
+          seasonNumber: s.season_number as number,
+          name: (s.name as string) ?? `Season ${s.season_number}`,
+          episodeCount: (s.episode_count as number) ?? 0,
+          airDate: typeof s.air_date === "string" ? s.air_date : undefined,
+        }));
   }
+  const nextEpisodeToAir = upcomingEpisode(data.next_episode_to_air);
 
   // Detail-hero extras, same treatment the homepage hero gets: official title
   // logo artwork + the US certification. Both helpers carry their own long
@@ -631,8 +677,10 @@ const liveDetail = cache(async (type: MediaType, tmdbId: number): Promise<Media 
     cast,
     recommendations,
     seasons,
+    nextEpisodeToAir,
     trailerKey: trailer?.key,
     trailerName: trailer?.name,
+    ...(trailerVideos.length > 1 ? { trailerVideos } : {}),
     certification,
     logoUrl,
   };
@@ -761,12 +809,19 @@ function discoverParams(
   // AND-combined with any picked genre, original language Japanese. The
   // industry toggle does not apply here — the page is already language-scoped.
   const anime = filters.type === "anime";
-  const genreId = genreIdFor(filters.genre, type);
+  const genreIds = Array.from(
+    new Set(
+      filters.genres
+        .map((genre) => genreIdFor(genre, type))
+        .filter((id): id is number => Boolean(id))
+    )
+  );
   if (anime) {
-    params.with_genres = ["16", genreId].filter(Boolean).join(",");
+    params.with_genres = ["16", ...genreIds].join(",");
     params.with_original_language = "ja";
   } else {
-    if (genreId) params.with_genres = String(genreId);
+    // Multiple picks are comma-combined, which TMDB reads as AND.
+    if (genreIds.length > 0) params.with_genres = genreIds.join(",");
     // Industry toggle (header slide control): Bollywood = Indian cinema across
     // its major languages (pipe = OR in TMDB's discover), Hollywood = English
     // originals. The industry owns all language narrowing — there is no
@@ -781,32 +836,97 @@ function discoverParams(
       params.with_original_language = "en";
     }
   }
-  // "Source" filter: TMDB watch-provider availability (US region).
+  // OTT filter: TMDB watch-provider availability in that service's region.
   if (filters.provider) {
     params.with_watch_providers = String(filters.provider);
     // Pinned regional providers catalog in their own region (JioHotstar = IN).
     params.watch_region = providerRegion(filters.provider);
   }
 
+  // Language is a browse filter in its own right — it wins over the industry
+  // toggle, which is just a packaged language preset.
+  if (filters.language) params.with_original_language = filters.language;
+
   if (filters.year) {
     if (type === "movie") params.primary_release_year = String(filters.year);
     else params.first_air_date_year = String(filters.year);
   }
 
+  const dateField = type === "movie" ? "primary_release_date" : "first_air_date";
+  const decadeEnd = filters.decade ? `${filters.decade + 9}-12-31` : undefined;
+  if (filters.decade) {
+    params[`${dateField}.gte`] = `${filters.decade}-01-01`;
+    params[`${dateField}.lte`] = decadeEnd as string;
+  }
+
+  // Certification bands, always against the US rating vocabulary: movies use
+  // G/PG/PG-13/R, series use TV-Y/TV-PG/TV-14/TV-MA. Both go through
+  // `certification`, because TMDB's /discover/tv ignores `with_content_rating`
+  // (verified: it returns the unfiltered catalogue). Multiple ratings are
+  // pipe-separated — TMDB treats that as OR, while commas would mean AND.
+  const ratingBands: string[] | null =
+    filters.family || filters.ageRating === "kids"
+      ? type === "movie"
+        ? ["G", "PG"]
+        : ["TV-Y", "TV-Y7", "TV-G", "TV-PG"]
+      : filters.ageRating === "teen"
+        ? type === "movie"
+          ? ["PG-13"]
+          : ["TV-14"]
+        : filters.ageRating === "mature"
+          ? type === "movie"
+            ? ["R", "NC-17"]
+            : ["TV-MA"]
+          : null;
+  if (ratingBands) {
+    params.certification_country = "US";
+    params.certification = ratingBands.join("|");
+  }
+
+  // Runtime bands are a movie-discover parameter; TV discover has no runtime
+  // filter, so series simply ignore it (the control is disabled there).
+  if (filters.duration && type === "movie") {
+    const band = DURATION_OPTIONS.find((option) => option.value === filters.duration);
+    if (band?.gte) params["with_runtime.gte"] = String(band.gte);
+    if (band?.lte) params["with_runtime.lte"] = String(band.lte);
+  }
+
+  // Exclusions: "Hide Anime" drops the animation genre; Family Friendly also
+  // keeps horror out of the results.
+  const excluded: string[] = [];
+  if (filters.hideAnime && !filters.genres.includes("Animation")) excluded.push("16");
+  if (filters.family && type === "movie") excluded.push("27");
+  if (excluded.length) params.without_genres = excluded.join(",");
+
   // Sort guards. Without these, "Recent Releases" surfaces announced-but-unreleased
   // entries and "Rating"/"Oldest" surface titles with a handful of votes.
-  const dateField = type === "movie" ? "primary_release_date" : "first_air_date";
+  let voteFloor = 0;
   if (filters.sort === "recent") {
-    params[`${dateField}.lte`] = today;
+    params[`${dateField}.lte`] = filters.decade ? (decadeEnd as string) : today;
     // 7reels' Recent Releases floor: without it, date-desc discover surfaces
     // unreleased titles and entries with no meaningful audience yet.
-    params["vote_count.gte"] = "20";
+    voteFloor = 20;
   }
-  if (filters.sort === "rating") params["vote_count.gte"] = "200";
+  if (filters.sort === "rating") voteFloor = 200;
   if (filters.sort === "oldest") {
-    params["vote_count.gte"] = "50";
-    params[`${dateField}.gte`] = `${EARLIEST_BROWSE_YEAR}-01-01`;
+    voteFloor = 50;
+    if (!filters.decade) {
+      params[`${dateField}.gte`] = `${EARLIEST_BROWSE_YEAR}-01-01`;
+    }
   }
+
+  // The two curated shelves.
+  if (filters.select) voteFloor = Math.max(voteFloor, 1000);
+  if (filters.award) voteFloor = Math.max(voteFloor, 5000);
+  if (voteFloor > 0) params["vote_count.gte"] = String(voteFloor);
+
+  // Reelhouse Select: the curated shelf (7.5+ with a real audience).
+  // Award Winner: TMDB exposes no award field, so the shelf is the honest
+  // award-calibre proxy — 8.0+ with a large audience behind it.
+  let ratingFloor = 0;
+  if (filters.select) ratingFloor = 7.5;
+  if (filters.award) ratingFloor = Math.max(ratingFloor, 8);
+  if (ratingFloor > 0) params["vote_average.gte"] = String(ratingFloor);
 
   return params;
 }
@@ -836,8 +956,8 @@ async function liveBrowse(filters: BrowseFilters): Promise<BrowsePage | null> {
 
   // A genre that does not exist for a type simply drops that type from the query
   // rather than returning that type unfiltered.
-  const targets = wanted.filter(
-    (type) => !filters.genre || genreIdFor(filters.genre, type)
+  const targets = wanted.filter((type) =>
+    filters.genres.every((genre) => genreIdFor(genre, type))
   );
   if (targets.length === 0) return { items: [], page: filters.page, totalPages: 0 };
 
@@ -912,8 +1032,33 @@ function mockBrowse(filters: BrowseFilters): BrowsePage {
     if (filters.type === "anime" && !m.genres.includes("Animation")) return false;
     else if (filters.type !== "all" && filters.type !== "anime" && m.type !== filters.type)
       return false;
-    if (filters.genre && !m.genres.includes(filters.genre)) return false;
+    if (
+      filters.genres.length > 0 &&
+      !filters.genres.every((genre) => m.genres.includes(genre))
+    ) {
+      return false;
+    }
     if (filters.year && mockYear(m) !== filters.year) return false;
+    if (filters.decade) {
+      const year = mockYear(m);
+      if (year === null || year < filters.decade || year > filters.decade + 9) {
+        return false;
+      }
+    }
+    if (filters.hideAnime && m.genres.includes("Animation")) return false;
+    if (filters.select && (m.rating ?? 0) < 7.5) return false;
+    if (filters.award && (m.rating ?? 0) < 8) return false;
+    if (
+      (filters.family || filters.ageRating === "kids") &&
+      hasGenre(m, ["Horror", "Thriller", "Crime"])
+    ) {
+      return false;
+    }
+    if (filters.duration && m.runtime) {
+      const band = DURATION_OPTIONS.find((option) => option.value === filters.duration);
+      if (band?.gte && m.runtime < band.gte) return false;
+      if (band?.lte && m.runtime > band.lte) return false;
+    }
     return true;
   });
 
@@ -1275,6 +1420,154 @@ export async function searchMedia(
     return liveSearch(query);
   }
   return mockSearch(query).filter((r) => !opts?.type || r.type === opts.type);
+}
+
+// ------------------------------- TRAILERS ----------------------------------
+// A Moctale-style spaces/videos feed: one page of titles that actually have a
+// playable official YouTube trailer. TMDB has no bulk videos endpoint, so the
+// page's list endpoint gives the candidate pool and each candidate's /videos
+// call supplies the real trailer key (all cached by the Data Cache).
+
+type TrailerCandidate = Omit<
+  TrailerFeedItem,
+  "youtubeKey" | "trailerName" | "official" | "publishedAt" | "detailHref"
+>;
+
+function trailerCandidate(
+  raw: any,
+  kind: TrailerKind
+): TrailerCandidate | null {
+  const tmdbId = Number(raw?.id);
+  const title = raw?.title || raw?.name;
+  if (!tmdbId || !title) return null;
+
+  const type: "movie" | "tv" =
+    kind === "movie" || kind === "tv"
+      ? kind
+      : raw.media_type === "tv" || (raw.name && !raw.title)
+        ? "tv"
+        : "movie";
+  const releaseDate = raw.release_date || raw.first_air_date || "";
+  const genres: string[] = Array.isArray(raw.genre_ids)
+    ? Array.from(
+        new Set(
+          raw.genre_ids
+            .map((genreId: number) => TMDB_GENRES[genreId])
+            .filter(Boolean)
+        )
+      )
+    : [];
+
+  return {
+    id: mediaId(type, tmdbId),
+    tmdbId,
+    type,
+    title,
+    overview: raw.overview || undefined,
+    year: releaseDate.slice(0, 4) || undefined,
+    rating: raw.vote_average || undefined,
+    genres: genres.slice(0, 3),
+  };
+}
+
+/**
+ * One page of the trailer feed for /trailers.
+ *
+ * With no TMDB key (or an unreachable TMDB), the verified fallback keeps the
+ * page populated. The fallback carries no detail route because those ids are
+ * live-TMDB entries and the bundled mock catalog doesn't contain them.
+ */
+export async function getTrailerFeed(
+  kind: TrailerKind,
+  page = 1
+): Promise<TrailerFeed> {
+  const safePage = Math.min(500, Math.max(1, Math.floor(page)));
+  if (!USE_LIVE) return fallbackTrailerFeed(kind, safePage);
+
+  // Moctale's video feed is not a single TMDB list. It surfaces the newest
+  // full official trailer across upcoming films, current films and today's
+  // trending titles. Combine those sources, dedupe, then sort by the YouTube
+  // video's real published timestamp. This is what lets a trailer that dropped
+  // yesterday lead the feed even when TMDB's weekly trending endpoint is still
+  // catching up.
+  const paths =
+    kind === "movie"
+      ? ["/movie/upcoming", "/movie/now_playing", "/trending/movie/day"]
+      : kind === "tv"
+        ? ["/tv/on_the_air", "/trending/tv/day"]
+        : ["/trending/all/day", "/movie/upcoming", "/tv/on_the_air"];
+
+  const pages = await Promise.all(
+    paths.map((path) =>
+      tmdb<{ results?: any[]; total_pages?: number }>(
+        path,
+        { language: "en-US", include_adult: "false", page: String(safePage) },
+        60 * 30
+      )
+    )
+  );
+  const successful = pages.filter(
+    (data): data is { results?: any[]; total_pages?: number } => Boolean(data)
+  );
+
+  if (successful.length === 0) return fallbackTrailerFeed(kind, safePage);
+
+  const totalPages = Math.min(
+    500,
+    Math.max(1, ...successful.map((data) => data.total_pages ?? 1))
+  );
+  const seen = new Set<string>();
+  const candidates = successful
+    .flatMap((data) => data.results ?? [])
+    .filter((raw) => raw?.media_type !== "person")
+    .map((raw) => trailerCandidate(raw, kind))
+    .filter((candidate): candidate is TrailerCandidate => candidate !== null)
+    .filter((candidate) => {
+      const key = `${candidate.type}-${candidate.tmdbId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    // Every title can carry a dozen teaser/promo uploads, so a wider pool is
+    // needed to still fill a page once only full trailers survive the filter.
+    // 36 keeps the /videos fan-out bounded while covering a day of drops.
+    .slice(0, 36);
+
+  const enriched = await Promise.all(
+    candidates.map(async (candidate): Promise<TrailerFeedItem | null> => {
+      const videos = await tmdb<{ results?: any[] }>(
+        `/${candidate.type}/${candidate.tmdbId}/videos`,
+        { language: "en-US" },
+        60 * 60 * 12
+      );
+      // Only a full studio trailer qualifies — teasers, clips, featurettes and
+      // quote-captioned Shorts are dropped so the title is omitted entirely.
+      const video = pickFullTrailerVideo(videos?.results ?? []);
+      if (!video) return null;
+
+      return {
+        ...candidate,
+        youtubeKey: video.key as string,
+        trailerName: (video.name as string) || "Official Trailer",
+        official: true,
+        ...(video.published_at
+          ? { publishedAt: video.published_at as string }
+          : {}),
+        detailHref: `/${candidate.type}/${candidate.tmdbId}`,
+      };
+    })
+  );
+  const items = sortTrailersNewest(
+    enriched.filter((item): item is TrailerFeedItem => item !== null)
+  ).slice(0, TRAILERS_PER_PAGE);
+
+  // Keep the first page useful when TMDB's current list has no playable
+  // trailers at all. Later pages stay honest: an empty page is a real result.
+  if (items.length === 0 && safePage === 1) {
+    return fallbackTrailerFeed(kind, 1);
+  }
+
+  return { items, page: safePage, totalPages, kind };
 }
 
 /** One page of browse results for the given filters. */

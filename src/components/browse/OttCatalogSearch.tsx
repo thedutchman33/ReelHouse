@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CloseIcon, SearchIcon } from "@/components/player/icons";
 
-// Page-level search on a provider's catalog. The catalog itself is rendered
+// Page-level search on an OTT platform's catalog. The catalog itself is rendered
 // server-side from TMDB discover (provider + with_text_query), so this field
 // commits the query to the URL (?q=) and lets the RSC payload refresh — a
-// search covers the provider's whole catalog, not just the loaded page.
-export default function ProviderCatalogSearch({
+// search covers the platform's whole catalog, not just the loaded page.
+export default function OttCatalogSearch({
   providerId,
   initialQuery,
 }: {
@@ -25,7 +25,7 @@ export default function ProviderCatalogSearch({
       if (q === committed.current) return;
       committed.current = q;
       router.replace(
-        q ? `/providers/${providerId}?q=${encodeURIComponent(q)}` : `/providers/${providerId}`,
+        q ? `/ott/${providerId}?q=${encodeURIComponent(q)}` : `/ott/${providerId}`,
         { scroll: false }
       );
     }, 400);
@@ -46,7 +46,7 @@ export default function ProviderCatalogSearch({
           if (e.key === "Escape") setValue("");
         }}
         placeholder="Search this catalog…"
-        aria-label="Search this provider's catalog"
+        aria-label="Search this OTT platform's catalog"
         className="field h-10 w-full pl-9 pr-9 text-sm placeholder:text-muted/60"
       />
       {value && (
