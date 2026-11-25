@@ -59,6 +59,17 @@ class YouTubeMusicService(
         return page.items.drop(offset).take(limit).map(::toDynamicTrack)
     }
 
+    /** Real YouTube Music search suggestions for the topbar dropdown. */
+    suspend fun suggestions(query: String): List<String> {
+        val clean = query.trim().take(100)
+        if (clean.length < 2) return emptyList()
+        return searchSuggestions(clean)
+            .map { it.trim() }
+            .filter { it.length >= 2 }
+            .distinctBy { it.lowercase() }
+            .take(8)
+    }
+
     suspend fun search(query: String, limit: Int, offset: Int): MusicSearchResultsDto {
         val clean = query.trim().take(80)
         if (clean.length < 2) {
@@ -89,6 +100,13 @@ class YouTubeMusicService(
                 HomeQuery("electronic", "electronic hits", "Electronic"),
                 HomeQuery("indie", "indie hits", "Indie"),
                 HomeQuery("latest", "new music", "New Music"),
+                // New listeners start with roughly 60% Indian music and 40%
+                // international music. Returning listeners get their own mix
+                // from the recommendation profile on top of this shelf.
+                HomeQuery("bollywood", "bollywood hits", "Bollywood"),
+                HomeQuery("hindi", "hindi songs", "Hindi"),
+                HomeQuery("punjabi", "punjabi hits", "Punjabi"),
+                HomeQuery("bhojpuri", "bhojpuri songs", "Bhojpuri"),
             )
             val results = coroutineScope {
                 definitions.map { definition ->
@@ -105,16 +123,20 @@ class YouTubeMusicService(
                 }.map { it.await() }
             }
             val byKey = results.associate { (definition, tracks) -> definition.key to tracks }
-            val trending = mergeTracks(
-                listOf("trending", "pop", "hip-hop", "rock", "electronic").flatMap { key ->
-                    byKey[key].orEmpty().map { it.track }
-                }
-            ).take(40)
-            val recommended = mergeTracks(
-                listOf("pop", "rock", "electronic", "indie").flatMap { key ->
-                    byKey[key].orEmpty().map { it.track }
-                }
-            ).take(40)
+            fun pool(keys: List<String>) = mergeGenreTracks(
+                keys.flatMap { key -> byKey[key].orEmpty() }
+            )
+            val internationalKeys = listOf("pop", "hip-hop", "rock", "electronic", "indie")
+            val trending = startingMix(
+                pool(listOf("bollywood", "hindi", "punjabi", "bhojpuri")),
+                pool(internationalKeys),
+                40,
+            )
+            val recommended = startingMix(
+                pool(listOf("hindi", "punjabi", "bollywood", "bhojpuri")),
+                pool(listOf("indie", "electronic", "rock", "pop", "hip-hop")),
+                40,
+            )
             val underground = mergeTracks(byKey["indie"].orEmpty().map { it.track })
                 .ifEmpty { mergeTracks(byKey["latest"].orEmpty().map { it.track }) }
                 .take(24)
@@ -122,8 +144,9 @@ class YouTubeMusicService(
             if (trending.isEmpty() && recommended.isEmpty() && latest.isEmpty()) {
                 throw ApiException(502, "catalog_unavailable", "YouTube Music did not return a catalog")
             }
-            val artistTracks = mergeTracks((trending + recommended + underground + latest))
-                .map(::toDynamicTrack)
+            val artistTracks = mergeTracks(
+                trending.map { it.track } + recommended.map { it.track } + underground + latest
+            ).map(::toDynamicTrack)
             val artists = artistTracks
                 .groupBy { it.artistId }
                 .values
@@ -144,16 +167,16 @@ class YouTubeMusicService(
                 .take(12)
             val categories = BROWSE_CATEGORIES.mapIndexed { index, category ->
                 val cover = byKey[category.id]?.firstOrNull()?.track?.artworkUrl
-                    ?: trending.getOrNull(index % max(trending.size, 1))?.artworkUrl
+                    ?: trending.getOrNull(index % max(trending.size, 1))?.track?.artworkUrl
                 category.copy(coverUrl = cover)
             }
-            val featured = mergeTracks(
+            val featured = mergeGenreTracks(
                 recommended.take(24).ifEmpty { trending.take(24) }
-            )
+            ).map { it.track }
             val mixes = listOf(
                 makeMix("daily-mix-1", "Made for You", "A rotating mix from today’s YouTube Music catalog.", featured, "#1ed760"),
-                makeMix("daily-mix-2", "New & Trending", "Fresh releases and tracks gaining momentum now.", latest.ifEmpty { trending }, "#7c3aed"),
-                makeMix("daily-mix-3", "Deep Cuts", "Independent and underground picks from the catalog.", underground.ifEmpty { trending }, "#0b6e4f"),
+                makeMix("daily-mix-2", "New & Trending", "Fresh releases and tracks gaining momentum now.", latest.ifEmpty { trending.map { it.track } }, "#7c3aed"),
+                makeMix("daily-mix-3", "Deep Cuts", "Independent and underground picks from the catalog.", underground.ifEmpty { trending.map { it.track } }, "#0b6e4f"),
             ).filter { it.tracks.isNotEmpty() }
             val result = MusicHomeDto(
                 trending = trending.map(::toDynamicTrack),
@@ -326,6 +349,47 @@ class YouTubeMusicService(
     private fun mergeTracks(tracks: List<ParsedTrack>): List<ParsedTrack> {
         val seen = HashSet<String>()
         return tracks.filter { track -> track.videoId.isNotBlank() && seen.add(track.videoId) }
+    }
+
+    /** Deduplicate while keeping the genre that introduced each shelf track. */
+    private fun mergeGenreTracks(tracks: List<ParsedTrackGenre>): List<ParsedTrackGenre> {
+        val seen = HashSet<String>()
+        return tracks.filter { item ->
+            item.track.videoId.isNotBlank() && seen.add(item.track.videoId)
+        }
+    }
+
+    /**
+     * New-listener starting mix: three Indian tracks for every two
+     * international tracks. The pools are already deduplicated, and the limit
+     * keeps the shelf bounded when one pool runs short.
+     */
+    private fun startingMix(
+        indian: List<ParsedTrackGenre>,
+        international: List<ParsedTrackGenre>,
+        limit: Int,
+    ): List<ParsedTrackGenre> {
+        if (indian.isEmpty()) return international.take(limit)
+        if (international.isEmpty()) return indian.take(limit)
+        val out = ArrayList<ParsedTrackGenre>(limit)
+        var indianIndex = 0
+        var internationalIndex = 0
+        while (out.size < limit &&
+            (indianIndex < indian.size || internationalIndex < international.size)
+        ) {
+            repeat(3) {
+                if (indianIndex < indian.size && out.size < limit) {
+                    out.add(indian[indianIndex++])
+                }
+            }
+            repeat(2) {
+                if (internationalIndex < international.size && out.size < limit) {
+                    out.add(international[internationalIndex++])
+                }
+            }
+            if (indianIndex >= indian.size && internationalIndex >= international.size) break
+        }
+        return out
     }
 
     private fun makeMix(
@@ -632,6 +696,10 @@ class YouTubeMusicService(
         const val PLAYLIST_FILTER = "EgeKAQQoADgBahIQBRADEAoQBBAJEBAQDhAVEBE="
 
         val BROWSE_CATEGORIES = listOf(
+            MusicBrowseCategoryDto("bollywood", "Bollywood", "#e13300"),
+            MusicBrowseCategoryDto("hindi", "Hindi", "#d84040"),
+            MusicBrowseCategoryDto("punjabi", "Punjabi", "#c2410c"),
+            MusicBrowseCategoryDto("bhojpuri", "Bhojpuri", "#9a3412"),
             MusicBrowseCategoryDto("pop", "Pop", "#dc148c"),
             MusicBrowseCategoryDto("hip-hop", "Hip-Hop", "#ba5d07"),
             MusicBrowseCategoryDto("electronic", "Electronic", "#8400e7"),

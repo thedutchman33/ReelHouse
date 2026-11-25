@@ -2,15 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
-import type { MusicPanelTab } from "@/lib/music/types";
+import type { MusicPanelTab, MusicTrack } from "@/lib/music/types";
 import { formatDuration } from "@/lib/music/utils";
 import { toast } from "@/lib/toast";
 import { useMusicLibrary } from "./MusicLibraryProvider";
 import { useMusicPlayer, usePlayerProgress } from "./MusicPlayerProvider";
 import {
   CheckCircleIcon,
-  DevicesIcon,
-  FullscreenIcon,
   MicIcon,
   NextIcon,
   NowPlayingIcon,
@@ -34,12 +32,14 @@ export default function MusicPlayerBar({
   panelTab,
   lyricsOpen,
   onOpenPanel,
+  onAddToPlaylist,
   onGoToArtist,
 }: {
   panelOpen: boolean;
   panelTab: MusicPanelTab;
   lyricsOpen: boolean;
   onOpenPanel: (tab: MusicPanelTab) => void;
+  onAddToPlaylist?: (track: MusicTrack) => void;
   onGoToArtist?: () => void;
 }) {
   const {
@@ -241,12 +241,13 @@ export default function MusicPlayerBar({
         </button>
         <button
           type="button"
-          aria-label="Connect to a device"
-          title="This browser"
-          onClick={() => toast("Playing on this browser")}
+          aria-label="Add to playlist"
+          title="Add to playlist"
+          onClick={() => currentTrack && onAddToPlaylist?.(currentTrack)}
+          disabled={!currentTrack || !onAddToPlaylist}
           className="music-player-small"
         >
-          <DevicesIcon size={17} />
+          <PlusCircleIcon size={17} />
         </button>
         <div className="music-player-volume">
           <button
@@ -272,12 +273,13 @@ export default function MusicPlayerBar({
         </div>
         <button
           type="button"
-          aria-label="Full-screen lyrics"
-          title="Full-screen lyrics"
-          onClick={() => onOpenPanel("lyrics")}
+          aria-label="Open the expanded now playing view"
+          title="Now playing view"
+          onClick={() => onOpenPanel("now-playing")}
+          data-active={(panelOpen && panelTab === "now-playing") || undefined}
           className="music-player-small music-player-fullscreen"
         >
-          <FullscreenIcon size={17} />
+          <NowPlayingIcon size={17} />
         </button>
       </div>
 

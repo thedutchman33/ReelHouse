@@ -111,11 +111,13 @@ export default function SpotifyView({
   onOpenPlaylist,
   onOpenLiked,
   onSearch,
+  onImportPlaylist,
 }: {
   onBack: () => void;
   onOpenPlaylist: (libraryPlaylistId: string) => Promise<void>;
   onOpenLiked: () => Promise<void>;
   onSearch: (query: string) => void;
+  onImportPlaylist: () => void;
 }) {
   const { user, openAuth, ready } = useAuth();
   const { refreshLibrary } = useMusicLibrary();
@@ -471,13 +473,22 @@ export default function SpotifyView({
           <p className="mt-2 text-sm leading-relaxed text-white/55">
             Sign in to connect Spotify or upload your Spotify data export. Your imported listening profile is private to your account.
           </p>
-          <button
-            type="button"
-            onClick={() => openAuth("login", "/music")}
-            className="mt-6 rounded-full bg-white px-6 py-2.5 text-sm font-bold text-black"
-          >
-            Sign in
-          </button>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => openAuth("login", "/music")}
+              className="rounded-full bg-white px-6 py-2.5 text-sm font-bold text-black"
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={onImportPlaylist}
+              className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-bold text-white"
+            >
+              Import a playlist link
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -497,6 +508,13 @@ export default function SpotifyView({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onImportPlaylist}
+            className="rounded-full border border-[#1ed760]/50 px-4 py-2 text-xs font-bold text-[#1ed760] transition hover:bg-[#1ed760]/10"
+          >
+            Import a playlist link
+          </button>
           {status?.connected ? (
             <>
               <button

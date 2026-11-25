@@ -9,7 +9,7 @@ import { useMusicLibrary } from "./MusicLibraryProvider";
 import { CheckIcon, MusicNoteIcon, PlusIcon, TrashIcon, XIcon } from "./icons";
 import MusicArtwork from "./MusicArtwork";
 
-function DialogShell({
+export function DialogShell({
   title,
   subtitle,
   onClose,

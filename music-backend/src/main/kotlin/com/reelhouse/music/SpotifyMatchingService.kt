@@ -233,6 +233,55 @@ class SpotifyMatchingService(
         )
     }
 
+    /**
+     * Match user-supplied tracklist metadata against YouTube Music without a
+     * Spotify account or Spotify Web API request. Results are cached because a
+     * re-import usually repeats the same titles, and no user data is involved.
+     */
+    suspend fun matchExternal(tracks: List<TracklistMatchTrackDto>): List<TracklistMatchDto> {
+        val out = ArrayList<TracklistMatchDto>(tracks.size)
+        for ((index, item) in tracks.withIndex()) {
+            val title = item.title.trim().take(200)
+            if (title.length < 2) {
+                out += TracklistMatchDto(index, "unmatched", 0.0)
+                continue
+            }
+            val artist = item.artist.trim().take(200)
+            val key = TextMatch.normalize("$title $artist").take(200)
+            val now = System.currentTimeMillis()
+            val cached = externalMatchCache[key]?.takeIf { it.expiresAt > now }?.result
+            val result = cached ?: runCatching {
+                matchOne(
+                    SpotifyTrackData(
+                        spotifyTrackId = "import-${key.hashCode()}",
+                        uri = null,
+                        name = title,
+                        artists = listOf(artist).filter(String::isNotBlank),
+                        albumName = item.album?.trim()?.take(200),
+                        artworkUrl = null,
+                        durationMs = item.durationMs.coerceIn(0, 3_600_000),
+                        addedAt = null,
+                        isAvailable = true,
+                    )
+                )
+            }.getOrNull()
+            if (result != null) {
+                if (externalMatchCache.size > MAX_EXTERNAL_CACHE) externalMatchCache.clear()
+                externalMatchCache[key] = CachedExternalMatch(result, now + EXTERNAL_CACHE_MS)
+            }
+            out += TracklistMatchDto(
+                index = index,
+                status = result?.status ?: "unmatched",
+                confidence = result?.confidence ?: 0.0,
+                track = result?.youtubeTrack,
+                candidates = result?.candidates.orEmpty(),
+            )
+        }
+        return out
+    }
+
+    private data class CachedExternalMatch(val result: MatchResult, val expiresAt: Long)
+
     private data class MatchResult(
         val status: String,
         val confidence: Double,
@@ -430,7 +479,11 @@ class SpotifyMatchingService(
         return youtubeMarkers.isNotEmpty() && youtubeMarkers != spotifyMarkers
     }
 
+    private val externalMatchCache = java.util.concurrent.ConcurrentHashMap<String, CachedExternalMatch>()
+
     private companion object {
+        const val EXTERNAL_CACHE_MS = 24 * 60 * 60 * 1000L
+        const val MAX_EXTERNAL_CACHE = 2_000
         val VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")
         val SAFE_ID = Regex("^[A-Za-z0-9._-]{1,200}$")
         val MARKERS = Regex("\\b(live|karaoke|cover|instrumental|acoustic|remix|reprise|demo)\\b")

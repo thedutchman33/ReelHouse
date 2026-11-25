@@ -36,6 +36,7 @@ import {
   ConfirmDialog,
   PlaylistFormDialog,
 } from "./MusicDialogs";
+import SpotifyImportDialog from "./SpotifyImportDialog";
 import { MusicNoteIcon } from "./icons";
 
 function albumTitleForTrack(track: MusicTrack): string {
@@ -104,6 +105,7 @@ function MusicExperience() {
     deletePlaylist,
     addTrackToPlaylist,
     removeTrackFromPlaylist,
+    moveTrackInPlaylist,
     getPlaylist,
     recordPlay,
     refreshLibrary,
@@ -121,6 +123,7 @@ function MusicExperience() {
   const [panelTab, setPanelTab] = useState<MusicPanelTab>("now-playing");
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [spotifyImportOpen, setSpotifyImportOpen] = useState(false);
   const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
   const [deletingPlaylistId, setDeletingPlaylistId] = useState<string | null>(null);
   const [pendingTrack, setPendingTrack] = useState<MusicTrack | null>(null);
@@ -458,6 +461,7 @@ function MusicExperience() {
           <SpotifyView
             onBack={() => navigate({ kind: "library" })}
             onSearch={(query) => handleSearch(query)}
+            onImportPlaylist={() => setSpotifyImportOpen(true)}
             onOpenPlaylist={async (playlistId) => {
               await refreshLibrary();
               navigate({ kind: "playlist", id: playlistId });
@@ -507,8 +511,10 @@ function MusicExperience() {
               void addTrackToPlaylist(playlist.id, track);
             }}
             onRemoveTrack={(track) => removeTrackFromPlaylist(playlist.id, track.id)}
+            onMoveTrack={(from, to) => moveTrackInPlaylist(playlist.id, from, to)}
             onEditPlaylist={() => setEditingPlaylistId(playlist.id)}
             onDeletePlaylist={() => setDeletingPlaylistId(playlist.id)}
+            onImportSpotify={() => setSpotifyImportOpen(true)}
           />
         );
       }
@@ -569,7 +575,10 @@ function MusicExperience() {
           route={route}
           onSearch={handleSearch}
           onHome={() => navigate({ kind: "home" })}
+          onOpenSpotify={() => navigate({ kind: "spotify" })}
           onOpenLibrary={() => setMobileLibraryOpen(true)}
+          onOpenArtist={openArtist}
+          onOpenCollection={openCollection}
           searchTracks={allTracks}
           searchArtists={[...(home?.artists ?? []), ...followedArtists]}
           searchCategories={allCategories}
@@ -589,6 +598,7 @@ function MusicExperience() {
               route={route}
               onNavigate={navigate}
               onCreatePlaylist={handleCreatePlaylist}
+              onImportSpotify={() => setSpotifyImportOpen(true)}
               onToggle={() => setSidebarCollapsed((value) => !value)}
               collapsed={sidebarCollapsed}
             />
@@ -630,6 +640,7 @@ function MusicExperience() {
           panelTab={panelTab}
           lyricsOpen={lyricsOpen}
           onOpenPanel={openPanel}
+          onAddToPlaylist={setAddToPlaylistTrack}
           onGoToArtist={currentTrack ? () => openArtistFromTrack(currentTrack) : undefined}
         />
       </div>
@@ -650,6 +661,10 @@ function MusicExperience() {
                 setMobileLibraryOpen(false);
                 handleCreatePlaylist();
               }}
+              onImportSpotify={() => {
+                setMobileLibraryOpen(false);
+                setSpotifyImportOpen(true);
+              }}
               onClose={() => setMobileLibraryOpen(false)}
             />
           </div>
@@ -667,6 +682,16 @@ function MusicExperience() {
             setPendingTrack(null);
           }}
           onSubmit={submitPlaylist}
+        />
+      )}
+
+      {spotifyImportOpen && (
+        <SpotifyImportDialog
+          onClose={() => setSpotifyImportOpen(false)}
+          onOpenPlaylist={(playlistId) => {
+            setSpotifyImportOpen(false);
+            void refreshLibrary().then(() => navigate({ kind: "playlist", id: playlistId }));
+          }}
         />
       )}
 

@@ -35,6 +35,7 @@ import {
   PlusIcon,
   SearchIcon,
   ShuffleIcon,
+  SpotifyIcon,
   TrashIcon,
   XIcon,
 } from "./icons";
@@ -52,8 +53,10 @@ export default function CollectionView({
   onAddToPlaylist,
   onAddTrackToPlaylist,
   onRemoveTrack,
+  onMoveTrack,
   onEditPlaylist,
   onDeletePlaylist,
+  onImportSpotify,
 }: {
   collection: MusicCollection;
   playlist?: UserPlaylist;
@@ -65,8 +68,10 @@ export default function CollectionView({
   onAddToPlaylist: (track: MusicTrack) => void;
   onAddTrackToPlaylist?: (track: MusicTrack) => void;
   onRemoveTrack?: (track: MusicTrack) => void;
+  onMoveTrack?: (from: number, to: number) => void;
   onEditPlaylist?: () => void;
   onDeletePlaylist?: () => void;
+  onImportSpotify?: () => void;
 }) {
   const { user } = useAuth();
   const { currentTrack, isPlaying, playQueue, toggle } = useMusicPlayer();
@@ -94,7 +99,11 @@ export default function CollectionView({
       ...base,
       title: playlist.title,
       description: playlist.description,
-      artworkUrl: playlistTracksOverride?.[0]?.artworkUrl ?? playlist.tracks[0]?.artworkUrl ?? base.artworkUrl,
+      artworkUrl:
+        playlist.imageUrl ??
+        playlistTracksOverride?.[0]?.artworkUrl ??
+        playlist.tracks[0]?.artworkUrl ??
+        base.artworkUrl,
       ownerName: displayNameFor(user) || "You",
       trackCount: playlistTracksOverride?.length ?? playlist.tracks.length,
       tracks: playlistTracksOverride ?? playlist.tracks,
@@ -172,8 +181,15 @@ export default function CollectionView({
       currentTrack &&
       effective.tracks.some((track) => track.id === currentTrack.id)
   );
-  const typeLabel =
-    effective.kind === "album"
+  const spotifyPlaylistId = playlist?.externalId?.replace(/^spotify:playlist:/, "");
+  const spotifyEmbed = spotifyPlaylistId
+    ? `https://open.spotify.com/embed/playlist/${spotifyPlaylistId}?utm_source=generator&theme=0`
+    : null;
+  const typeLabel = playlist?.source === "spotify"
+    ? playlist.importMode === "embed"
+      ? "Spotify playlist"
+      : "Imported from Spotify"
+    : effective.kind === "album"
       ? effective.trackCount <= 1
         ? "Single"
         : "Album"
@@ -187,9 +203,23 @@ export default function CollectionView({
     else toggleSavedCollection(effective);
   }
 
+  // Spotify import keeps unmatched entries visible, but they must never be
+  // queued as if they were playable.
+  const playableTracks = effective.tracks.filter(
+    (track) => track.isStreamable !== false && track.provider !== "spotify"
+  );
+  const playableCollection: MusicCollection =
+    playableTracks.length === effective.tracks.length
+      ? effective
+      : { ...effective, tracks: playableTracks, trackCount: playableTracks.length };
+
   function play() {
+    if (playableTracks.length === 0) {
+      toast("No playable YouTube Music matches in this playlist yet.");
+      return;
+    }
     if (collectionPlaying) toggle();
-    else onPlayCollection(effective);
+    else onPlayCollection(playableCollection);
   }
 
   function addTrackDirectly(track: MusicTrack) {
@@ -225,7 +255,7 @@ export default function CollectionView({
           type="button"
           className="music-detail-play music-detail-play-small"
           onClick={play}
-          disabled={loading || effective.tracks.length === 0}
+          disabled={loading || playableTracks.length === 0}
           aria-label={collectionPlaying ? `Pause ${effective.title}` : `Play ${effective.title}`}
         >
           {collectionPlaying ? <PauseIcon size={17} /> : <PlayIcon size={17} />}
@@ -300,7 +330,7 @@ export default function CollectionView({
             type="button"
             className="music-detail-play"
             onClick={play}
-            disabled={loading || effective.tracks.length === 0}
+            disabled={loading || playableTracks.length === 0}
             aria-label={collectionPlaying ? `Pause ${effective.title}` : `Play ${effective.title}`}
           >
             {collectionPlaying ? <PauseIcon size={23} /> : <PlayIcon size={23} />}
@@ -309,10 +339,10 @@ export default function CollectionView({
             type="button"
             className="music-detail-tool"
             onClick={() => {
-              const shuffled = [...effective.tracks].sort(() => Math.random() - 0.5);
+              const shuffled = [...playableTracks].sort(() => Math.random() - 0.5);
               playQueue(shuffled, 0, effective.title);
             }}
-            disabled={loading || effective.tracks.length === 0}
+            disabled={loading || playableTracks.length === 0}
             aria-label="Shuffle play"
             title="Shuffle play"
           >
@@ -472,7 +502,51 @@ export default function CollectionView({
             }
           />
         ) : effective.tracks.length === 0 ? (
-          isUserPlaylist && finderOpen ? (
+          isUserPlaylist && playlist?.importMode === "embed" && spotifyEmbed ? (
+            <div className="music-spotify-embed">
+              <div className="music-spotify-embed-head">
+                <span>
+                  <SpotifyIcon size={17} /> Official Spotify playlist
+                </span>
+                {playlist.externalUrl && (
+                  <a href={playlist.externalUrl} target="_blank" rel="noreferrer">
+                    Open on Spotify <ExternalIcon size={13} />
+                  </a>
+                )}
+              </div>
+              <iframe
+                src={spotifyEmbed}
+                title={`${effective.title} on Spotify`}
+                width="100%"
+                height={420}
+                loading="lazy"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              />
+              <p className="music-spotify-embed-note">
+                This playlist is linked to Spotify and plays through Spotify's own embed.
+                Reelhouse cannot read the embed's track list, so it is not represented as a
+                native playlist.
+              </p>
+              <div className="music-spotify-embed-actions">
+                {onImportSpotify && (
+                  <button
+                    type="button"
+                    className="music-white-button"
+                    onClick={onImportSpotify}
+                  >
+                    <PlusIcon size={16} /> Create a native playlist
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="music-detail-pill"
+                  onClick={() => setFinderOpen(true)}
+                >
+                  Add songs manually
+                </button>
+              </div>
+            </div>
+          ) : isUserPlaylist && finderOpen ? (
             <PlaylistTrackFinder
               onAdd={addTrackDirectly}
               onClose={() => setFinderOpen(false)}
@@ -517,6 +591,7 @@ export default function CollectionView({
               playlistId={playlist?.id}
               onAddToPlaylist={onAddToPlaylist}
               onRemoveFromPlaylist={onRemoveTrack}
+              onMoveTrack={onMoveTrack}
               onGoToArtist={(track) =>
                 onOpenArtist({
                   id: track.artistId,
@@ -542,6 +617,27 @@ export default function CollectionView({
                 onOpenCollection={onOpenCollection}
                 onPlayCollection={onPlayCollection}
               />
+            )}
+
+            {playlist?.source === "spotify" && (
+              <div className="music-spotify-provenance">
+                <SpotifyIcon size={17} />
+                <span>
+                  {playlist.importMode === "embed"
+                    ? "Linked from Spotify"
+                    : "Imported from Spotify"}
+                </span>
+                {playlist.externalUrl && (
+                  <a href={playlist.externalUrl} target="_blank" rel="noreferrer">
+                    Open original playlist <ExternalIcon size={12} />
+                  </a>
+                )}
+                {onImportSpotify && (
+                  <button type="button" onClick={onImportSpotify}>
+                    Update tracklist
+                  </button>
+                )}
+              </div>
             )}
           </>
         )}

@@ -8,6 +8,7 @@ import { toast } from "@/lib/toast";
 import { useMusicLibrary } from "./MusicLibraryProvider";
 import { useMusicPlayer } from "./MusicPlayerProvider";
 import {
+  ArrowRightIcon,
   CheckCircleIcon,
   ClockIcon,
   HeartIcon,
@@ -36,6 +37,8 @@ interface TrackListProps {
   onGoToArtist?: (track: MusicTrack) => void;
   onGoToAlbum?: (track: MusicTrack) => void;
   onRemoveFromPlaylist?: (track: MusicTrack) => void;
+  /** Move a track within a user playlist; index-based. */
+  onMoveTrack?: (from: number, to: number) => void;
   compact?: boolean;
   contextLabel?: string;
 }
@@ -52,6 +55,7 @@ export default function MusicTrackList({
   onGoToArtist,
   onGoToAlbum,
   onRemoveFromPlaylist,
+  onMoveTrack,
   compact = false,
 }: TrackListProps) {
   const { currentTrack, isPlaying, toggle } = useMusicPlayer();
@@ -78,6 +82,8 @@ export default function MusicTrackList({
       <div role="list">
         {tracks.map((track, index) => {
           const current = currentTrack?.id === track.id;
+          const playable =
+            track.isStreamable !== false && track.provider !== "spotify";
           return (
             <TrackRow
               key={`${track.id}-${index}`}
@@ -85,7 +91,14 @@ export default function MusicTrackList({
               index={index}
               current={current}
               playing={current && isPlaying}
+              playable={playable}
               onPlay={() => {
+                if (!playable) {
+                  toast(
+                    "No playable YouTube Music match yet. Re-import the playlist to try matching again."
+                  );
+                  return;
+                }
                 if (current) toggle();
                 else onPlay(track, index);
               }}
@@ -99,6 +112,16 @@ export default function MusicTrackList({
               onGoToArtist={onGoToArtist}
               onGoToAlbum={onGoToAlbum}
               onRemoveFromPlaylist={onRemoveFromPlaylist}
+              onMoveUp={
+                onMoveTrack && index > 0
+                  ? () => onMoveTrack(index, index - 1)
+                  : undefined
+              }
+              onMoveDown={
+                onMoveTrack && index < tracks.length - 1
+                  ? () => onMoveTrack(index, index + 1)
+                  : undefined
+              }
             />
           );
         })}
@@ -112,6 +135,7 @@ function TrackRow({
   index,
   current,
   playing,
+  playable = true,
   onPlay,
   showAlbum,
   showArtwork,
@@ -123,11 +147,14 @@ function TrackRow({
   onGoToArtist,
   onGoToAlbum,
   onRemoveFromPlaylist,
+  onMoveUp,
+  onMoveDown,
 }: {
   track: MusicTrack;
   index: number;
   current: boolean;
   playing: boolean;
+  playable?: boolean;
   onPlay: () => void;
   showAlbum: boolean;
   showArtwork: boolean;
@@ -139,6 +166,8 @@ function TrackRow({
   onGoToArtist?: (track: MusicTrack) => void;
   onGoToAlbum?: (track: MusicTrack) => void;
   onRemoveFromPlaylist?: (track: MusicTrack) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const { isTrackLiked, toggleLike } = useMusicLibrary();
   const { addToQueue } = useMusicPlayer();
@@ -161,12 +190,20 @@ function TrackRow({
     <div
       role="listitem"
       data-current={current || undefined}
+      data-unavailable={!playable || undefined}
       className="music-track-row"
       onDoubleClick={onPlay}
     >
       <button
         type="button"
-        aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
+        aria-label={
+          playable
+            ? playing
+              ? `Pause ${track.title}`
+              : `Play ${track.title}`
+            : `${track.title} is unavailable: no YouTube Music match`
+        }
+        title={playable ? undefined : "Unavailable: no YouTube Music match yet"}
         onClick={onPlay}
         className="music-track-index"
       >
@@ -198,6 +235,9 @@ function TrackRow({
         <div className="music-track-title-copy">
           <p className="music-track-title" title={track.title}>
             {track.title}
+            {!playable && (
+              <span className="music-track-unavailable">Unavailable</span>
+            )}
           </p>
           <button
             type="button"
@@ -312,6 +352,22 @@ function TrackRow({
                 }
               : undefined
           }
+          onMoveUp={
+            onMoveUp
+              ? () => {
+                  setMenu(null);
+                  onMoveUp();
+                }
+              : undefined
+          }
+          onMoveDown={
+            onMoveDown
+              ? () => {
+                  setMenu(null);
+                  onMoveDown();
+                }
+              : undefined
+          }
         />
       )}
     </div>
@@ -330,6 +386,8 @@ function TrackMenu({
   onGoToArtist,
   onGoToAlbum,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
   track: MusicTrack;
   anchor: { x: number; y: number };
@@ -342,6 +400,8 @@ function TrackMenu({
   onGoToArtist?: () => void;
   onGoToAlbum?: () => void;
   onRemove?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -371,6 +431,16 @@ function TrackMenu({
       <button type="button" role="menuitem" className="music-menu-item" onClick={onPlay}>
         <PlayIcon size={16} /> Play
       </button>
+      {onMoveUp && (
+        <button type="button" role="menuitem" className="music-menu-item" onClick={onMoveUp}>
+          <ArrowRightIcon size={16} style={{ transform: "rotate(-90deg)" }} /> Move up
+        </button>
+      )}
+      {onMoveDown && (
+        <button type="button" role="menuitem" className="music-menu-item" onClick={onMoveDown}>
+          <ArrowRightIcon size={16} style={{ transform: "rotate(90deg)" }} /> Move down
+        </button>
+      )}
       <button type="button" role="menuitem" className="music-menu-item" onClick={() => onQueue(true)}>
         <QueueIcon size={16} /> Play next
       </button>

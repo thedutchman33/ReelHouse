@@ -189,6 +189,33 @@ data class PersonalizedHomeDto(
     val hasListeningData: Boolean = false,
 )
 
+@Serializable
+data class TracklistMatchTrackDto(
+    val title: String,
+    val artist: String = "",
+    val album: String? = null,
+    val durationMs: Int = 0,
+)
+
+@Serializable
+data class TracklistMatchRequestDto(
+    val tracks: List<TracklistMatchTrackDto> = emptyList(),
+)
+
+@Serializable
+data class TracklistMatchDto(
+    val index: Int,
+    val status: String,
+    val confidence: Double,
+    val track: MusicTrackDto? = null,
+    val candidates: List<SpotifyCandidateDto> = emptyList(),
+)
+
+@Serializable
+data class TracklistMatchResponseDto(
+    val matches: List<TracklistMatchDto> = emptyList(),
+)
+
 data class SpotifyTrackData(
     val spotifyTrackId: String,
     val uri: String?,

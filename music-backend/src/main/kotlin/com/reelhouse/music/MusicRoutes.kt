@@ -51,6 +51,37 @@ class MusicRoutes(
                 )
             }
         }
+        router.get("/v1/music/suggestions") { request ->
+            val query = request.query("q")?.trim().orEmpty()
+            HttpResponse.json(
+                mapOf("suggestions" to youtube.suggestions(query)),
+                cacheControl = "public, max-age=120, stale-while-revalidate=600",
+            )
+        }
+        router.post("/v1/music/match") { request ->
+            val body = request.readJson(512 * 1024)
+            val payload = runCatching {
+                AppJson.decodeFromJsonElement(TracklistMatchRequestDto.serializer(), body)
+            }.getOrNull()
+                ?: throw ApiException(400, "invalid_match_request", "A list of tracks is required")
+            if (payload.tracks.isEmpty()) {
+                throw ApiException(400, "invalid_match_request", "A list of tracks is required")
+            }
+            val tracks = payload.tracks.take(12).map { item ->
+                item.copy(
+                    title = item.title.trim().take(200),
+                    artist = item.artist.trim().take(200),
+                    album = item.album?.trim()?.take(200),
+                    durationMs = item.durationMs.coerceIn(0, 3_600_000),
+                )
+            }
+            HttpResponse.json(
+                TracklistMatchResponseDto(matcher.matchExternal(tracks)),
+                cacheControl = "public, max-age=86400, stale-while-revalidate=604800",
+            )
+        }
+        // The frontend route passes a single id as a query param because the
+        // shared Router pattern below is registered for every method.
         router.get("/v1/music/artists/:id") { request ->
             val id = request.query("id").orEmpty()
             HttpResponse.json(

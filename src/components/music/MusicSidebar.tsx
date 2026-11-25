@@ -17,11 +17,12 @@ import {
   PlusIcon,
   SearchIcon,
   SortIcon,
+  SpotifyIcon,
   XIcon,
 } from "./icons";
 import MusicArtwork from "./MusicArtwork";
 
-type LibraryFilter = "playlists" | "artists" | "albums" | "podcasts";
+type LibraryFilter = "playlists" | "artists" | "albums";
 type LibrarySort = "recents" | "recently-added" | "alphabetical";
 
 interface LibraryEntry {
@@ -42,6 +43,7 @@ export default function MusicSidebar({
   route,
   onNavigate,
   onCreatePlaylist,
+  onImportSpotify,
   onClose,
   onToggle,
   collapsed = false,
@@ -49,6 +51,7 @@ export default function MusicSidebar({
   route: MusicRoute;
   onNavigate: (route: MusicRoute) => void;
   onCreatePlaylist: () => void;
+  onImportSpotify?: () => void;
   onClose?: () => void;
   onToggle?: () => void;
   collapsed?: boolean;
@@ -133,7 +136,10 @@ export default function MusicSidebar({
         list.push({
           id: `playlist-${playlist.id}`,
           title: playlist.title,
-          subtitle: `Playlist · ${owner}`,
+          subtitle:
+            playlist.source === "spotify"
+              ? `Spotify playlist · ${playlist.importMode === "embed" ? "Linked" : "Imported"}`
+              : `Playlist · ${owner}`,
           artworkUrl: playlist.tracks[0]?.artworkUrl,
           seed: playlist.id,
           round: false,
@@ -222,8 +228,6 @@ export default function MusicSidebar({
     savedAlbums.length > 0 ||
     followedArtists.length > 0 ||
     savedCollections.length > 0;
-  const podcastOnly =
-    filters.length === 1 && filters.includes("podcasts");
 
   if (collapsed) {
     return (
@@ -336,23 +340,27 @@ export default function MusicSidebar({
                   </span>
                   <span>
                     <strong>Playlist</strong>
-                    <small>Create a playlist with songs or episodes</small>
+                    <small>Create an empty playlist</small>
                   </span>
                 </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled
-                  title="Folders are not available yet"
-                >
-                  <span className="music-create-menu-icon">
-                    <LibraryIcon size={19} />
-                  </span>
-                  <span>
-                    <strong>Folder</strong>
-                    <small>Organize your playlists</small>
-                  </span>
-                </button>
+                {onImportSpotify && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setCreateOpen(false);
+                      onImportSpotify();
+                    }}
+                  >
+                    <span className="music-create-menu-icon music-create-menu-spotify">
+                      <SpotifyIcon size={19} />
+                    </span>
+                    <span>
+                      <strong>Import from Spotify</strong>
+                      <small>Paste a playlist link or upload a tracklist</small>
+                    </span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -376,7 +384,6 @@ export default function MusicSidebar({
             ["playlists", "Playlists"],
             ["artists", "Artists"],
             ["albums", "Albums"],
-            ["podcasts", "Podcasts"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -470,13 +477,7 @@ export default function MusicSidebar({
       </div>
 
       <div className="music-library-scroll">
-        {podcastOnly ? (
-          <div className="music-library-empty">
-            <MusicNoteIcon size={24} />
-            <strong>No podcasts yet</strong>
-            <span>Podcasts are not part of the open catalog.</span>
-          </div>
-        ) : libraryEntries.length === 0 ? (
+        {libraryEntries.length === 0 ? (
           <div className="music-library-empty">
             <strong>{hasLibrary ? "No matches" : "Create your first playlist"}</strong>
             <span>{hasLibrary ? "Try another search or filter." : "It’s easy, we’ll help you."}</span>

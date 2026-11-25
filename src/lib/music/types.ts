@@ -67,6 +67,9 @@ export interface MusicCollection extends MusicProviderRef {
   isEditorial?: boolean;
 }
 
+export type PlaylistSource = "reelhouse" | "spotify";
+export type PlaylistImportMode = "embed" | "tracklist";
+
 export interface UserPlaylist {
   id: string;
   title: string;
@@ -75,6 +78,20 @@ export interface UserPlaylist {
   createdAt: string;
   updatedAt: string;
   accent: string;
+  /** Where the playlist came from. Missing means a native Reelhouse list. */
+  source?: PlaylistSource;
+  /** Stable provider id, e.g. spotify:playlist:37i9... */
+  externalId?: string | null;
+  /** Original Spotify share URL saved as provenance. */
+  externalUrl?: string | null;
+  externalOwner?: string | null;
+  imageUrl?: string | null;
+  importedAt?: string | null;
+  /**
+   * embed: only the official Spotify embed is available.
+   * tracklist: a native Reelhouse track list was built from supplied metadata.
+   */
+  importMode?: PlaylistImportMode | null;
 }
 
 export interface MusicBrowseCategory {

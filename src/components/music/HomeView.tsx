@@ -31,8 +31,6 @@ import { MusicNoteIcon as NoteIcon } from "./icons";
 import MusicArtwork from "./MusicArtwork";
 import { MusicPreferencesDialog } from "./MusicDialogs";
 
-type HomeFilter = "all" | "music" | "podcasts" | "audiobooks";
-
 interface QuickItem {
   id: string;
   title: string;
@@ -92,7 +90,6 @@ export default function HomeView({
 }) {
   const { currentTrack, isPlaying, playQueue, toggle } = useMusicPlayer();
   const { playlists, savedCollections, favoriteGenres } = useMusicLibrary();
-  const [filter, setFilter] = useState<HomeFilter>("all");
   const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const dailyMixes = useMemo(() => {
@@ -143,13 +140,6 @@ export default function HomeView({
   if (loading && !home) {
     return (
       <div className="music-home">
-        <div className="music-home-chips">
-          {["All", "Music", "Podcasts", "Audiobooks"].map((label) => (
-            <span key={label} className="music-home-chip">
-              {label}
-            </span>
-          ))}
-        </div>
         <div className="music-quick-grid">
           {Array.from({ length: 8 }).map((_, index) => (
             <div key={index} className="music-skeleton music-quick-skeleton" />
@@ -210,17 +200,19 @@ export default function HomeView({
   }
 
   const quickItems: QuickItem[] = [];
-  quickItems.push({
-    id: "liked",
-    title: "Liked Songs",
-    seed: "liked-songs",
-    liked: true,
-    onOpen: onOpenLiked,
-    onPlay: likedTracks.length > 0 ? playLiked : undefined,
-    playing: Boolean(
-      isPlaying && currentTrack && likedTracks.some((track) => track.id === currentTrack.id)
-    ),
-  });
+  if (likedTracks.length > 0) {
+    quickItems.push({
+      id: "liked",
+      title: "Liked Songs",
+      seed: "liked-songs",
+      liked: true,
+      onOpen: onOpenLiked,
+      onPlay: playLiked,
+      playing: Boolean(
+        isPlaying && currentTrack && likedTracks.some((track) => track.id === currentTrack.id)
+      ),
+    });
+  }
   for (const playlist of playlists) {
     const collection = playlistCollections.find((item) => item.id === `user:${playlist.id}`);
     if (!collection) continue;
@@ -286,11 +278,9 @@ export default function HomeView({
     )
     .slice(0, 2);
 
-  const recentItems = dedupeTracks([
-    ...recentTracks,
-    ...home.latest,
-    ...home.trending,
-  ]).slice(0, 6);
+  // Show real playback history only. Falling back to catalog tracks under a
+  // "Recents" heading would misrepresent a new listener's activity.
+  const recentItems = dedupeTracks(recentTracks).slice(0, 6);
   const artists = [...followedArtists, ...home.artists].filter(
     (artist, index, all) => all.findIndex((item) => item.id === artist.id) === index
   );
@@ -299,55 +289,8 @@ export default function HomeView({
     ? allTracks.filter((track) => track.artistId === topArtist.id).slice(0, 5)
     : [];
 
-  function chips() {
-    return (
-      <div className="music-home-chips" role="tablist" aria-label="Home filters">
-        {(
-          [
-            ["all", "All"],
-            ["music", "Music"],
-            ["podcasts", "Podcasts"],
-            ["audiobooks", "Audiobooks"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={filter === value}
-            data-active={filter === value || undefined}
-            className="music-home-chip"
-            onClick={() => setFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  if (filter === "podcasts" || filter === "audiobooks") {
-    return (
-      <div className="music-home">
-        {chips()}
-        <EmptyState
-          icon={<NoteIcon size={34} />}
-          title={filter === "podcasts" ? "Podcasts are not here yet" : "Audiobooks are not here yet"}
-          copy="Reelhouse Music currently indexes the open music catalog. Switch back to All or Music."
-          action={
-            <button type="button" className="music-white-button" onClick={() => setFilter("all")}>
-              Back to music
-            </button>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="music-home">
-      {chips()}
-
       <div className="music-quick-grid">
         {visibleQuickItems.length > 0 ? (
           visibleQuickItems.map((item) => (

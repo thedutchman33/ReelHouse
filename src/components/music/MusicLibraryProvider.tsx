@@ -20,6 +20,7 @@ import type {
   MusicCollection,
   MusicLibrarySnapshot,
   MusicTrack,
+  PlaylistImportMode,
   UserPlaylist,
 } from "@/lib/music/types";
 import { colorFor } from "@/lib/music/utils";
@@ -40,11 +41,52 @@ const STORAGE_BASE = "reelhouse:music:library:v1";
 const GUEST_KEY = `${STORAGE_BASE}:guest`;
 const USER_KEY_PREFIX = `${STORAGE_BASE}:user:`;
 
+const PLAYLIST_COLUMNS_BASE = "id,title,description,accent,created_at,updated_at";
+const PLAYLIST_COLUMNS_0005 =
+  `${PLAYLIST_COLUMNS_BASE},source,external_id,external_owner,image_url,imported_at`;
+const PLAYLIST_COLUMNS_FULL = `${PLAYLIST_COLUMNS_0005},external_url,import_mode`;
+
+interface PostgresErrorLike {
+  message: string;
+  code?: string;
+}
+
+/** A missing 0006 column must not push the whole library into device mode. */
+function isMissingColumnError(error: PostgresErrorLike): boolean {
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /column .* does not exist|could not find the '.*' column/i.test(error.message)
+  );
+}
+
+export interface ImportedPlaylistInput {
+  title: string;
+  description?: string;
+  tracks: MusicTrack[];
+  externalId?: string | null;
+  externalUrl?: string | null;
+  externalOwner?: string | null;
+  imageUrl?: string | null;
+  importMode?: PlaylistImportMode | null;
+}
+
 interface MusicLibraryContextValue extends MusicLibrarySnapshot {
   ready: boolean;
   syncMode: LibrarySyncMode;
   syncError: string | null;
   createPlaylist: (title: string, description?: string) => UserPlaylist;
+  /** Create a playlist from imported Spotify metadata and matched tracks. */
+  createImportedPlaylist: (input: ImportedPlaylistInput) => UserPlaylist;
+  /** Replace the full ordered track list (used by re-import and reordering). */
+  replacePlaylistTracks: (playlistId: string, tracks: MusicTrack[]) => void;
+  moveTrackInPlaylist: (playlistId: string, from: number, to: number) => void;
+  findPlaylistByExternalId: (externalId: string) => UserPlaylist | undefined;
+  /** Attach the saved Spotify URL to a playlist mirrored by the ZIP import. */
+  linkSpotifyPlaylist: (
+    externalId: string,
+    patch: { externalUrl: string; importMode: PlaylistImportMode }
+  ) => Promise<string | null>;
   updatePlaylist: (id: string, patch: { title?: string; description?: string }) => void;
   deletePlaylist: (id: string) => void;
   addTrackToPlaylist: (
@@ -140,7 +182,18 @@ function readLocal(key: string): MusicLibrarySnapshot {
           updatedAt:
             typeof item.updatedAt === "string" ? item.updatedAt : new Date().toISOString(),
           accent: typeof item.accent === "string" ? item.accent : colorFor(item.id),
-        } satisfies UserPlaylist;
+          source: item.source === "spotify" ? "spotify" : "reelhouse",
+          externalId: typeof item.externalId === "string" ? item.externalId : null,
+          externalUrl: typeof item.externalUrl === "string" ? item.externalUrl : null,
+          externalOwner:
+            typeof item.externalOwner === "string" ? item.externalOwner : null,
+          imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
+          importedAt: typeof item.importedAt === "string" ? item.importedAt : null,
+          importMode:
+            item.importMode === "embed" || item.importMode === "tracklist"
+              ? item.importMode
+              : null,
+        } as UserPlaylist;
       })
       .filter((value): value is UserPlaylist => Boolean(value));
 
@@ -219,7 +272,18 @@ function snapshotFromRows(
         updatedAt:
           typeof row.updated_at === "string" ? row.updated_at : new Date().toISOString(),
         accent: typeof row.accent === "string" ? row.accent : colorFor(id),
-      } satisfies UserPlaylist;
+        source: row.source === "spotify" ? "spotify" : "reelhouse",
+        externalId: typeof row.external_id === "string" ? row.external_id : null,
+        externalUrl: typeof row.external_url === "string" ? row.external_url : null,
+        externalOwner:
+          typeof row.external_owner === "string" ? row.external_owner : null,
+        imageUrl: typeof row.image_url === "string" ? row.image_url : null,
+        importedAt: typeof row.imported_at === "string" ? row.imported_at : null,
+        importMode:
+          row.import_mode === "embed" || row.import_mode === "tracklist"
+            ? row.import_mode
+            : null,
+      } as UserPlaylist;
     })
     .filter((value): value is UserPlaylist => Boolean(value));
 
@@ -239,16 +303,37 @@ function snapshotFromRows(
   };
 }
 
+async function fetchPlaylistRows(
+  supabase: SupabaseClient
+): Promise<{ data: unknown[] | null; error: PostgresErrorLike | null }> {
+  const full = await supabase
+    .from("music_playlists")
+    .select(PLAYLIST_COLUMNS_FULL)
+    .order("created_at", { ascending: true });
+  if (!full.error || !isMissingColumnError(full.error)) {
+    return { data: full.data, error: full.error };
+  }
+  const compatible = await supabase
+    .from("music_playlists")
+    .select(PLAYLIST_COLUMNS_0005)
+    .order("created_at", { ascending: true });
+  if (!compatible.error || !isMissingColumnError(compatible.error)) {
+    return { data: compatible.data, error: compatible.error };
+  }
+  const basic = await supabase
+    .from("music_playlists")
+    .select(PLAYLIST_COLUMNS_BASE)
+    .order("created_at", { ascending: true });
+  return { data: basic.data, error: basic.error };
+}
+
 async function loadRemote(
   supabase: SupabaseClient,
   userId: string
 ): Promise<MusicLibrarySnapshot> {
   const [playlists, playlistTracks, liked, albums, artists, recent, collections] =
     await Promise.all([
-      supabase
-        .from("music_playlists")
-        .select("id,title,description,accent,created_at,updated_at")
-        .order("created_at", { ascending: true }),
+      fetchPlaylistRows(supabase),
       supabase
         .from("music_playlist_tracks")
         .select("playlist_id,track_snapshot,position,added_at")
@@ -331,16 +416,32 @@ async function loadRemote(
   );
 }
 
-function buildPlaylistRows(userId: string, snapshot: MusicLibrarySnapshot) {
-  const playlistRows = snapshot.playlists.map((playlist) => ({
-    id: playlist.id,
-    user_id: userId,
-    title: playlist.title,
-    description: playlist.description,
-    accent: playlist.accent,
-    created_at: playlist.createdAt,
-    updated_at: playlist.updatedAt,
-  }));
+function buildPlaylistRows(
+  userId: string,
+  snapshot: MusicLibrarySnapshot,
+  extended = true
+) {
+  const playlistRows = snapshot.playlists.map((playlist) => {
+    const row: Record<string, unknown> = {
+      id: playlist.id,
+      user_id: userId,
+      title: playlist.title,
+      description: playlist.description,
+      accent: playlist.accent,
+      created_at: playlist.createdAt,
+      updated_at: playlist.updatedAt,
+      source: playlist.source ?? "reelhouse",
+      external_id: playlist.externalId ?? null,
+      external_owner: playlist.externalOwner ?? null,
+      image_url: playlist.imageUrl ?? null,
+      imported_at: playlist.importedAt ?? null,
+    };
+    if (extended) {
+      row.external_url = playlist.externalUrl ?? null;
+      row.import_mode = playlist.importMode ?? null;
+    }
+    return row;
+  });
   const trackRows = snapshot.playlists.flatMap((playlist) =>
     playlist.tracks.map((track, position) => ({
       playlist_id: playlist.id,
@@ -362,11 +463,19 @@ async function pushSnapshot(
   const tasks: PromiseLike<{ error: { message: string } | null }>[] = [];
   if (playlistRows.length) {
     tasks.push(
-      Promise.resolve(
-        supabase
+      (async () => {
+        const first = await supabase
           .from("music_playlists")
-          .upsert(playlistRows, { onConflict: "id" })
-      )
+          .upsert(playlistRows, { onConflict: "id" });
+        if (!first.error || !isMissingColumnError(first.error)) return first;
+        // 0006 has not been applied yet: seed the library without the two new
+        // columns instead of failing the whole cloud sync.
+        return supabase
+          .from("music_playlists")
+          .upsert(buildPlaylistRows(userId, snapshot, false).playlistRows, {
+            onConflict: "id",
+          });
+      })()
     );
   }
   if (snapshot.likedTracks.length) {
@@ -456,6 +565,49 @@ function newId(): string {
     return crypto.randomUUID();
   }
   return `pl-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function chunked<T>(items: T[], size = 200): T[][] {
+  const out: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    out.push(items.slice(index, index + size));
+  }
+  return out;
+}
+
+/** Keep one snapshot per track id; imported provider ids must stay unique. */
+function uniqueTracks(tracks: MusicTrack[]): MusicTrack[] {
+  return tracks.filter(
+    (track, index, all) => all.findIndex((item) => item.id === track.id) === index
+  );
+}
+
+async function replaceRemoteTracks(
+  supabase: SupabaseClient,
+  userId: string,
+  playlistId: string,
+  tracks: MusicTrack[]
+): Promise<PostgresErrorLike | null> {
+  const removed = await supabase
+    .from("music_playlist_tracks")
+    .delete()
+    .eq("playlist_id", playlistId)
+    .eq("user_id", userId);
+  if (removed.error) return removed.error;
+  const unique = uniqueTracks(tracks);
+  for (const rows of chunked(
+    unique.map((track, position) => ({
+      playlist_id: playlistId,
+      user_id: userId,
+      track_id: track.id,
+      track_snapshot: track,
+      position,
+    }))
+  )) {
+    const inserted = await supabase.from("music_playlist_tracks").insert(rows);
+    if (inserted.error) return inserted.error;
+  }
+  return null;
 }
 
 export default function MusicLibraryProvider({ children }: { children: React.ReactNode }) {
@@ -627,6 +779,139 @@ export default function MusicLibraryProvider({ children }: { children: React.Rea
       return playlist;
     },
     [runRemote, setCurrent]
+  );
+
+  const createImportedPlaylist = useCallback(
+    (input: ImportedPlaylistInput): UserPlaylist => {
+      const cleanTitle = input.title.trim().slice(0, 120) || "Spotify playlist";
+      const now = new Date().toISOString();
+      const playlist: UserPlaylist = {
+        id: newId(),
+        title: cleanTitle,
+        description: (input.description ?? "").trim().slice(0, 500),
+        tracks: uniqueTracks(input.tracks),
+        createdAt: now,
+        updatedAt: now,
+        accent: colorFor(cleanTitle),
+        source: "spotify",
+        externalId: input.externalId ?? null,
+        externalUrl: input.externalUrl ?? null,
+        externalOwner: input.externalOwner ?? null,
+        imageUrl: input.imageUrl ?? null,
+        importedAt: now,
+        importMode: input.importMode ?? "tracklist",
+      };
+      const next = {
+        ...snapshotRef.current,
+        playlists: [playlist, ...snapshotRef.current.playlists],
+      };
+      setCurrent(next);
+
+      const extendedRow: Record<string, unknown> = {
+        id: playlist.id,
+        user_id: user?.id ?? "",
+        title: playlist.title,
+        description: playlist.description,
+        accent: playlist.accent,
+        source: "spotify",
+        external_id: playlist.externalId,
+        external_url: playlist.externalUrl,
+        external_owner: playlist.externalOwner,
+        image_url: playlist.imageUrl,
+        imported_at: now,
+        import_mode: playlist.importMode,
+        created_at: playlist.createdAt,
+        updated_at: playlist.updatedAt,
+      };
+      void runRemote(async (supabase, userId) => {
+        extendedRow.user_id = userId;
+        let parent = await supabase
+          .from("music_playlists")
+          .upsert(extendedRow, { onConflict: "id" });
+        if (parent.error && isMissingColumnError(parent.error)) {
+          // 0006 may not be applied yet. Link and import mode are additive, so
+          // the playlist can still be saved with the 0005 provenance columns.
+          const compatibleRow = { ...extendedRow };
+          delete compatibleRow.external_url;
+          delete compatibleRow.import_mode;
+          parent = await supabase
+            .from("music_playlists")
+            .upsert(compatibleRow, { onConflict: "id" });
+        }
+        if (parent.error) return { error: parent.error };
+        const trackError = await replaceRemoteTracks(
+          supabase,
+          userId,
+          playlist.id,
+          playlist.tracks
+        );
+        return { error: trackError };
+      });
+      return playlist;
+    },
+    [runRemote, setCurrent, user?.id]
+  );
+
+  const replacePlaylistTracks = useCallback(
+    (playlistId: string, tracks: MusicTrack[]) => {
+      const playlist = snapshotRef.current.playlists.find((item) => item.id === playlistId);
+      if (!playlist) return;
+      const now = new Date().toISOString();
+      const clean = uniqueTracks(tracks);
+      setCurrent({
+        ...snapshotRef.current,
+        playlists: snapshotRef.current.playlists.map((item) =>
+          item.id === playlistId
+            ? { ...item, tracks: clean, updatedAt: now }
+            : item
+        ),
+      });
+      void runRemote(async (supabase, userId) => {
+        const parent = await supabase
+          .from("music_playlists")
+          .update({ updated_at: now })
+          .eq("id", playlistId)
+          .eq("user_id", userId);
+        if (parent.error) return { error: parent.error };
+        const trackError = await replaceRemoteTracks(
+          supabase,
+          userId,
+          playlistId,
+          clean
+        );
+        return { error: trackError };
+      });
+    },
+    [runRemote, setCurrent]
+  );
+
+  const moveTrackInPlaylist = useCallback(
+    (playlistId: string, from: number, to: number) => {
+      const playlist = snapshotRef.current.playlists.find((item) => item.id === playlistId);
+      if (!playlist) return;
+      if (
+        from === to ||
+        from < 0 ||
+        to < 0 ||
+        from >= playlist.tracks.length ||
+        to >= playlist.tracks.length
+      ) {
+        return;
+      }
+      const next = [...playlist.tracks];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      replacePlaylistTracks(playlistId, next);
+    },
+    [replacePlaylistTracks]
+  );
+
+  const findPlaylistByExternalId = useCallback(
+    (externalId: string) =>
+      snapshot.playlists.find(
+        (playlist) => playlist.externalId === externalId && playlist.source === "spotify"
+      ),
+    [snapshot.playlists]
   );
 
   const updatePlaylist = useCallback(
@@ -995,6 +1280,81 @@ export default function MusicLibraryProvider({ children }: { children: React.Rea
     }
   }, [setCurrent, user?.id]);
 
+  // The authenticated ZIP import mirrors Spotify playlists in the backend. Its
+  // rows already carry source + external_id; link the pasted URL to that row so
+  // the library shows provenance and duplicate detection keeps working.
+  const linkSpotifyPlaylist = useCallback(
+    async (
+      externalId: string,
+      patch: { externalUrl: string; importMode: PlaylistImportMode }
+    ): Promise<string | null> => {
+      const supabase = supabaseRef.current;
+      const userId = user?.id;
+      if (supabase && userId && remoteAvailableRef.current) {
+        try {
+          const found = await supabase
+            .from("music_playlists")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("source", "spotify")
+            .eq("external_id", externalId)
+            .maybeSingle();
+          if (!found.error && found.data?.id) {
+            const id = String(found.data.id);
+            const now = new Date().toISOString();
+            const fullUpdate: Record<string, unknown> = {
+              external_url: patch.externalUrl,
+              import_mode: patch.importMode,
+              imported_at: now,
+              updated_at: now,
+            };
+            const updated = await supabase
+              .from("music_playlists")
+              .update(fullUpdate)
+              .eq("id", id)
+              .eq("user_id", userId);
+            if (updated.error && isMissingColumnError(updated.error)) {
+              const compatible = { ...fullUpdate };
+              delete compatible.import_mode;
+              await supabase
+                .from("music_playlists")
+                .update(compatible)
+                .eq("id", id)
+                .eq("user_id", userId);
+            }
+            await refreshLibrary();
+            return id;
+          }
+        } catch {
+          // Fall through to the in-memory lookup below.
+        }
+      }
+
+      const existing = snapshotRef.current.playlists.find(
+        (playlist) => playlist.externalId === externalId
+      );
+      if (!existing) return null;
+      const now = new Date().toISOString();
+      setCurrent({
+        ...snapshotRef.current,
+        playlists: snapshotRef.current.playlists.map((playlist) =>
+          playlist.id === existing.id
+            ? {
+                ...playlist,
+                source: "spotify",
+                externalUrl: patch.externalUrl,
+                importMode: patch.importMode,
+                importedAt: now,
+                updatedAt: now,
+              }
+            : playlist
+        ),
+      });
+      return existing.id;
+    },
+    [refreshLibrary, setCurrent, user?.id]
+  );
+
   const value = useMemo<MusicLibraryContextValue>(
     () => ({
       ...snapshot,
@@ -1002,6 +1362,11 @@ export default function MusicLibraryProvider({ children }: { children: React.Rea
       syncMode,
       syncError,
       createPlaylist,
+      createImportedPlaylist,
+      replacePlaylistTracks,
+      moveTrackInPlaylist,
+      findPlaylistByExternalId,
+      linkSpotifyPlaylist,
       updatePlaylist,
       deletePlaylist,
       addTrackToPlaylist,
@@ -1025,6 +1390,11 @@ export default function MusicLibraryProvider({ children }: { children: React.Rea
       syncMode,
       syncError,
       createPlaylist,
+      createImportedPlaylist,
+      replacePlaylistTracks,
+      moveTrackInPlaylist,
+      findPlaylistByExternalId,
+      linkSpotifyPlaylist,
       updatePlaylist,
       deletePlaylist,
       addTrackToPlaylist,
