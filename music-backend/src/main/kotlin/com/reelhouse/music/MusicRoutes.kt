@@ -1,5 +1,7 @@
 package com.reelhouse.music
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -364,18 +366,22 @@ class MusicRoutes(
             )
         }
         var info = youtube.stream(videoId)
-        var upstream = runCatching {
-            openUpstream(info, range, ifRange)
-        }.getOrElse {
-            throw ApiException(502, "stream_unavailable", "The audio stream is temporarily unavailable")
-        }
+        var upstream = openUpstreamWithRetry(videoId, info, range, ifRange)
         if (upstream.status == 403 || upstream.status == 410) {
+            logger.warn(
+                "stream_upstream_rejected",
+                mapOf(
+                    "videoId" to videoId,
+                    "status" to upstream.status,
+                    "itag" to info.itag,
+                    "mime" to info.mimeType,
+                    "refreshing" to true,
+                ),
+            )
             upstream.close()
             youtube.invalidateStream(videoId)
             info = youtube.stream(videoId)
-            upstream = runCatching { openUpstream(info, range, ifRange) }.getOrElse {
-                throw ApiException(502, "stream_unavailable", "The audio stream is temporarily unavailable")
-            }
+            upstream = openUpstreamWithRetry(videoId, info, range, ifRange)
         }
         if (upstream.status == 416) {
             upstream.close()
@@ -392,7 +398,15 @@ class MusicRoutes(
         if (upstream.status !in 200..299) {
             val status = upstream.status
             upstream.close()
-            logger.warn("stream_proxy_rejected", mapOf("videoId" to videoId, "upstream" to status))
+            logger.warn(
+                "stream_proxy_rejected",
+                mapOf(
+                    "videoId" to videoId,
+                    "upstream" to status,
+                    "itag" to info.itag,
+                    "mime" to info.mimeType,
+                ),
+            )
             throw ApiException(502, "stream_unavailable", "The audio stream is temporarily unavailable")
         }
         val contentLength = upstream.header("Content-Length")?.toLongOrNull() ?: 0L
@@ -410,6 +424,53 @@ class MusicRoutes(
             bodyStream = upstream.stream,
             contentLength = contentLength,
         )
+    }
+
+    private fun sanitizeNetworkDetail(value: String?): String =
+        (value ?: "")
+            .replace(Regex("(?i)(key|token|sig|signature|expire|visitorData|poToken|authorization)=([^&\\s]+)"), "$1=<redacted>")
+            .replace('\n', ' ')
+            .take(160)
+
+    /** One bounded retry for a genuine transport failure, never for an HTTP rejection. */
+    private suspend fun openUpstreamWithRetry(
+        videoId: String,
+        info: YouTubeStreamInfo,
+        range: String?,
+        ifRange: String?,
+    ): StreamHttpResponse {
+        return try {
+            openUpstream(info, range, ifRange)
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (first: Exception) {
+            logger.warn(
+                "stream_upstream_network_retry",
+                mapOf(
+                    "videoId" to videoId,
+                    "itag" to info.itag,
+                    "type" to (first::class.simpleName ?: "Exception"),
+                    "detail" to sanitizeNetworkDetail(first.message),
+                ),
+            )
+            delay(150)
+            try {
+                openUpstream(info, range, ifRange)
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (second: Exception) {
+                logger.warn(
+                    "stream_upstream_network_failed",
+                    mapOf(
+                        "videoId" to videoId,
+                        "itag" to info.itag,
+                        "type" to (second::class.simpleName ?: "Exception"),
+                        "detail" to sanitizeNetworkDetail(second.message),
+                    ),
+                )
+                throw ApiException(502, "stream_unavailable", "The audio stream is temporarily unavailable")
+            }
+        }
     }
 
     private suspend fun openUpstream(

@@ -17,6 +17,7 @@ dependencies {
     runtimeOnly("org.slf4j:slf4j-nop:2.0.16")
 
     testImplementation(kotlin("test-junit5"))
+    testImplementation("io.ktor:ktor-client-mock:3.6.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
 }
 
