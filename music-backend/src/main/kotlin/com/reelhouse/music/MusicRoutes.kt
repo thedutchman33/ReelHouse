@@ -428,7 +428,7 @@ class MusicRoutes(
 
     private fun sanitizeNetworkDetail(value: String?): String =
         (value ?: "")
-            .replace(Regex("(?i)(key|token|sig|signature|expire|visitorData|poToken|authorization)=([^&\\s]+)"), "$1=<redacted>")
+            .replace(Regex("(?i)(pot|key|token|sig|signature|expire|visitorData|poToken|authorization)=([^&\\s]+)"), "$1=<redacted>")
             .replace('\n', ' ')
             .take(160)
 

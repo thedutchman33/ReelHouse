@@ -59,6 +59,12 @@ For local non-Docker development, run the matching sidecar on port 4416
 (`bgutil-pot server --host 127.0.0.1 --port 4416`), or point
 `PO_TOKEN_PROVIDER_URL` at a compatible loopback instance.
 
+The extractor wraps `YtConfigParserImpl` with Metrolist's embedded player-config
+fallback. If YouTube returns HTTP 302 for the watch-page config on a datacenter
+IP, extraction falls back to the embedded player config instead of aborting
+before the tokenized `WEB_REMIX` attempt. Startup logs show whether the sidecar
+started, whether `/ping` succeeded, and whether the provider was initialized.
+
 ## Docker
 
 ```bash
@@ -68,7 +74,9 @@ docker run --rm -p 8080:8080 --env-file .env reelhouse-music
 
 The repository root `render.yaml` contains the free-tier deployment template,
 and `MUSIC_SETUP.md` documents environment variables, the Supabase SQL order,
-the Spotify redirect URI, export download steps and known limitations.
+the Spotify redirect URI, export download steps and known limitations. Leave
+Render's **Docker Command** empty: it can override the image ENTRYPOINT and
+prevent `docker-entrypoint.sh` from starting the sidecar.
 
 ## Health
 

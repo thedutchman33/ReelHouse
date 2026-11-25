@@ -39,6 +39,16 @@ internal class BgutilTokenProvider(
         require(uri != null && uri.scheme == "http" && uri.host in LOOPBACK_HOSTS) {
             "PO_TOKEN_PROVIDER_URL must be a loopback http URL"
         }
+        logger.info(
+            "po_token_provider_initialized",
+            mapOf(
+                "provider" to "WEB_BOTGUARD",
+                "usesWebView" to false,
+                "host" to uri.host,
+                "port" to uri.port,
+                "timeoutMs" to timeoutMs,
+            ),
+        )
     }
 
     private val playerTokens = ConcurrentHashMap<String, CachedToken>()
@@ -83,7 +93,10 @@ internal class BgutilTokenProvider(
     }
 
     override suspend fun prewarm(cookie: String?) {
-        if (System.currentTimeMillis() < failureCooldownUntilMs) return
+        if (System.currentTimeMillis() < failureCooldownUntilMs) {
+            logger.info("po_token_provider_cooldown", mapOf("operation" to "prewarm"))
+            return
+        }
         runCatching {
             val response = http.get("$baseUrl/ping", timeoutMs = timeoutMs)
             if (response.status in 200..299) {
@@ -152,7 +165,10 @@ internal class BgutilTokenProvider(
 
     private suspend fun fetchToken(binding: String, kind: String): CachedToken? {
         val started = System.currentTimeMillis()
-        if (started < failureCooldownUntilMs) return null
+        if (started < failureCooldownUntilMs) {
+            logger.info("po_token_request_skipped", mapOf("kind" to kind, "reason" to "cooldown"))
+            return null
+        }
         return try {
             val response = http.postJson(
                 url = "$baseUrl/get_pot",

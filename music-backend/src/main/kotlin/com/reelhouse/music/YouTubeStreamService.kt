@@ -185,6 +185,7 @@ class YouTubeStreamService(
     private val configStore = RemotePlayerConfigStore(
         httpClient = httpClient,
         repository = PlayerConfigRepository.disabled(),
+        logger = AppInnerTubeLogger(logger),
     )
     private val cipherService = YouTubeCipherService(httpClient, configStore)
     private val extractor = InnerTubeExtractor(
@@ -192,11 +193,13 @@ class YouTubeStreamService(
             httpClient = httpClient,
             innerTube = innerTube,
             remotePlayerConfigStore = configStore,
+            logger = AppInnerTubeLogger(logger),
             cipherService = cipherService,
-        ),
+        ).withEmbeddedConfigFallback(logger),
         cipherService = cipherService,
         innerTube = innerTube,
         tokenProvider = tokenProvider,
+        logger = AppInnerTubeLogger(logger),
     )
 
     suspend fun stream(videoId: String): YouTubeStreamInfo {
@@ -214,6 +217,13 @@ class YouTubeStreamService(
             // sidecar is unavailable or the track is not available to web music.
             var info = extractorStream(videoId)
             if (info == null) {
+                logger.info(
+                    "stream_fallback_start",
+                    mapOf(
+                        "videoId" to videoId,
+                        "reason" to "extractor_unavailable",
+                    ),
+                )
                 info = directPlayerStream(videoId, failures, round = 1)
                 if (failures.isNotEmpty() && failures.all { it.isTransient() }) {
                     logger.info(
@@ -459,6 +469,15 @@ class YouTubeStreamService(
 
     private suspend fun extractorStream(videoId: String): YouTubeStreamInfo? {
         val started = System.currentTimeMillis()
+        logger.info(
+            "stream_extractor_attempt",
+            mapOf(
+                "videoId" to videoId,
+                "client" to "WEB_REMIX",
+                "tokenProvider" to tokenProvider.capabilities.providers.joinToString(","),
+                "usesWebView" to tokenProvider.capabilities.usesWebView,
+            ),
+        )
         return try {
             val extracted = extractor.extract(
                 videoId = videoId,
@@ -471,7 +490,18 @@ class YouTubeStreamService(
                     )
                     .copy(playbackClientOverrideId = "WEB_REMIX"),
                 audioQuality = AudioQuality.MP4,
-            ) ?: return null
+            )
+            if (extracted == null) {
+                logger.warn(
+                    "stream_extractor_no_result",
+                    mapOf(
+                        "videoId" to videoId,
+                        "client" to "WEB_REMIX",
+                        "elapsedMs" to (System.currentTimeMillis() - started),
+                    ),
+                )
+                return null
+            }
             if (!isAllowedStreamUrl(extracted.audioUrl)) {
                 logger.warn(
                     "stream_extractor_invalid_url",
@@ -515,9 +545,11 @@ class YouTubeStreamService(
                     "videoId" to videoId,
                     "type" to (error::class.simpleName ?: "Exception"),
                     "reason" to (error as? StreamResolveException)?.reason?.name,
+                    "httpStatus" to (httpStatusFrom(error) ?: httpStatusFrom(cause)),
                     "detail" to sanitize(error.message),
                     "causeType" to cause?.let { it::class.simpleName },
                     "causeDetail" to sanitize(cause?.message),
+                    "attempts" to diagnosticSummary(error),
                     "elapsedMs" to System.currentTimeMillis() - started,
                 ),
             )
@@ -549,7 +581,7 @@ class YouTubeStreamService(
 
     private fun sanitize(value: String?): String? =
         value
-            ?.replace(Regex("(?i)(key|token|sig|signature|expire|visitorData|poToken|authorization)=([^&\\s]+)"), "$1=<redacted>")
+            ?.replace(Regex("(?i)(pot|key|token|sig|signature|expire|visitorData|poToken|authorization)=([^&\\s]+)"), "$1=<redacted>")
             ?.replace('\r', ' ')
             ?.replace('\n', ' ')
             ?.trim()
@@ -565,12 +597,22 @@ class YouTubeStreamService(
             else -> "client_exception"
         }
 
-    private fun httpStatusFrom(error: Exception): Int? =
+    private fun httpStatusFrom(error: Throwable?): Int? =
         Regex("HTTP (\\d{3})")
-            .find(error.message.orEmpty())
+            .find(error?.message.orEmpty())
             ?.groupValues
             ?.getOrNull(1)
             ?.toIntOrNull()
+
+    private fun diagnosticSummary(error: Throwable): String? =
+        (error as? StreamResolveException)
+            ?.diagnostics
+            ?.attempts
+            ?.takeLast(6)
+            ?.joinToString(";") { attempt ->
+                "${attempt.clientName}/${attempt.profileId}=${attempt.outcome}"
+            }
+            ?.let(::sanitize)
 
     override fun close() {
         cache.clear()

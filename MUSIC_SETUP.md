@@ -121,14 +121,18 @@ Blueprint definition.
    - Environment: Docker
    - Dockerfile path: `music-backend/Dockerfile`
    - Docker context: `music-backend`
+   - Docker Command: **leave empty**
    - Health check path: `/v1/health`
    - Plan: Free
 3. Add every required environment variable above. Free instances sleep after
    inactivity, so the first request can be a cold start. The Docker image starts
    the pinned PO-token sidecar beside the JVM; leave `PO_TOKEN_PROVIDER_URL` at
-   its loopback default. The free plan has 512 MB total, so the JVM heap is
-   capped at 256 MB. Imports are streamed through a temporary file, not kept as
-   a permanent archive.
+   its loopback default. Leave Render's Docker Command empty so the image
+   ENTRYPOINT can start that sidecar. The free plan has 512 MB total, so the JVM
+   heap is capped at 256 MB. Imports are streamed through a temporary file, not
+   kept as a permanent archive. Startup logs should include
+   `po_token_sidecar_start`, `po_token_sidecar_ready`, and
+   `po_token_provider_initialized`.
 4. After deployment succeeds, verify:
    `curl https://<service>.onrender.com/v1/health`
 5. Put that URL in the frontend `MUSIC_BACKEND_URL` and redeploy the frontend.

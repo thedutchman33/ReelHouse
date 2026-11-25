@@ -8,6 +8,8 @@ services:
     dockerContext: ./music-backend
     healthCheckPath: /v1/health
     autoDeploy: false
+    # Do not set Docker Command in the Render dashboard. The image ENTRYPOINT
+    # must run /app/docker-entrypoint.sh so the PO-token sidecar is started.
     envVars:
       - key: PORT
         value: "8080"
