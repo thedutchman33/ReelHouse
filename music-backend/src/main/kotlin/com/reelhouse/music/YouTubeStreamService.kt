@@ -198,6 +198,10 @@ class YouTubeStreamService(
         ).withEmbeddedConfigFallback(logger),
         cipherService = cipherService,
         innerTube = innerTube,
+        // WEB_REMIX otherwise tries one untokenized request first and skips the
+        // PO-token provider when that response is not playable. Datacenter egress
+        // gets exactly that response, so force both token bindings up front.
+        fallbackStrategy = TokenFirstWebRemixStrategy(logger = logger),
         tokenProvider = tokenProvider,
         logger = AppInnerTubeLogger(logger),
     )
