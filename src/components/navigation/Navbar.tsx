@@ -10,7 +10,7 @@ import {
   BookmarkIcon,
   ClapperboardIcon,
   FilmIcon,
-  GamepadIcon,
+  GameShapesIcon,
   HomeIcon,
   SparklesIcon,
   ToriiIcon,
@@ -162,6 +162,11 @@ function isActive(link: NavLink, pathname: string): boolean {
   return pathname === link.href || pathname.startsWith(`${link.href}/`);
 }
 
+// Primary destination icons: a touch larger and heavier than the utility
+// icons on the right so the left group reads as the main navigation.
+const PRIMARY_ICON_SIZE = 23;
+const PRIMARY_ICON_STROKE = 2.5;
+
 function NavGlyph({ icon }: { icon: NavIcon }) {
   switch (icon) {
     case "f1":
@@ -171,7 +176,7 @@ function NavGlyph({ icon }: { icon: NavIcon }) {
           src="/f1/brand/f1-logo.svg"
           alt=""
           draggable={false}
-          className="h-auto w-[30px]"
+          className="h-auto w-[33px]"
         />
       );
     case "cricket":
@@ -181,21 +186,21 @@ function NavGlyph({ icon }: { icon: NavIcon }) {
           src="/cricket/brand/bcci-logo.svg"
           alt=""
           draggable={false}
-          className="h-[21px] w-[21px]"
+          className="h-[24px] w-[24px]"
         />
       );
     case "home":
-      return <HomeIcon size={20} />;
+      return <HomeIcon size={PRIMARY_ICON_SIZE} strokeWidth={PRIMARY_ICON_STROKE} />;
     case "movies":
-      return <FilmIcon size={20} />;
+      return <FilmIcon size={PRIMARY_ICON_SIZE} strokeWidth={PRIMARY_ICON_STROKE} />;
     case "series":
-      return <TvIcon size={20} />;
+      return <TvIcon size={PRIMARY_ICON_SIZE} strokeWidth={PRIMARY_ICON_STROKE} />;
     case "anime":
-      return <ToriiIcon size={20} />;
+      return <ToriiIcon size={PRIMARY_ICON_SIZE} strokeWidth={PRIMARY_ICON_STROKE} />;
     case "games":
-      return <GamepadIcon size={20} />;
+      return <GameShapesIcon size={PRIMARY_ICON_SIZE} strokeWidth={PRIMARY_ICON_STROKE} />;
     case "list":
-      return <BookmarkIcon size={20} />;
+      return <BookmarkIcon size={PRIMARY_ICON_SIZE} strokeWidth={PRIMARY_ICON_STROKE} />;
   }
 }
 
@@ -338,7 +343,7 @@ function DesktopNavLinks({
             ? "text-[#facc15] group-hover:text-[#fde047]"
             : open
               ? "text-white"
-              : "text-white/55 group-hover:text-white/90";
+              : "text-white/85 group-hover:text-white";
 
         return (
           <Link
@@ -352,7 +357,7 @@ function DesktopNavLinks({
             aria-label={isLive ? `${link.label} — live now` : link.label}
             aria-current={active ? "page" : undefined}
             className={`group relative z-[1] flex h-12 shrink-0 items-center rounded-lg px-2.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/60 ${
-              open ? "text-white" : "text-white/55 hover:text-white/90"
+              open ? "text-white" : "text-white/85 hover:text-white"
             }`}
             onFocus={() => setFocusedHref(link.href)}
             onPointerEnter={() => setHoveredHref(link.href)}
@@ -409,7 +414,7 @@ function NavLinks({
           ? "text-white"
           : link.tone
             ? TONE_TEXT[link.tone]
-            : "text-white/55 group-hover:text-white/80";
+            : "text-white/70 group-hover:text-white/90";
         return (
           <Link
             key={link.href}

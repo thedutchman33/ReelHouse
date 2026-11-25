@@ -171,10 +171,14 @@ export const ToriiIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const GamepadIcon = (p: IconProps) => (
+// The four action-button shapes (triangle, circle, cross, square) as one
+// glyph. Used as the Games destination mark, tinted yellow by the caller.
+export const GameShapesIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M7 8h10a5 5 0 0 1 4.7 6.7l-.5 1.4a3 3 0 0 1-5.2 1l-1.4-1.8H9.4L8 17.1a3 3 0 0 1-5.2-1l-.5-1.4A5 5 0 0 1 7 8Z" />
-    <path d="M7 11v4M5 13h4M16 12h.01M18 14h.01" />
+    <path d="M7 3.5 3.2 10.5h7.6Z" />
+    <circle cx="17.4" cy="7" r="3.3" />
+    <path d="m3.6 14.1 6.8 6.8M10.4 14.1l-6.8 6.8" />
+    <rect x="14.1" y="14.1" width="6.6" height="6.6" rx="1" />
   </Svg>
 );
 
