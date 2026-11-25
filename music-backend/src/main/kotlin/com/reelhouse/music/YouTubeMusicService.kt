@@ -34,6 +34,9 @@ class YouTubeMusicService(
 
     private val httpClient: HttpClient = HttpClient(OkHttp) {
         expectSuccess = false
+        engine {
+            addInterceptor(PlayerWireDiagnostics(logger))
+        }
         install(ContentNegotiation) { json(AppJson) }
         install(HttpTimeout) {
             requestTimeoutMillis = config.httpTimeoutMs
