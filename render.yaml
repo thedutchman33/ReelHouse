@@ -11,6 +11,10 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+      - key: PO_TOKEN_PROVIDER_URL
+        value: http://127.0.0.1:4416
+      - key: PO_TOKEN_PROVIDER_TIMEOUT_MS
+        value: "15000"
       - key: MUSIC_BACKEND_PUBLIC_URL
         sync: false
       - key: MUSIC_TOKEN_ENCRYPTION_KEY

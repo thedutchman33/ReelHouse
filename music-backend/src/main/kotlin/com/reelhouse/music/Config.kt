@@ -26,6 +26,8 @@ data class AppConfig(
     val maxJsonEntryBytes: Long,
     val maxImportEntries: Int,
     val httpTimeoutMs: Long,
+    val poTokenProviderUrl: String = "http://127.0.0.1:4416",
+    val poTokenProviderTimeoutMs: Long = 15_000L,
 ) {
     val supabaseConfigured: Boolean
         get() = !supabaseUrl.isNullOrBlank() &&
@@ -87,6 +89,8 @@ data class AppConfig(
                 maxJsonEntryBytes = envLong("MUSIC_MAX_JSON_ENTRY_BYTES", 48L * 1024 * 1024),
                 maxImportEntries = env("MUSIC_MAX_IMPORT_ENTRIES")?.toIntOrNull() ?: 20_000,
                 httpTimeoutMs = env("MUSIC_HTTP_TIMEOUT_MS")?.toLongOrNull() ?: 12_000L,
+                poTokenProviderUrl = env("PO_TOKEN_PROVIDER_URL") ?: "http://127.0.0.1:4416",
+                poTokenProviderTimeoutMs = envLong("PO_TOKEN_PROVIDER_TIMEOUT_MS", 15_000L),
             )
         }
 

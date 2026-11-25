@@ -256,7 +256,7 @@ class YouTubeMusicService(
     suspend fun stream(videoId: String): YouTubeStreamInfo =
         streamService.stream(videoId)
 
-    fun invalidateStream(videoId: String) {
+    suspend fun invalidateStream(videoId: String) {
         streamService.invalidate(videoId)
     }
 

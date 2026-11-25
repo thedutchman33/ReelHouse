@@ -59,6 +59,8 @@ Existing Reelhouse data is not deleted or rewritten.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `PORT` | no | HTTP port, default `8080`; Render supplies it. |
+| `PO_TOKEN_PROVIDER_URL` | no | Must be the loopback sidecar, default `http://127.0.0.1:4416`. Non-loopback values are rejected. |
+| `PO_TOKEN_PROVIDER_TIMEOUT_MS` | no | Sidecar request timeout, default `15000`. |
 | `MUSIC_BACKEND_PUBLIC_URL` | recommended | Public backend origin; used for deployment metadata. |
 | `SUPABASE_URL` | yes | Existing Supabase project URL. |
 | `SUPABASE_ANON_KEY` | yes | Used only to verify user access tokens. |
@@ -122,9 +124,11 @@ Blueprint definition.
    - Health check path: `/v1/health`
    - Plan: Free
 3. Add every required environment variable above. Free instances sleep after
-   inactivity, so the first request can be a cold start. The JVM is limited to
-   about 384 MB and imports are streamed through a temporary file, not kept as a
-   permanent archive.
+   inactivity, so the first request can be a cold start. The Docker image starts
+   the pinned PO-token sidecar beside the JVM; leave `PO_TOKEN_PROVIDER_URL` at
+   its loopback default. The free plan has 512 MB total, so the JVM heap is
+   capped at 256 MB. Imports are streamed through a temporary file, not kept as
+   a permanent archive.
 4. After deployment succeeds, verify:
    `curl https://<service>.onrender.com/v1/health`
 5. Put that URL in the frontend `MUSIC_BACKEND_URL` and redeploy the frontend.

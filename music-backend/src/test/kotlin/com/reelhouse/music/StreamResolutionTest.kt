@@ -1,6 +1,7 @@
 package com.reelhouse.music
 
 import com.metrolist.innertubex.InnerTube
+import com.metrolist.innertubex.extraction.TokenProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -60,7 +61,20 @@ class StreamResolutionTest {
             install(ContentNegotiation) { json(AppJson) }
         }
         val tube = InnerTube(httpClient = http)
-        val service = YouTubeStreamService(AppConfig.fromEnvironment(), http, tube, AppLogger())
+        val noTokenProvider = object : TokenProvider {
+            override suspend fun getPoToken(
+                videoId: String,
+                visitorData: String,
+                cookie: String?,
+            ) = null
+        }
+        val service = YouTubeStreamService(
+            AppConfig.fromEnvironment(),
+            http,
+            tube,
+            AppLogger(),
+            tokenProvider = noTokenProvider,
+        )
         try {
             val info = service.stream("NJAv_7lHUIU")
             assertEquals("audio/mp4", info.mimeType)

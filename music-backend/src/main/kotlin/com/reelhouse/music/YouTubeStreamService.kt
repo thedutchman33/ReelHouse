@@ -8,6 +8,7 @@ import com.metrolist.innertubex.extraction.AudioQuality
 import com.metrolist.innertubex.extraction.ContentHints
 import com.metrolist.innertubex.extraction.InnerTubeExtractor
 import com.metrolist.innertubex.extraction.StreamResolveException
+import com.metrolist.innertubex.extraction.TokenProvider
 import com.metrolist.innertubex.extraction.YtConfigParserImpl
 import com.metrolist.innertubex.models.YouTubeClient
 import io.ktor.client.HttpClient
@@ -144,6 +145,11 @@ class YouTubeStreamService(
     private val httpClient: HttpClient,
     private val innerTube: InnerTube,
     private val logger: AppLogger,
+    private val tokenProvider: TokenProvider = BgutilTokenProvider(
+        providerUrl = config.poTokenProviderUrl,
+        timeoutMs = config.poTokenProviderTimeoutMs,
+        logger = logger,
+    ),
 ) : AutoCloseable {
     private data class CachedStream(
         val info: YouTubeStreamInfo,
@@ -190,6 +196,7 @@ class YouTubeStreamService(
         ),
         cipherService = cipherService,
         innerTube = innerTube,
+        tokenProvider = tokenProvider,
     )
 
     suspend fun stream(videoId: String): YouTubeStreamInfo {
@@ -202,20 +209,25 @@ class YouTubeStreamService(
             cachedStream(videoId)?.let { return@withLock it }
             val started = System.currentTimeMillis()
             val failures = mutableListOf<PlayerAttempt.Failure>()
-            var info = directPlayerStream(videoId, failures, round = 1)
-            if (info == null && failures.isNotEmpty() && failures.all { it.isTransient() }) {
-                logger.info(
-                    "stream_transient_retry",
-                    mapOf(
-                        "videoId" to videoId,
-                        "attempts" to summarize(failures),
-                    ),
-                )
-                delay(250)
-                failures.clear()
-                info = directPlayerStream(videoId, failures, round = 2)
+            // The authenticated WEB_REMIX extractor is the primary path. The
+            // independent tokenless clients remain as a fallback when the
+            // sidecar is unavailable or the track is not available to web music.
+            var info = extractorStream(videoId)
+            if (info == null) {
+                info = directPlayerStream(videoId, failures, round = 1)
+                if (failures.isNotEmpty() && failures.all { it.isTransient() }) {
+                    logger.info(
+                        "stream_transient_retry",
+                        mapOf(
+                            "videoId" to videoId,
+                            "attempts" to summarize(failures),
+                        ),
+                    )
+                    delay(250)
+                    failures.clear()
+                    info = directPlayerStream(videoId, failures, round = 2)
+                }
             }
-            if (info == null) info = extractorStream(videoId)
             val elapsedMs = System.currentTimeMillis() - started
             if (info == null) {
                 logger.warn(
@@ -254,8 +266,9 @@ class YouTubeStreamService(
         }
     }
 
-    fun invalidate(videoId: String) {
+    suspend fun invalidate(videoId: String) {
         cache.remove(videoId)
+        tokenProvider.invalidateAttestation()
     }
 
     private fun cachedStream(videoId: String): YouTubeStreamInfo? {
@@ -455,8 +468,9 @@ class YouTubeStreamService(
                         allowSabr = false,
                         allowBoundedRange = true,
                         allowProgressive = false,
-                    ),
-                audioQuality = AudioQuality.HIGH,
+                    )
+                    .copy(playbackClientOverrideId = "WEB_REMIX"),
+                audioQuality = AudioQuality.MP4,
             ) ?: return null
             if (!isAllowedStreamUrl(extracted.audioUrl)) {
                 logger.warn(
@@ -472,6 +486,17 @@ class YouTubeStreamService(
             val expiresAt = extracted.expiresAt?.let { instant ->
                 runCatching { Instant.parse(instant.toString()).toString() }.getOrNull()
             }
+            logger.info(
+                "stream_extractor_resolved",
+                mapOf(
+                    "videoId" to videoId,
+                    "client" to extracted.clientName,
+                    "profile" to extracted.profileId,
+                    "itag" to extracted.itag,
+                    "mime" to extracted.mimeType,
+                    "elapsedMs" to (System.currentTimeMillis() - started),
+                ),
+            )
             YouTubeStreamInfo(
                 url = extracted.audioUrl,
                 mimeType = extracted.mimeType,
