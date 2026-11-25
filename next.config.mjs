@@ -99,8 +99,6 @@ const nextConfig = {
     // a provider is added.
     const frameSources = [
       "'self'",
-      // Official Spotify playlist embed used by the link-only import flow.
-      "https://open.spotify.com",
       // Catalog providers.
       "https://embed.vidrift.net",
       "https://rozgarlelo.modiplay.xyz",

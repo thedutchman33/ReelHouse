@@ -1,6 +1,0 @@
-.gradle/
-.kotlin/
-build/
-.env
-.env.local
-*.log

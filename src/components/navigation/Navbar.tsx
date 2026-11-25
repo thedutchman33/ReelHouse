@@ -17,7 +17,6 @@ import {
   TvIcon,
 } from "@/components/library/icons";
 import { SearchIcon } from "@/components/player/icons";
-import { MusicBrandMark } from "@/components/music/icons";
 import SearchOverlay from "@/components/search/SearchOverlay";
 import F1SectionNav from "@/components/f1/F1SectionNav";
 import CricketSectionNav from "@/components/cricket/CricketSectionNav";
@@ -46,7 +45,6 @@ type NavIcon =
   | "movies"
   | "series"
   | "anime"
-  | "music"
   | "f1"
   | "cricket"
   | "games"
@@ -56,8 +54,8 @@ interface NavLink {
   href: string;
   label: string;
   icon: NavIcon;
-  /** Section colour: F1 red, cricket blue, games yellow, music green. */
-  tone?: "f1" | "cricket" | "games" | "music";
+  /** Section colour: F1 red, cricket blue, games yellow. */
+  tone?: "f1" | "cricket" | "games";
   /** Which live window stamps a blinking LIVE above this label. */
   live?: "f1" | "cricket";
   /** Detail routes belong to their section, so /movie/603 lights up "Movies". */
@@ -90,13 +88,6 @@ const LINKS: NavLink[] = [
     label: "Anime",
     icon: "anime",
     match: (p) => p === "/anime" || p.startsWith("/anime/"),
-  },
-  {
-    href: "/music",
-    label: "Music",
-    icon: "music",
-    tone: "music",
-    match: (p) => p === "/music" || p.startsWith("/music/"),
   },
   // Formula 1 is the one route that must not be prefetched. Its page CSS
   // declares the whole Formula 1 family (Regular/Italic/Bold/Black), and
@@ -137,7 +128,6 @@ const TONE_TEXT: Record<NonNullable<NavLink["tone"]>, string> = {
   f1: "text-[#f87171] hover:text-[#fca5a5]",
   cricket: "text-[#60a5fa] hover:text-[#93c5fd]",
   games: "text-[#facc15] hover:text-[#fde047]",
-  music: "text-[#1ed760] hover:text-[#3be477]",
 };
 
 // Six icon controls share the phone bar with the logo now. They step down to
@@ -174,8 +164,6 @@ function isActive(link: NavLink, pathname: string): boolean {
 
 function NavGlyph({ icon }: { icon: NavIcon }) {
   switch (icon) {
-    case "music":
-      return <MusicBrandMark size={22} />;
     case "f1":
       return (
         // eslint-disable-next-line @next/next/no-img-element
@@ -346,13 +334,11 @@ function DesktopNavLinks({
         const open = revealedHref === link.href;
         const isLive = link.live ? live[link.live] : false;
         const iconColour =
-          link.icon === "music"
-            ? "text-[#1ed760] group-hover:text-[#3be477]"
-            : link.icon === "games"
-              ? "text-[#facc15] group-hover:text-[#fde047]"
-              : open
-                ? "text-white"
-                : "text-white/55 group-hover:text-white/90";
+          link.icon === "games"
+            ? "text-[#facc15] group-hover:text-[#fde047]"
+            : open
+              ? "text-white"
+              : "text-white/55 group-hover:text-white/90";
 
         return (
           <Link
@@ -414,13 +400,11 @@ function NavLinks({
         const active = isActive(link, pathname);
         const isLive = link.live ? live[link.live] : false;
         const iconColour =
-          link.icon === "music"
-            ? "text-[#1ed760] group-hover:text-[#3be477]"
-            : link.icon === "games"
-              ? "text-[#facc15] group-hover:text-[#fde047]"
-              : active
-                ? "text-white"
-                : "text-white/85 group-hover:text-white";
+          link.icon === "games"
+            ? "text-[#facc15] group-hover:text-[#fde047]"
+            : active
+              ? "text-white"
+              : "text-white/85 group-hover:text-white";
         const labelColour = active
           ? "text-white"
           : link.tone
