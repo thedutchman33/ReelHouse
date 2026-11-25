@@ -33,6 +33,14 @@ const FILTERS: { id: SearchFilter; label: string }[] = [
   { id: "playlists", label: "Playlists" },
 ];
 
+function searchKey(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
 export default function SearchView({
   initialQuery,
   categories,
@@ -150,10 +158,26 @@ export default function SearchView({
   );
   const top = useMemo(() => {
     if (!data) return null;
-    if (data.artists[0]) return { kind: "artist" as const, artist: data.artists[0] };
-    if (data.tracks[0]) return { kind: "track" as const, track: data.tracks[0] };
+    const clean = searchKey(query);
+    const firstArtist = data.artists[0];
+    const firstTrack = data.tracks[0];
+    const artistName = firstArtist ? searchKey(firstArtist.name) : "";
+    const trackTitle = firstTrack ? searchKey(firstTrack.title) : "";
+    const artistMatches =
+      clean.length >= 2 &&
+      (artistName === clean || artistName.startsWith(`${clean} `) || artistName.includes(clean));
+    const trackMatches =
+      clean.length >= 2 &&
+      (trackTitle === clean || trackTitle.startsWith(`${clean} `) || trackTitle.includes(clean));
+    // Song/album searches should not lose the top slot to an obscure artist
+    // whose name merely happens to equal the query. Artist searches still do.
+    if (firstTrack && (trackMatches || !artistMatches)) {
+      return { kind: "track" as const, track: firstTrack };
+    }
+    if (firstArtist) return { kind: "artist" as const, artist: firstArtist };
+    if (firstTrack) return { kind: "track" as const, track: firstTrack };
     return null;
-  }, [data]);
+  }, [data, query]);
 
   if (query.trim().length < 2) {
     return (

@@ -13,6 +13,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -106,41 +107,75 @@ class YouTubeStreamService(
     }
 
     private suspend fun directPlayerStream(videoId: String): YouTubeStreamInfo? {
-        val response = innerTube.player(YouTubeClient.ANDROID_VR_NO_AUTH, videoId)
-        if (response.status.value !in 200..299) return null
-        val root = AppJson.parseToJsonElement(response.bodyAsText()).asObjectOrNull() ?: return null
-        val playability = root["playabilityStatus"]?.asObjectOrNull()
-        if (playability?.get("status")?.asStringOrNull() != "OK") return null
-        val formats = root["streamingData"]?.asObjectOrNull()
-            ?.get("adaptiveFormats")
-            ?.asArrayOrNull()
-            ?: return null
-        val candidates = formats.mapNotNull { element ->
-            val format = element.asObjectOrNull() ?: return@mapNotNull null
-            val mime = format["mimeType"].asStringOrNull() ?: return@mapNotNull null
-            if (!mime.startsWith("audio/", ignoreCase = true)) return@mapNotNull null
-            val url = format["url"].asStringOrNull() ?: return@mapNotNull null
-            if (!url.startsWith("https://", ignoreCase = true)) return@mapNotNull null
-            val host = runCatching { URI.create(url).host }.getOrNull() ?: return@mapNotNull null
-            if (!host.endsWith(".googlevideo.com", ignoreCase = true) &&
-                !host.equals("googlevideo.com", ignoreCase = true)
-            ) {
-                return@mapNotNull null
-            }
-            val bitrate = format["bitrate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-            val itag = format["itag"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-            Candidate(
-                url = url,
-                mimeType = mime.substringBefore(';'),
-                bitrate = bitrate.takeIf { it > 0 },
-                itag = itag,
-                expiresAt = expirySeconds(url),
-            )
+        // Android VR usually exposes adaptive audio-only formats. Label-backed
+        // music videos frequently reject that client and only expose a direct
+        // progressive MP4 to the authenticated-free iOS producer client. Keep
+        // both paths; never fall through to a format the player did not mark OK.
+        playerStream(videoId, YouTubeClient.ANDROID_VR_NO_AUTH, allowProgressive = false)?.let {
+            return it
         }
-        val selected = candidates
-            .sortedWith(compareByDescending<Candidate> { it.mimeType == "audio/mp4" }.thenByDescending { it.bitrate ?: 0 })
+        return playerStream(videoId, YouTubeClient.IOS_PRODUCER, allowProgressive = true)
+    }
+
+    private suspend fun playerStream(
+        videoId: String,
+        client: YouTubeClient,
+        allowProgressive: Boolean,
+    ): YouTubeStreamInfo? {
+        val response = innerTube.player(client, videoId)
+        if (response.status.value !in 200..299) {
+            logger.warn(
+                "stream_player_http",
+                mapOf("videoId" to videoId, "client" to client.toString(), "status" to response.status.value),
+            )
+            return null
+        }
+        val root = runCatching { AppJson.parseToJsonElement(response.bodyAsText()).asObjectOrNull() }
+            .getOrNull() ?: return null
+        val playability = root["playabilityStatus"]?.asObjectOrNull()
+        val playabilityStatus = playability?.get("status")?.asStringOrNull()
+        if (playabilityStatus != "OK") {
+            logger.warn(
+                "stream_player_unplayable",
+                mapOf(
+                    "videoId" to videoId,
+                    "client" to client.toString(),
+                    "status" to playabilityStatus,
+                    "reason" to playability?.get("reason")?.asStringOrNull()?.take(120),
+                ),
+            )
+            return null
+        }
+        val streamingData = root["streamingData"]?.asObjectOrNull() ?: return null
+        if (streamingData["licenseInfos"].asArrayOrNull()?.isNotEmpty() == true) return null
+        val formats = buildList {
+            addAll(
+                streamingData["adaptiveFormats"].asArrayOrNull()
+                    .orEmpty()
+                    .mapNotNull { candidate(it, allowVideoContainer = false) },
+            )
+            if (allowProgressive) {
+                addAll(
+                    streamingData["formats"].asArrayOrNull()
+                        .orEmpty()
+                        .mapNotNull { candidate(it, allowVideoContainer = true) },
+                )
+            }
+        }
+        val selected = formats
+            .sortedWith(
+                compareByDescending<Candidate> { it.audioOnly }
+                    .thenByDescending { it.mimeType == "audio/mp4" }
+                    .thenByDescending { it.bitrate ?: 0 },
+            )
             .firstOrNull()
-            ?: return null
+        if (selected == null) {
+            logger.warn(
+                "stream_player_no_formats",
+                mapOf("videoId" to videoId, "client" to client.toString()),
+            )
+            return null
+        }
         return YouTubeStreamInfo(
             url = selected.url,
             mimeType = selected.mimeType,
@@ -148,9 +183,40 @@ class YouTubeStreamService(
             expiresAt = selected.expiresAt,
             itag = selected.itag,
             requestHeaders = mapOf(
-                "User-Agent" to YouTubeClient.ANDROID_VR_NO_AUTH.userAgent,
+                "User-Agent" to client.userAgent,
                 "Accept" to "*/*",
             ),
+        )
+    }
+
+    private fun candidate(element: JsonElement, allowVideoContainer: Boolean): Candidate? {
+        val format = element.asObjectOrNull() ?: return null
+        val fullMime = format["mimeType"].asStringOrNull() ?: return null
+        val audioOnly = fullMime.startsWith("audio/", ignoreCase = true)
+        val muxedAudio = allowVideoContainer &&
+            fullMime.startsWith("video/mp4", ignoreCase = true) &&
+            (
+                format["audioQuality"].asStringOrNull() != null ||
+                    fullMime.contains("mp4a", ignoreCase = true)
+                )
+        if (!audioOnly && !muxedAudio) return null
+        val url = format["url"].asStringOrNull() ?: return null
+        if (!url.startsWith("https://", ignoreCase = true)) return null
+        val host = runCatching { URI.create(url).host }.getOrNull() ?: return null
+        if (!host.endsWith(".googlevideo.com", ignoreCase = true) &&
+            !host.equals("googlevideo.com", ignoreCase = true)
+        ) {
+            return null
+        }
+        val bitrate = format["bitrate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+        val itag = format["itag"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+        return Candidate(
+            url = url,
+            mimeType = fullMime.substringBefore(';'),
+            bitrate = bitrate.takeIf { it > 0 },
+            itag = itag,
+            expiresAt = expirySeconds(url),
+            audioOnly = audioOnly,
         )
     }
 
@@ -203,6 +269,7 @@ class YouTubeStreamService(
         val bitrate: Int?,
         val itag: Int,
         val expiresAt: String?,
+        val audioOnly: Boolean,
     )
 
     override fun close() {

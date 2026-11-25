@@ -29,6 +29,12 @@ class DirectPlayerProbeTest {
             }
         }
         val tube = InnerTube(httpClient = http)
+        val videoIds = (System.getenv("MUSIC_PROBE_VIDEO_IDS") ?: System.getenv("MUSIC_PROBE_VIDEO_ID"))
+            ?.split(',')
+            ?.map(String::trim)
+            ?.filter(String::isNotBlank)
+            ?.takeIf(List<String>::isNotEmpty)
+            ?: listOf("dQw4w9WgXcQ")
         val clients = listOf(
             "ANDROID_VR_NO_AUTH" to YouTubeClient.ANDROID_VR_NO_AUTH,
             "IOS_PRODUCER" to YouTubeClient.IOS_PRODUCER,
@@ -37,24 +43,28 @@ class DirectPlayerProbeTest {
             "WEB_REMIX" to YouTubeClient.WEB_REMIX,
         )
         try {
-            for ((name, client) in clients) {
-                try {
-                    val response = tube.player(client, "dQw4w9WgXcQ")
-                    val text = response.bodyAsText()
-                    val root = runCatching { AppJson.parseToJsonElement(text).jsonObject }.getOrNull()
-                    val status = root?.get("playabilityStatus")?.jsonObject?.get("status")?.jsonPrimitive?.content
-                    val reason = root?.get("playabilityStatus")?.jsonObject?.get("reason")?.jsonPrimitive?.content
-                    val streaming = root?.get("streamingData")?.jsonObject
-                    val adaptive = streaming?.get("adaptiveFormats")?.let { runCatching { it.jsonArray }.getOrNull() }.orEmpty()
-                    val direct = adaptive.count { format ->
-                        format.jsonObject["url"]?.jsonPrimitive?.content?.startsWith("https://") == true
+            for (videoId in videoIds) {
+                for ((name, client) in clients) {
+                    try {
+                        val response = tube.player(client, videoId)
+                        val text = response.bodyAsText()
+                        val root = runCatching { AppJson.parseToJsonElement(text).jsonObject }.getOrNull()
+                        val status = root?.get("playabilityStatus")?.jsonObject?.get("status")?.jsonPrimitive?.content
+                        val reason = root?.get("playabilityStatus")?.jsonObject?.get("reason")?.jsonPrimitive?.content
+                        val streaming = root?.get("streamingData")?.jsonObject
+                        val adaptive = streaming?.get("adaptiveFormats")?.let { runCatching { it.jsonArray }.getOrNull() }.orEmpty()
+                        val progressive = streaming?.get("formats")?.let { runCatching { it.jsonArray }.getOrNull() }.orEmpty()
+                        val direct = (adaptive + progressive).count { format ->
+                            format.jsonObject["url"]?.jsonPrimitive?.content?.startsWith("https://") == true
+                        }
+                        val keys = streaming?.keys?.joinToString(",")
+                        val mimes = adaptive.mapNotNull {
+                            it.jsonObject["mimeType"]?.jsonPrimitive?.content?.substringBefore(";")
+                        }.distinct().take(4)
+                        println("CLIENT $name video=$videoId status=$status reason=$reason adaptive=${adaptive.size} progressive=${progressive.size} direct=$direct mimes=$mimes keys=$keys hls=${streaming?.get("hlsManifestUrl") != null} sabr=${streaming?.get("serverAbrStreamingUrl") != null}")
+                    } catch (error: Exception) {
+                        println("CLIENT $name video=$videoId ERROR ${error::class.simpleName} ${error.message?.take(200)}")
                     }
-                    val mimes = adaptive.mapNotNull {
-                        it.jsonObject["mimeType"]?.jsonPrimitive?.content?.substringBefore(";")
-                    }.distinct().take(4)
-                    println("CLIENT $name status=$status reason=$reason adaptive=${adaptive.size} direct=$direct mimes=$mimes hls=${streaming?.get("hlsManifestUrl") != null} sabr=${streaming?.get("serverAbrStreamingUrl") != null}")
-                } catch (error: Exception) {
-                    println("CLIENT $name ERROR ${error::class.simpleName} ${error.message?.take(200)}")
                 }
             }
         } finally {

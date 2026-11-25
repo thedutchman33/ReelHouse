@@ -366,6 +366,102 @@ class YouTubeMusicService(
         httpClient.close()
     }
 
+    private data class MixedSearch(
+        val tracks: List<ParsedTrack>,
+        val artists: List<ParsedArtist>,
+        val albums: List<ParsedCollection>,
+        val playlists: List<ParsedCollection>,
+    )
+
+    private suspend fun searchSuggestions(query: String): List<String> =
+        runCatching {
+            val response = providerGate.withPermit {
+                withContext(Dispatchers.IO) {
+                    innerTube.getSearchSuggestions(
+                        client = YouTubeClient.WEB_REMIX,
+                        input = query,
+                        setLogin = false,
+                    )
+                }
+            }
+            if (response.status.value !in 200..299) return@runCatching emptyList()
+            YouTubeMusicParser.parseSearchSuggestions(AppJson.parseToJsonElement(response.bodyAsText()))
+        }.getOrElse { error ->
+            logger.warn(
+                "search_suggestions_failed",
+                mapOf("type" to (error::class.simpleName ?: "Exception")),
+            )
+            emptyList()
+        }
+
+    private suspend fun mixedSearch(query: String, limit: Int = 30): MixedSearch? =
+        runCatching {
+            val root = AppJson.parseToJsonElement(searchRequest(query, filter = null, continuation = null))
+            MixedSearch(
+                tracks = YouTubeMusicParser.parseSongSearch(root).take(limit),
+                artists = YouTubeMusicParser.parseArtistSearch(root).take(limit),
+                albums = YouTubeMusicParser.parseCollectionSearch(root, "album").take(limit),
+                playlists = YouTubeMusicParser.parseCollectionSearch(root, "playlist").take(limit),
+            )
+        }.getOrElse { error ->
+            logger.warn(
+                "search_mixed_failed",
+                mapOf("type" to (error::class.simpleName ?: "Exception")),
+            )
+            null
+        }
+
+    private fun expansionQuery(query: String, suggestions: List<String>): String? {
+        val normalizedQuery = TextMatch.normalize(query)
+        if (normalizedQuery.isBlank()) return null
+        val queryTokens = normalizedQuery.split(' ').filter(String::isNotBlank).toSet()
+        val firstQueryToken = queryTokens.firstOrNull()
+        for (suggestion in suggestions) {
+            val normalizedSuggestion = TextMatch.normalize(suggestion)
+            if (normalizedSuggestion.isBlank() || normalizedSuggestion == normalizedQuery) continue
+            val suggestionTokens = normalizedSuggestion.split(' ').filter(String::isNotBlank).toSet()
+            val extraTokens = suggestionTokens - queryTokens
+            if (extraTokens.isEmpty()) continue
+            if (extraTokens.all { it in GENERIC_QUERY_TOKENS }) continue
+            val addsMeaningfulWords = queryTokens.all { it in suggestionTokens }
+            val correctsSpelling = editDistance(normalizedQuery, normalizedSuggestion, 2) <= 2 ||
+                (firstQueryToken != null &&
+                    editDistance(firstQueryToken, suggestionTokens.firstOrNull().orEmpty(), 2) <= 2)
+            if (addsMeaningfulWords || correctsSpelling) return suggestion.take(100)
+        }
+        return null
+    }
+
+    private fun editDistance(left: String, right: String, limit: Int): Int {
+        if (left == right) return 0
+        if (kotlin.math.abs(left.length - right.length) > limit) return limit + 1
+        var previous = IntArray(right.length + 1) { it }
+        var current = IntArray(right.length + 1)
+        for (i in 1..left.length) {
+            current[0] = i
+            var rowMinimum = current[0]
+            for (j in 1..right.length) {
+                val substitution = previous[j - 1] + if (left[i - 1] == right[j - 1]) 0 else 1
+                current[j] = minOf(current[j - 1] + 1, previous[j] + 1, substitution)
+                rowMinimum = minOf(rowMinimum, current[j])
+            }
+            if (rowMinimum > limit) return limit + 1
+            val swap = previous
+            previous = current
+            current = swap
+        }
+        return previous[right.length]
+    }
+
+    private fun <T> mergeExpanded(primary: List<T>, expanded: List<T>, id: (T) -> String): List<T> {
+        val seen = HashSet<String>()
+        val merged = ArrayList<T>(expanded.size + primary.size)
+        for (item in expanded + primary) {
+            if (seen.add(id(item))) merged += item
+        }
+        return merged
+    }
+
     private inner class SearchSession(private val query: String) {
         private val songs = PagedCategory { token ->
             searchFiltered(query, SONG_FILTER, token, YouTubeMusicParser::parseSongSearch)
@@ -379,6 +475,65 @@ class YouTubeMusicService(
         private val playlists = PagedCategory { token ->
             searchFiltered(query, PLAYLIST_FILTER, token, { YouTubeMusicParser.parseCollectionSearch(it, "playlist") }, 20)
         }
+        private var expansionResolved = false
+        private var expansion: String? = null
+        private var expansionResults: List<ParsedTrack>? = null
+        private var fallbackResults: MixedSearch? = null
+
+        private fun shouldExpand(primary: List<ParsedTrack>): Boolean {
+            if (primary.isEmpty()) return true
+            val normalizedQuery = TextMatch.normalize(query)
+            if (normalizedQuery.isBlank()) return false
+            // A one-word query that YouTube resolves to a shelf of tracks all
+            // named exactly that word is ambiguous (for example "Taare"). A
+            // query whose first results are already a clear song or artist is
+            // left in YouTube's own relevance order.
+            if (normalizedQuery.split(' ').count { it.isNotBlank() } > 1) return false
+            return primary.take(5).count { track ->
+                TextMatch.normalize(track.title) == normalizedQuery
+            } >= 3
+        }
+
+        private suspend fun resolveExpansion(primary: List<ParsedTrack>): String? {
+            if (!expansionResolved) {
+                expansionResolved = true
+                val suggestions = if (shouldExpand(primary)) searchSuggestions(query) else emptyList()
+                expansion = expansionQuery(query, suggestions)
+                logger.info(
+                    "search_expansion",
+                    mapOf(
+                        "suggestionCount" to suggestions.size,
+                        "expanded" to (expansion != null),
+                    ),
+                )
+            }
+            return expansion
+        }
+
+        private suspend fun expandedTracks(expandedQuery: String): List<ParsedTrack> {
+            expansionResults?.let { return it }
+            val tracks = runCatching {
+                searchFiltered(
+                    query = expandedQuery,
+                    filter = SONG_FILTER,
+                    continuation = null,
+                    parser = YouTubeMusicParser::parseSongSearch,
+                    limit = 12,
+                ).items
+            }.getOrElse { error ->
+                logger.warn(
+                    "search_expanded_failed",
+                    mapOf("type" to (error::class.simpleName ?: "Exception")),
+                )
+                emptyList()
+            }
+            return tracks.also { expansionResults = it }
+        }
+
+        private suspend fun fallbackSearch(): MixedSearch? {
+            fallbackResults?.let { return it }
+            return mixedSearch(query).also { fallbackResults = it }
+        }
 
         suspend fun page(offset: Int, limit: Int): MusicSearchResultsDto {
             val needed = offset + limit
@@ -386,12 +541,33 @@ class YouTubeMusicService(
             val artistsPage = artists.ensure(needed)
             val albumsPage = albums.ensure(needed)
             val playlistsPage = playlists.ensure(needed)
+            val expandedQuery = resolveExpansion(songsPage.first)
+            val expandedTracks = if (expandedQuery == null) {
+                emptyList()
+            } else {
+                expandedTracks(expandedQuery)
+            }
+
+            var allTracks = mergeExpanded(songsPage.first, expandedTracks, ParsedTrack::videoId)
+            var allArtists = artistsPage.first
+            var allAlbums = albumsPage.first
+            var allPlaylists = playlistsPage.first
+
+            if (allTracks.isEmpty() && allArtists.isEmpty() && allAlbums.isEmpty() && allPlaylists.isEmpty()) {
+                fallbackSearch()?.let { fallback ->
+                    allTracks = fallback.tracks
+                    allArtists = fallback.artists
+                    allAlbums = fallback.albums
+                    allPlaylists = fallback.playlists
+                }
+            }
+
             val hasMore = songsPage.second || artistsPage.second || albumsPage.second || playlistsPage.second
             return MusicSearchResultsDto(
-                tracks = songsPage.first.drop(offset).take(limit).map(::toDynamicTrack),
-                artists = artistsPage.first.drop(offset).take(limit).map(YouTubeMusicParser::toArtistDto),
-                albums = albumsPage.first.drop(offset).take(limit).map(YouTubeMusicParser::toCollectionDto),
-                playlists = playlistsPage.first.drop(offset).take(limit).map(YouTubeMusicParser::toCollectionDto),
+                tracks = allTracks.drop(offset).take(limit).map(::toDynamicTrack),
+                artists = allArtists.drop(offset).take(limit).map(YouTubeMusicParser::toArtistDto),
+                albums = allAlbums.drop(offset).take(limit).map(YouTubeMusicParser::toCollectionDto),
+                playlists = allPlaylists.drop(offset).take(limit).map(YouTubeMusicParser::toCollectionDto),
                 pagination = SearchPaginationDto(
                     offset = offset,
                     limit = limit,
@@ -441,6 +617,14 @@ class YouTubeMusicService(
         val ARTIST_ID = Regex("^UC[A-Za-z0-9_-]{10,50}$")
         val ALBUM_ID = Regex("^MPRE[A-Za-z0-9_-]{5,50}$")
         val PLAYLIST_ID = Regex("^(?:VL|RD|PL|OLAK5uy_)[A-Za-z0-9_-]{5,90}$")
+
+        val GENERIC_QUERY_TOKENS = setOf(
+            "song", "songs", "music", "video", "videos", "lyric", "lyrics", "audio",
+            "official", "full", "hd", "status", "whatsapp", "shorts", "short", "remix",
+            "new", "latest", "best", "top", "hit", "hits", "popular", "playlist",
+            "album", "artist", "artists", "live", "cover", "mashup", "movie",
+            "film", "scene", "reaction", "reactions", "shorts", "teaser", "trailer",
+        )
 
         const val SONG_FILTER = "EgWKAQIIAWoSEAUQAxAKEAQQCRAQEA4QFRAR"
         const val ARTIST_FILTER = "EgWKAQIgAWoSEAUQAxAKEAQQCRAQEA4QFRAR"

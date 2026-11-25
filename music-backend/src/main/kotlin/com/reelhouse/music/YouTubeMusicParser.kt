@@ -53,6 +53,14 @@ object YouTubeMusicParser {
     fun parseCollectionSearch(root: JsonElement, kindHint: String? = null): List<ParsedCollection> =
         rows(root).mapNotNull { parseCollectionRow(it, kindHint) }
 
+    fun parseSearchSuggestions(root: JsonElement): List<String> =
+        root.collectObjects("searchSuggestionRenderer")
+            .mapNotNull { renderer -> textRuns(renderer["suggestion"]) }
+            .map { suggestion -> suggestion.replace(Regex("\\s+"), " ").trim() }
+            .filter { suggestion -> suggestion.length in 2..100 }
+            .distinctBy(String::lowercase)
+            .take(8)
+
     fun parseArtistDetail(root: JsonElement, artistId: String): MusicArtistDetailDto {
         val header = root.firstObject("musicImmersiveHeaderRenderer")
             ?: root.firstObject("musicVisualHeaderRenderer")
@@ -231,17 +239,25 @@ object YouTubeMusicParser {
                 ?.mapNotNull { it.asObjectOrNull() }
                 .orEmpty()
         }.orEmpty()
-        val artistRun = allRuns.firstOrNull { pageType(it) == "MUSIC_PAGE_TYPE_ARTIST" }
-            ?: allRuns.drop(1).firstOrNull {
-                val text = it["text"].asStringOrNull()
-                text != null && text != " • " && !CLOCK.matches(text) && !text.contains("play", true)
-            }
+        val artistRuns = allRuns.filter { pageType(it) == "MUSIC_PAGE_TYPE_ARTIST" }
+        val fallbackArtistRun = allRuns.drop(1).firstOrNull {
+            val text = it["text"].asStringOrNull()
+            text != null && text != " • " && !CLOCK.matches(text) && !text.contains("play", true)
+        }
         val albumRun = allRuns.firstOrNull { pageType(it) == "MUSIC_PAGE_TYPE_ALBUM" }
-        val artistName = artistRun?.get("text").asStringOrNull()
-            ?.takeIf(String::isNotBlank)
+        val artistName = artistRuns
+            .mapNotNull { run -> run["text"].asStringOrNull() }
+            .filter(String::isNotBlank)
+            .distinct()
+            .joinToString(", ")
+            .takeIf(String::isNotBlank)
+            ?: fallbackArtistRun?.get("text").asStringOrNull()
             ?: fallbackArtist
             ?: "Unknown artist"
-        val artistBrowse = artistRun?.obj("navigationEndpoint", "browseEndpoint")?.get("browseId").asStringOrNull()
+        val artistBrowse = artistRuns.firstOrNull()
+            ?.obj("navigationEndpoint", "browseEndpoint")
+            ?.get("browseId")
+            .asStringOrNull()
         val albumBrowse = albumRun?.obj("navigationEndpoint", "browseEndpoint")?.get("browseId").asStringOrNull()
         val albumTitle = albumRun?.get("text").asStringOrNull()
             ?.takeIf(String::isNotBlank)

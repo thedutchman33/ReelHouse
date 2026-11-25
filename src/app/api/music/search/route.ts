@@ -10,8 +10,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ tracks: [], artists: [], albums: [], playlists: [] });
   }
 
-  const limitRaw = Number(params.get("limit"));
-  const offsetRaw = Number(params.get("offset") ?? params.get("jamendoOffset"));
+  const limitParam = params.get("limit");
+  const offsetParam = params.get("offset") ?? params.get("jamendoOffset");
+  const limitRaw = limitParam === null ? Number.NaN : Number(limitParam);
+  const offsetRaw = offsetParam === null ? 0 : Number(offsetParam);
   const limit = Number.isFinite(limitRaw)
     ? Math.max(1, Math.min(30, Math.trunc(limitRaw)))
     : 10;

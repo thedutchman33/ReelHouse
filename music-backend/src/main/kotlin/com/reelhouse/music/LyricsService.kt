@@ -37,11 +37,20 @@ class LyricsService(
         cache[key]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let { return it.value }
 
         var result = fetchLrclib(cleanTitle, cleanArtist, cleanAlbum, cleanDuration)
-        if (!hasLyrics(result)) {
-            result = fetchBetterLyrics(cleanTitle, cleanArtist, cleanAlbum, cleanDuration)
+        // Keep the provider order, but let a later provider win when it can
+        // supply synchronized lines and the earlier one only returned plain
+        // lyrics. An instrumental result is already complete.
+        if (!hasTimedLyrics(result) && !result.instrumental) {
+            val better = fetchBetterLyrics(cleanTitle, cleanArtist, cleanAlbum, cleanDuration)
+            if (hasTimedLyrics(better) || (!hasLyrics(result) && hasLyrics(better))) {
+                result = better
+            }
         }
-        if (!hasLyrics(result)) {
-            result = fetchLyricsPlus(cleanTitle, cleanArtist, cleanAlbum, cleanDuration)
+        if (!hasTimedLyrics(result) && !result.instrumental) {
+            val lyricsPlus = fetchLyricsPlus(cleanTitle, cleanArtist, cleanAlbum, cleanDuration)
+            if (hasTimedLyrics(lyricsPlus) || (!hasLyrics(result) && hasLyrics(lyricsPlus))) {
+                result = lyricsPlus
+            }
         }
 
         val value = if (hasLyrics(result)) result else result.copy(
@@ -56,7 +65,10 @@ class LyricsService(
     }
 
     private fun hasLyrics(value: LyricsDto): Boolean =
-        value.lines.isNotEmpty() || !value.plain.isNullOrBlank() || value.instrumental
+        value.instrumental || hasUsableLyrics(value.lines, value.plain)
+
+    private fun hasTimedLyrics(value: LyricsDto): Boolean =
+        hasUsableLyrics(value.lines, value.plain) && value.lines.any { it.time > 0.0 }
 
     private suspend fun fetchLrclib(
         title: String,
@@ -81,7 +93,11 @@ class LyricsService(
         }
         val exactResponse = runCatching { http.get(exact, headers, 8_000) }.getOrNull()
         if (exactResponse?.status == 200) {
-            record(exactResponse.body)?.let { return lyricsFromRecord(it) }
+            record(exactResponse.body)
+                ?.takeIf {
+                    LyricsMatch.matches(title, artist, duration, it.trackName, it.artistName, it.duration)
+                }
+                ?.let { return lyricsFromRecord(it) }
         }
         val search = "$base/search?artist_name=${enc(artist)}&track_name=${enc(title)}" +
             (album?.let { "&album_name=${enc(it)}" } ?: "")
@@ -91,12 +107,19 @@ class LyricsService(
             ?: return empty("LRCLIB")
         val candidates = array.mapNotNull { record(it.toString()) }
             .filter { it.syncedLyrics != null || it.plainLyrics != null }
+            // Search results can include karaoke, covers and unrelated songs
+            // with the same title. Require the returned title, artist and
+            // duration to agree with the requested track before accepting it.
+            .filter {
+                LyricsMatch.matches(title, artist, duration, it.trackName, it.artistName, it.duration)
+            }
             .sortedWith(
                 compareByDescending<LrcRecord> { it.syncedLyrics != null }
+                    .thenByDescending { LyricsMatch.titleSimilarity(title, it.trackName) }
                     .thenBy { record ->
                         if (duration != null && record.duration != null) {
                             kotlin.math.abs(record.duration - duration)
-                        } else Int.MAX_VALUE
+                        } else Double.MAX_VALUE
                     },
             )
         return candidates.firstOrNull()?.let(::lyricsFromRecord) ?: empty("LRCLIB")
@@ -106,7 +129,10 @@ class LyricsService(
         val instrumental: Boolean,
         val plainLyrics: String?,
         val syncedLyrics: String?,
-        val duration: Int?,
+        val duration: Double?,
+        val trackName: String?,
+        val artistName: String?,
+        val albumName: String?,
     )
 
     private fun record(raw: String): LrcRecord? {
@@ -119,7 +145,10 @@ class LyricsService(
             instrumental = obj["instrumental"]?.jsonPrimitive?.content == "true",
             plainLyrics = plain,
             syncedLyrics = synced,
-            duration = obj["duration"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt(),
+            duration = obj["duration"]?.jsonPrimitive?.content?.toDoubleOrNull(),
+            trackName = obj["trackName"]?.asStringOrNull(),
+            artistName = obj["artistName"]?.asStringOrNull(),
+            albumName = obj["albumName"]?.asStringOrNull(),
         )
     }
 
@@ -322,4 +351,68 @@ class LyricsService(
             cache.keys.firstOrNull()?.let(cache::remove)
         }
     }
+}
+
+/**
+ * Validates a provider candidate against the requested track. Title-only
+ * matches are not enough: LRCLIB also indexes karaoke, covers and unrelated
+ * songs that share a title, so the artist and duration must agree too.
+ */
+internal object LyricsMatch {
+    private val genericArtistTokens = setOf(
+        "the", "and", "music", "official", "topic", "vevo", "records", "recordings",
+        "artist", "artists", "various", "unknown", "from", "with", "feat", "ft",
+    )
+
+    fun titleSimilarity(query: String, candidate: String?): Double =
+        TextMatch.similarity(query, candidate.orEmpty())
+
+    private val alternateVersion = Regex("\\b(karaoke|cover|tribute|backing track)\\b", RegexOption.IGNORE_CASE)
+
+    fun matches(
+        queryTitle: String,
+        queryArtist: String,
+        queryDuration: Int?,
+        candidateTitle: String?,
+        candidateArtist: String?,
+        candidateDuration: Double?,
+    ): Boolean {
+        if (candidateTitle.isNullOrBlank() || candidateArtist.isNullOrBlank()) return false
+        if (titleSimilarity(queryTitle, candidateTitle) < 0.72) return false
+        if (alternateVersion.containsMatchIn(candidateTitle) &&
+            !alternateVersion.containsMatchIn(queryTitle)
+        ) {
+            return false
+        }
+        if (artistSimilarity(queryArtist, candidateArtist) < 0.5) return false
+        if (queryDuration != null && candidateDuration != null) {
+            if (kotlin.math.abs(candidateDuration - queryDuration) > 25.0) return false
+        }
+        return true
+    }
+
+    fun artistSimilarity(query: String, candidate: String): Double {
+        val left = TextMatch.normalize(query)
+        val right = TextMatch.normalize(candidate)
+        if (left.isBlank() || right.isBlank()) return 0.0
+        if (left == right || left.contains(right) || right.contains(left)) return 1.0
+        val leftTokens = TextMatch.tokens(left) - genericArtistTokens
+        val rightTokens = TextMatch.tokens(right) - genericArtistTokens
+        if (leftTokens.intersect(rightTokens).isNotEmpty()) return 0.75
+        return TextMatch.similarity(query, candidate)
+    }
+}
+
+private val PLACEHOLDER_LYRIC = Regex(
+    "(?i)^(?:test|sample|placeholder)\\s+(?:line|lyrics?)(?:\\s+\\d+)?[.!]?$",
+)
+
+internal fun hasUsableLyrics(lines: List<LyricLineDto>, plain: String?): Boolean {
+    val values = buildList {
+        addAll(lines.map { it.text })
+        if (!plain.isNullOrBlank()) addAll(plain.lines())
+    }
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+    return values.isNotEmpty() && !values.all { PLACEHOLDER_LYRIC.matches(it) }
 }

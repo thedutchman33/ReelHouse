@@ -319,6 +319,7 @@ class MusicRoutes(
         val videoId = request.query("videoId").orEmpty()
         if (!VIDEO_ID.matches(videoId)) throw ApiException(400, "invalid_video_id", "Invalid video id")
         val range = request.header("range")?.takeIf { RANGE.matches(it) }
+        val ifRange = request.header("if-range")?.takeIf { it.length <= 256 }
         if (headOnly) {
             val info = youtube.stream(videoId)
             return HttpResponse(
@@ -327,13 +328,13 @@ class MusicRoutes(
                 contentType = info.mimeType ?: "application/octet-stream",
                 headers = buildMap {
                     put("Accept-Ranges", "bytes")
-                    put("Cache-Control", "private, max-age=3600")
+                    put("Cache-Control", "private, no-store")
                 },
             )
         }
         var info = youtube.stream(videoId)
         var upstream = runCatching {
-            openUpstream(info, range)
+            openUpstream(info, range, ifRange)
         }.getOrElse {
             throw ApiException(502, "stream_unavailable", "The audio stream is temporarily unavailable")
         }
@@ -341,9 +342,21 @@ class MusicRoutes(
             upstream.close()
             youtube.invalidateStream(videoId)
             info = youtube.stream(videoId)
-            upstream = runCatching { openUpstream(info, range) }.getOrElse {
+            upstream = runCatching { openUpstream(info, range, ifRange) }.getOrElse {
                 throw ApiException(502, "stream_unavailable", "The audio stream is temporarily unavailable")
             }
+        }
+        if (upstream.status == 416) {
+            upstream.close()
+            return HttpResponse(
+                status = 416,
+                contentType = "text/plain; charset=utf-8",
+                headers = buildMap {
+                    put("Accept-Ranges", "bytes")
+                    put("Cache-Control", "private, no-store")
+                    upstream.header("Content-Range")?.let { put("Content-Range", it) }
+                },
+            )
         }
         if (upstream.status !in 200..299) {
             val status = upstream.status
@@ -354,7 +367,7 @@ class MusicRoutes(
         val contentLength = upstream.header("Content-Length")?.toLongOrNull() ?: 0L
         val headers = buildMap {
             put("Accept-Ranges", "bytes")
-            put("Cache-Control", "private, max-age=3600")
+            put("Cache-Control", "private, no-store")
             upstream.header("Content-Range")?.let { put("Content-Range", it) }
             upstream.header("Content-Encoding")?.takeIf { it != "identity" }?.let { put("Content-Encoding", it) }
         }
@@ -368,10 +381,15 @@ class MusicRoutes(
         )
     }
 
-    private suspend fun openUpstream(info: YouTubeStreamInfo, range: String?): StreamHttpResponse {
+    private suspend fun openUpstream(
+        info: YouTubeStreamInfo,
+        range: String?,
+        ifRange: String?,
+    ): StreamHttpResponse {
         val headers = buildMap {
             putAll(info.requestHeaders)
             if (range != null) put("Range", range)
+            if (range != null && ifRange != null) put("If-Range", ifRange)
         }
         return http.openGet(info.url, headers, 30_000)
     }

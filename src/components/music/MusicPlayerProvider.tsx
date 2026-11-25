@@ -120,6 +120,10 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
   const volumeRef = useRef(volume);
   const mutedRef = useRef(muted);
   const skipTimerRef = useRef<number | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
+  const retryAttemptsRef = useRef(0);
+  const retryTrackIdRef = useRef<string | null>(null);
+  const retryProgressStartRef = useRef(0);
 
   queueRef.current = queue;
   indexRef.current = currentIndex;
@@ -144,6 +148,13 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
         window.clearTimeout(skipTimerRef.current);
         skipTimerRef.current = null;
       }
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      retryAttemptsRef.current = 0;
+      retryTrackIdRef.current = track.id;
+      retryProgressStartRef.current = 0;
       setCurrentTrack(track);
       setCurrentTime(0);
       setDuration(track.duration || 0);
@@ -211,14 +222,21 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
     const audio = audioRef.current;
     if (!audio || !currentTrackRef.current) return;
     if (audio.paused) {
+      // Once a source has errored, calling play() again without reloading it
+      // only reproduces the same error. Re-resolve the current track instead.
+      if (audio.error) {
+        startTrack(currentTrackRef.current, true);
+        return;
+      }
       setPlayError(null);
       if (audio.ended) audio.currentTime = 0;
       const started = audio.play();
       if (started) {
         started
           .then(() => setIsPlaying(true))
-          .catch(() => {
+          .catch((cause: unknown) => {
             setIsPlaying(false);
+            if (cause instanceof DOMException && cause.name === "AbortError") return;
             setPlayError("This track could not be played.");
           });
       }
@@ -227,7 +245,7 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
       audio.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [startTrack]);
 
   const goNext = useCallback(
     (fromEnd = false) => {
@@ -386,7 +404,21 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onTime = () => setCurrentTime(audio.currentTime || 0);
+    const onTime = () => {
+      setCurrentTime(audio.currentTime || 0);
+      // A retry budget is earned back only after the replacement stream has
+      // played healthily for 30 seconds, so a hard failure cannot loop.
+      if (
+        retryAttemptsRef.current > 0 &&
+        retryTrackIdRef.current === currentTrackRef.current?.id
+      ) {
+        if (retryProgressStartRef.current === 0) {
+          retryProgressStartRef.current = audio.currentTime;
+        } else if (audio.currentTime - retryProgressStartRef.current >= 30) {
+          retryAttemptsRef.current = 0;
+        }
+      }
+    };
     const onMetadata = () => {
       if (Number.isFinite(audio.duration)) setDuration(audio.duration);
       setIsLoading(false);
@@ -394,14 +426,67 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
     const onCanPlay = () => setIsLoading(false);
     const onWaiting = () => setIsLoading(true);
     const onPlaying = () => {
+      retryProgressStartRef.current = audio.currentTime;
+      setPlayError(null);
       setIsPlaying(true);
       setIsLoading(false);
     };
     const onPause = () => setIsPlaying(false);
     const onError = () => {
+      const errorCode = audio.error?.code;
+      const track = currentTrackRef.current;
+      const retryableSourceError =
+        (errorCode === MediaError.MEDIA_ERR_NETWORK ||
+          errorCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) &&
+        track !== null &&
+        retryTrackIdRef.current === track.id;
+
+      // Mirror a bounded playback-recovery budget. Chrome reports a failed
+      // proxy request as SRC_NOT_SUPPORTED as well as a network error, so both
+      // get two fresh same-origin attempts before the queue advances.
+      if (retryableSourceError && retryAttemptsRef.current < 2) {
+        retryAttemptsRef.current += 1;
+        const attempt = retryAttemptsRef.current;
+        setPlayError(null);
+        setIsLoading(true);
+        setIsPlaying(true);
+        if (retryTimerRef.current !== null) {
+          window.clearTimeout(retryTimerRef.current);
+        }
+        retryTimerRef.current = window.setTimeout(() => {
+          retryTimerRef.current = null;
+          const currentAudio = audioRef.current;
+          const current = currentTrackRef.current;
+          if (!currentAudio || !current || current.id !== track.id) return;
+          const source = streamUrlForTrack(current);
+          if (!source) {
+            setIsPlaying(false);
+            setIsLoading(false);
+            setPlayError("This track does not have a playable stream.");
+            return;
+          }
+          retryProgressStartRef.current = 0;
+          currentAudio.src = `${source}&retry=${attempt}`;
+          currentAudio.load();
+          const started = currentAudio.play();
+          if (started) {
+            started.catch(() => {
+              setIsPlaying(false);
+              setIsLoading(false);
+            });
+          }
+        }, 700 * attempt);
+        return;
+      }
+
       setIsPlaying(false);
       setIsLoading(false);
-      setPlayError("This track could not be played. Try another track.");
+      const unsupported = errorCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+      setPlayError(
+        unsupported
+          ? "This track is unavailable on YouTube Music. Try another track."
+          : "This track could not be played. Try another track."
+      );
 
       // A broken provider stream should not leave playback stranded on a track
       // that can never load. Skip only when a real next track exists; if this
@@ -457,6 +542,9 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
     return () => {
       if (skipTimerRef.current !== null) {
         window.clearTimeout(skipTimerRef.current);
+      }
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
       }
     };
   }, []);

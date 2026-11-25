@@ -20,11 +20,25 @@ export async function GET(request: Request) {
       headers: {
         Accept: "*/*",
         ...(request.headers.get("range")
-          ? { Range: request.headers.get("range") as string }
+          ? {
+              Range: request.headers.get("range") as string,
+              ...(request.headers.get("if-range")
+                ? { "If-Range": request.headers.get("if-range") as string }
+                : {}),
+            }
           : {}),
       },
       cache: "no-store",
     });
+
+    if (upstream.status === 416) {
+      const headers = new Headers();
+      const contentRange = upstream.headers.get("content-range");
+      if (contentRange) headers.set("Content-Range", contentRange);
+      headers.set("Accept-Ranges", "bytes");
+      headers.set("Cache-Control", "private, no-store");
+      return new Response(null, { status: 416, headers });
+    }
 
     if (!upstream.ok || !upstream.body) {
       return Response.json(
@@ -44,7 +58,9 @@ export async function GET(request: Request) {
       const value = upstream.headers.get(name);
       if (value) headers.set(name, value);
     }
-    headers.set("Cache-Control", "private, max-age=3600");
+    // The upstream URL is short-lived and the response is a partial body.
+    // Caching it for an hour can replay stale/truncated ranges after expiry.
+    headers.set("Cache-Control", "private, no-store");
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     console.error(

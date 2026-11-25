@@ -42,14 +42,20 @@ class StreamProbeTest {
                 cipherService = cipher,
             )
             val extractor = InnerTubeExtractor(parser, cipher, tube)
-            for (videoId in listOf("dQw4w9WgXcQ", "T7t38uDUg5E", "FapBH3j6WoA")) {
+            val videoIds = System.getenv("MUSIC_PROBE_VIDEO_IDS")
+                ?.split(',')
+                ?.map(String::trim)
+                ?.filter(String::isNotBlank)
+                ?.takeIf(List<String>::isNotEmpty)
+                ?: listOf("dQw4w9WgXcQ", "T7t38uDUg5E", "FapBH3j6WoA")
+            for (videoId in videoIds) {
                 try {
                     val hints = ContentHints(wantVideo = false)
                         .withStreamCapabilities(
                             allowHls = false,
                             allowSabr = false,
                             allowBoundedRange = true,
-                            allowProgressive = false,
+                            allowProgressive = true,
                         )
                     val stream = extractor.extract(videoId, hints, audioQuality = AudioQuality.HIGH)
                     println("STREAM_OK $videoId mime=${stream?.mimeType} itag=${stream?.itag} bytes=${stream?.contentLengthBytes}")

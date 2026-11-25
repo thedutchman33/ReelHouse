@@ -21,7 +21,14 @@ class CoreUnitTest {
         val encrypted = TokenCrypto.encrypt("refresh-token-value", key)
         assertNotEquals("refresh-token-value", encrypted)
         assertEquals("refresh-token-value", TokenCrypto.decrypt(encrypted, key))
-        val tampered = encrypted.dropLast(1) + if (encrypted.last() == 'A') 'B' else 'A'
+        // Tamper in the middle: changing the final Base64 character can alter
+        // only padding bits and decode to the same ciphertext.
+        val middle = encrypted.length / 2
+        val tampered = encrypted.replaceRange(
+            middle,
+            middle + 1,
+            if (encrypted[middle] == 'A') "B" else "A",
+        )
         assertFalse(runCatching { TokenCrypto.decrypt(tampered, key) }.isSuccess)
     }
 
@@ -44,10 +51,112 @@ class CoreUnitTest {
     }
 
     @Test
+    fun lyricsCandidatesMustMatchTitleArtistAndDuration() {
+        assertTrue(
+            LyricsMatch.matches(
+                queryTitle = "Kesariya",
+                queryArtist = "Arijit Singh",
+                queryDuration = 268,
+                candidateTitle = "Kesariya (From \"Brahmastra\")",
+                candidateArtist = "Arijit Singh, Pritam",
+                candidateDuration = 268.0,
+            ),
+        )
+        assertTrue(
+            LyricsMatch.matches(
+                queryTitle = "Taare Zameen Par",
+                queryArtist = "Shankar Mahadevan, Dominique, Vivieanne Pocha",
+                queryDuration = 428,
+                candidateTitle = "Taare Zameen Par",
+                candidateArtist = "Shankar Mahadevan",
+                candidateDuration = 428.0,
+            ),
+        )
+        assertFalse(
+            LyricsMatch.matches(
+                queryTitle = "Kesariya",
+                queryArtist = "Arijit Singh",
+                queryDuration = 268,
+                candidateTitle = "Kesariya",
+                candidateArtist = "Shreya Ghoshal",
+                candidateDuration = 268.0,
+            ),
+        )
+        assertFalse(
+            LyricsMatch.matches(
+                queryTitle = "Kesariya",
+                queryArtist = "Arijit Singh",
+                queryDuration = 268,
+                candidateTitle = "Kesariya (Karaoke Version)",
+                candidateArtist = "Arijit Singh",
+                candidateDuration = null,
+            ),
+        )
+    }
+
+    @Test
+    fun placeholderLyricsAreRejected() {
+        assertFalse(
+            hasUsableLyrics(
+                listOf(LyricLineDto(0.0, "Test lyric 1"), LyricLineDto(1.0, "Sample line")),
+                null,
+            ),
+        )
+        assertTrue(
+            hasUsableLyrics(
+                listOf(LyricLineDto(0.0, "Kesariya tera ishq hai piya")),
+                null,
+            ),
+        )
+    }
+
+    @Test
     fun trackPaymentAndMetadataJsonAreNotAcceptedAsLyrics() {
         val dto = LyricsDto(lines = emptyList(), plain = null, source = "none")
         assertFalse(dto.lines.isNotEmpty())
         assertNull(dto.plain)
+    }
+
+    @Test
+    fun searchSuggestionsAndCollaboratingArtistsAreParsed() {
+        val suggestions = AppJson.parseToJsonElement(
+            """
+                {"contents":[{"searchSuggestionsSectionRenderer":{"contents":[
+                  {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"taare zameen par"}]}}},
+                  {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"taare ginn"}]}}}
+                ]}}]}
+            """.trimIndent(),
+        )
+        assertEquals(
+            listOf("taare zameen par", "taare ginn"),
+            YouTubeMusicParser.parseSearchSuggestions(suggestions),
+        )
+
+        val row = AppJson.parseToJsonElement(
+            """
+                {"musicResponsiveListItemRenderer":{
+                  "flexColumns":[
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                      {"text":"Tum Hi Ho","navigationEndpoint":{"watchEndpoint":{"videoId":"fsiPzT50ZiM"}}}
+                    ]}}},
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                      {"text":"Arijit Singh","navigationEndpoint":{"browseEndpoint":{
+                        "browseId":"UCX4g5pMVYlYN9K6D8n6HmGg",
+                        "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}
+                      }}},
+                      {"text":" • "},
+                      {"text":"Shreya Ghoshal","navigationEndpoint":{"browseEndpoint":{
+                        "browseId":"UC7A8pKYx_iXnQflaH908j3A",
+                        "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}
+                      }}}
+                    ]}}}
+                  ]
+                }}
+            """.trimIndent(),
+        )
+        val track = YouTubeMusicParser.parseSongSearch(row).single()
+        assertEquals("Arijit Singh, Shreya Ghoshal", track.artistName)
+        assertEquals("youtube:artist:UCX4g5pMVYlYN9K6D8n6HmGg", YouTubeMusicParser.toTrackDto(track).artistId)
     }
 
     @Test
